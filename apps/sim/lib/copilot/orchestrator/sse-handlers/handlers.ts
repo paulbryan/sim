@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
-import { RESPOND_TOOL_SET, SUBAGENT_TOOL_SET } from '@/lib/copilot/orchestrator/config'
 import {
   asRecord,
   getEventData,
@@ -31,11 +30,18 @@ const logger = createLogger('CopilotSseHandlers')
  * Extract the `ui` object from a Go SSE event. The Go backend enriches
  * tool_call events with `ui: { requiresConfirmation, clientExecutable, ... }`.
  */
-function getEventUI(event: SSEEvent): { requiresConfirmation: boolean; clientExecutable: boolean } {
+function getEventUI(event: SSEEvent): {
+  requiresConfirmation: boolean
+  clientExecutable: boolean
+  internal: boolean
+  hidden: boolean
+} {
   const raw = asRecord((event as unknown as Record<string, unknown>).ui)
   return {
     requiresConfirmation: raw.requiresConfirmation === true,
     clientExecutable: raw.clientExecutable === true,
+    internal: raw.internal === true,
+    hidden: raw.hidden === true,
   }
 }
 
@@ -224,24 +230,11 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const toolCall = context.toolCalls.get(toolCallId)
     if (!toolCall) return
 
-    if (SUBAGENT_TOOL_SET.has(toolName)) {
+    const { requiresConfirmation, clientExecutable, internal } = getEventUI(event)
+
+    if (internal) {
       return
     }
-
-    if (RESPOND_TOOL_SET.has(toolName)) {
-      toolCall.status = 'success'
-      toolCall.endTime = Date.now()
-      toolCall.result = {
-        success: true,
-        output: 'Internal respond tool - handled by copilot backend',
-      }
-      return
-    }
-
-    // Go backend decides whether a tool needs confirmation via `ui.requiresConfirmation`.
-    // If the flag is set, wait for client approval before executing.
-    // If `ui.clientExecutable` is set, the client runs the tool and reports back.
-    const { requiresConfirmation, clientExecutable } = getEventUI(event)
 
     if (requiresConfirmation) {
       const decision = await waitForToolDecision(
@@ -450,22 +443,15 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
 
     if (isPartial) return
 
-    // Respond tools are internal to copilot's subagent system - skip execution.
-    if (RESPOND_TOOL_SET.has(toolName)) {
-      toolCall.status = 'success'
-      toolCall.endTime = Date.now()
-      toolCall.result = {
-        success: true,
-        output: 'Internal respond tool - handled by copilot backend',
-      }
+    const { requiresConfirmation, clientExecutable, internal } = getEventUI(event)
+
+    if (internal) {
       return
     }
 
     if (!isToolAvailableOnSimSide(toolName)) {
       return
     }
-
-    const { requiresConfirmation, clientExecutable } = getEventUI(event)
 
     if (requiresConfirmation) {
       const decision = await waitForToolDecision(
