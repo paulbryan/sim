@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Command } from 'cmdk'
-import { Database, HelpCircle, Layout, Settings } from 'lucide-react'
+import { Database, HelpCircle, Layout, Settings, Table } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Library } from '@/components/emcn'
@@ -119,14 +119,13 @@ export function SearchModal({
           href: `/workspace/${workspaceId}/knowledge`,
           hidden: permissionConfig.hideKnowledgeBaseTab,
         },
-        // TODO: Uncomment when working on tables
-        // {
-        //   id: 'tables',
-        //   name: 'Tables',
-        //   icon: Table,
-        //   href: `/workspace/${workspaceId}/tables`,
-        //   hidden: permissionConfig.hideTablesTab,
-        // },
+        {
+          id: 'tables',
+          name: 'Tables',
+          icon: Table,
+          href: `/workspace/${workspaceId}/tables`,
+          hidden: permissionConfig.hideTablesTab,
+        },
         {
           id: 'help',
           name: 'Help',

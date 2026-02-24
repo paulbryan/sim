@@ -340,6 +340,7 @@ const SERVER_TOOLS = new Set<string>([
   'set_environment_variables',
   'make_api_request',
   'knowledge_base',
+  'user_table',
 ])
 
 const SIM_WORKFLOW_TOOL_HANDLERS: Record<
@@ -497,7 +498,10 @@ async function executeServerToolDirect(
       enrichedParams.workflowId = context.workflowId
     }
 
-    const result = await routeExecution(toolName, enrichedParams, { userId: context.userId })
+    const result = await routeExecution(toolName, enrichedParams, {
+      userId: context.userId,
+      workspaceId: context.workspaceId,
+    })
     return { success: true, output: result }
   } catch (error) {
     logger.error('Server tool execution failed', {

@@ -15,6 +15,7 @@ import {
   workflowMcpTool,
   workspaceEnvironment,
   workflowExecutionLogs,
+  userTableDefinitions,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, desc, eq, isNull } from 'drizzle-orm'
@@ -37,6 +38,7 @@ import {
   serializeIntegrationSchema,
   serializeKBMeta,
   serializeRecentExecutions,
+  serializeTableMeta,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
 import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
@@ -151,6 +153,7 @@ function getStaticComponentFiles(): Map<string, string> {
  *   workflows/{name}/deployment.json
  *   knowledgebases/{name}/meta.json
  *   knowledgebases/{name}/documents.json
+ *   tables/{name}/meta.json
  *   custom-tools/{name}.json
  *   environment/credentials.json
  *   environment/api-keys.json
@@ -172,6 +175,7 @@ export class WorkspaceVFS {
     await Promise.all([
       this.materializeWorkflows(workspaceId, userId),
       this.materializeKnowledgeBases(workspaceId),
+      this.materializeTables(workspaceId),
       this.materializeEnvironment(workspaceId, userId),
       this.materializeCustomTools(workspaceId),
     ])
@@ -361,6 +365,49 @@ export class WorkspaceVFS {
         }
       })
     )
+  }
+
+  /**
+   * Materialize all user tables in the workspace (metadata only, no row data).
+   */
+  private async materializeTables(workspaceId: string): Promise<void> {
+    try {
+      const tableRows = await db
+        .select({
+          id: userTableDefinitions.id,
+          name: userTableDefinitions.name,
+          description: userTableDefinitions.description,
+          schema: userTableDefinitions.schema,
+          rowCount: userTableDefinitions.rowCount,
+          maxRows: userTableDefinitions.maxRows,
+          createdAt: userTableDefinitions.createdAt,
+          updatedAt: userTableDefinitions.updatedAt,
+        })
+        .from(userTableDefinitions)
+        .where(eq(userTableDefinitions.workspaceId, workspaceId))
+
+      for (const table of tableRows) {
+        const safeName = sanitizeName(table.name)
+        this.files.set(
+          `tables/${safeName}/meta.json`,
+          serializeTableMeta({
+            id: table.id,
+            name: table.name,
+            description: table.description,
+            schema: table.schema,
+            rowCount: table.rowCount,
+            maxRows: table.maxRows,
+            createdAt: table.createdAt,
+            updatedAt: table.updatedAt,
+          })
+        )
+      }
+    } catch (err) {
+      logger.warn('Failed to materialize tables', {
+        workspaceId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
   }
 
   /**

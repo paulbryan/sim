@@ -127,6 +127,35 @@ export function serializeDocuments(
 }
 
 /**
+ * Serialize table metadata for VFS tables/{name}/meta.json
+ */
+export function serializeTableMeta(table: {
+  id: string
+  name: string
+  description?: string | null
+  schema: unknown
+  rowCount: number
+  maxRows: number
+  createdAt: Date
+  updatedAt: Date
+}): string {
+  return JSON.stringify(
+    {
+      id: table.id,
+      name: table.name,
+      description: table.description || undefined,
+      schema: table.schema,
+      rowCount: table.rowCount,
+      maxRows: table.maxRows,
+      createdAt: table.createdAt.toISOString(),
+      updatedAt: table.updatedAt.toISOString(),
+    },
+    null,
+    2
+  )
+}
+
+/**
  * Returns the static model list from PROVIDER_DEFINITIONS for VFS serialization.
  * Excludes dynamic providers (ollama, vllm, openrouter) whose models are user-configured.
  * Includes provider ID and whether the model is hosted by Sim (no API key required).

@@ -74,6 +74,48 @@ export const KnowledgeBaseResultSchema = z.object({
 })
 export type KnowledgeBaseResult = z.infer<typeof KnowledgeBaseResultSchema>
 
+// user_table - shared schema used by server tool and registry
+export const UserTableArgsSchema = z.object({
+  operation: z.enum([
+    'create',
+    'list',
+    'get',
+    'get_schema',
+    'delete',
+    'insert_row',
+    'batch_insert_rows',
+    'get_row',
+    'query_rows',
+    'update_row',
+    'delete_row',
+    'update_rows_by_filter',
+    'delete_rows_by_filter',
+  ]),
+  args: z
+    .object({
+      name: z.string().optional(),
+      description: z.string().optional(),
+      schema: z.any().optional(),
+      tableId: z.string().optional(),
+      rowId: z.string().optional(),
+      data: z.record(z.any()).optional(),
+      rows: z.array(z.record(z.any())).optional(),
+      filter: z.any().optional(),
+      sort: z.record(z.enum(['asc', 'desc'])).optional(),
+      limit: z.number().optional(),
+      offset: z.number().optional(),
+    })
+    .optional(),
+})
+export type UserTableArgs = z.infer<typeof UserTableArgsSchema>
+
+export const UserTableResultSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  data: z.any().optional(),
+})
+export type UserTableResult = z.infer<typeof UserTableResultSchema>
+
 export const GetBlockOutputsInput = z.object({
   blockIds: z.array(z.string()).optional(),
 })

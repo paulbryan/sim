@@ -4,6 +4,7 @@ import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/g
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
+import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
 import { makeApiRequestServerTool } from '@/lib/copilot/tools/server/other/make-api-request'
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
@@ -29,6 +30,7 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [getCredentialsServerTool.name]: getCredentialsServerTool,
   [makeApiRequestServerTool.name]: makeApiRequestServerTool,
   [knowledgeBaseServerTool.name]: knowledgeBaseServerTool,
+  [userTableServerTool.name]: userTableServerTool,
 }
 
 /**

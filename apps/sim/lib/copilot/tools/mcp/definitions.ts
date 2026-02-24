@@ -625,6 +625,21 @@ Supports full and partial execution:
     annotations: { destructiveHint: false },
   },
   {
+    name: 'sim_table',
+    agentId: 'table',
+    description:
+      'Manage user-defined tables for structured data storage. Supports creating tables with typed schemas, inserting/updating/deleting rows, querying with filters and sorting, and batch operations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        request: { type: 'string' },
+        context: { type: 'object' },
+      },
+      required: ['request'],
+    },
+    annotations: { destructiveHint: false },
+  },
+  {
     name: 'sim_custom_tool',
     agentId: 'custom_tool',
     description:
