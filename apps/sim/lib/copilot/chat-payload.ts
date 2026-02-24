@@ -9,7 +9,7 @@ const logger = createLogger('CopilotChatPayload')
 
 export interface BuildPayloadParams {
   message: string
-  workflowId: string
+  workflowId?: string
   workflowName?: string
   userId: string
   userMessageId: string
@@ -84,10 +84,11 @@ export async function buildCopilotRequestPayload(
   let credentials: CredentialsPayload | null = null
 
   if (effectiveMode === 'build') {
-    // function_execute sandbox tool is now defined in Go — no need to send it
-
     try {
-      const rawCredentials = await getCredentialsServerTool.execute({ workflowId }, { userId })
+      const rawCredentials = await getCredentialsServerTool.execute(
+        workflowId ? { workflowId } : {},
+        { userId }
+      )
 
       const oauthMap: CredentialsPayload['oauth'] = {}
       const connectedOAuth: Array<{ provider: string; name: string; scopes?: string[] }> = []
@@ -152,7 +153,7 @@ export async function buildCopilotRequestPayload(
 
   return {
     message,
-    workflowId,
+    ...(workflowId ? { workflowId } : {}),
     ...(params.workflowName ? { workflowName: params.workflowName } : {}),
     userId,
     model: selectedModel,

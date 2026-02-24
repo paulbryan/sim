@@ -81,15 +81,17 @@ const FileAttachmentSchema = z.object({
 
 const ChatMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
-  userMessageId: z.string().optional(), // ID from frontend for the user message
+  userMessageId: z.string().optional(),
   chatId: z.string().optional(),
   workflowId: z.string().optional(),
+  workspaceId: z.string().optional(),
   workflowName: z.string().optional(),
   model: z.string().optional().default('claude-opus-4-5'),
   mode: z.enum(COPILOT_REQUEST_MODES).optional().default('agent'),
   prefetch: z.boolean().optional(),
   createNewChat: z.boolean().optional().default(false),
   stream: z.boolean().optional().default(true),
+  headless: z.boolean().optional(),
   implicitFeedback: z.string().optional(),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
   provider: z.string().optional(),
@@ -116,7 +118,6 @@ const ChatMessageSchema = z.object({
         blockIds: z.array(z.string()).optional(),
         templateId: z.string().optional(),
         executionId: z.string().optional(),
-        // For workflow_block, provide both workflowId and blockId
       })
     )
     .optional(),
@@ -146,12 +147,14 @@ export async function POST(req: NextRequest) {
       userMessageId,
       chatId,
       workflowId: providedWorkflowId,
+      workspaceId: providedWorkspaceId,
       workflowName,
       model,
       mode,
       prefetch,
       createNewChat,
       stream,
+      headless,
       implicitFeedback,
       fileAttachments,
       provider,
@@ -174,23 +177,38 @@ export async function POST(req: NextRequest) {
         })
       : contexts
 
-    // Resolve workflowId - if not provided, use first workflow or find by name
-    const resolved = await resolveWorkflowIdForUser(
-      authenticatedUserId,
-      providedWorkflowId,
-      workflowName
-    )
-    if (!resolved) {
-      return createBadRequestResponse(
-        'No workflows found. Create a workflow first or provide a valid workflowId.'
-      )
-    }
-    const workflowId = resolved.workflowId
+    // Resolve scope: workflow-mode (has workflowId) or workspace-mode (workspaceId only)
+    let workflowId: string | undefined
+    let workflowResolvedName: string | undefined
+    let workspaceId: string | undefined
+    const isWorkspaceMode = !providedWorkflowId && !workflowName
 
-    // Ensure we have a consistent user message ID for this request
+    if (!isWorkspaceMode) {
+      const resolved = await resolveWorkflowIdForUser(
+        authenticatedUserId,
+        providedWorkflowId,
+        workflowName
+      )
+      if (!resolved) {
+        return createBadRequestResponse(
+          'No workflows found. Create a workflow first or provide a valid workflowId.'
+        )
+      }
+      workflowId = resolved.workflowId
+      workflowResolvedName = resolved.workflowName
+    } else {
+      if (!providedWorkspaceId) {
+        return createBadRequestResponse('workspaceId is required when no workflowId is provided.')
+      }
+      workspaceId = providedWorkspaceId
+    }
+
     const userMessageIdToUse = userMessageId || crypto.randomUUID()
     try {
       logger.info(`[${tracker.requestId}] Received chat POST`, {
+        isWorkspaceMode,
+        workflowId,
+        workspaceId,
         hasContexts: Array.isArray(normalizedContexts),
         contextsCount: Array.isArray(normalizedContexts) ? normalizedContexts.length : 0,
         contextsPreview: Array.isArray(normalizedContexts)
@@ -204,7 +222,7 @@ export async function POST(req: NextRequest) {
           : undefined,
       })
     } catch {}
-    // Preprocess contexts server-side
+
     let agentContexts: Array<{ type: string; content: string }> = []
     if (Array.isArray(normalizedContexts) && normalizedContexts.length > 0) {
       try {
@@ -234,7 +252,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Handle chat context
     let currentChat: any = null
     let conversationHistory: any[] = []
     let actualChatId = chatId
@@ -245,6 +262,7 @@ export async function POST(req: NextRequest) {
         chatId,
         userId: authenticatedUserId,
         workflowId,
+        workspaceId,
         model: selectedModel,
       })
       currentChat = chatResult.chat
@@ -263,8 +281,8 @@ export async function POST(req: NextRequest) {
     const requestPayload = await buildCopilotRequestPayload(
       {
         message,
-        workflowId,
-        workflowName: resolved.workflowName,
+        workflowId: workflowId || '',
+        workflowName: workflowResolvedName,
         userId: authenticatedUserId,
         userMessageId: userMessageIdToUse,
         mode,
@@ -284,8 +302,17 @@ export async function POST(req: NextRequest) {
       }
     )
 
+    if (isWorkspaceMode) {
+      requestPayload.source = 'workspace-chat'
+      requestPayload.headless = true
+    }
+    if (headless !== undefined) {
+      requestPayload.headless = headless
+    }
+
     try {
       logger.info(`[${tracker.requestId}] About to call Sim Agent`, {
+        isWorkspaceMode,
         hasContext: agentContexts.length > 0,
         contextCount: agentContexts.length,
         hasConversationId: !!effectiveConversationId,
@@ -372,9 +399,10 @@ export async function POST(req: NextRequest) {
             const result = await orchestrateCopilotStream(requestPayload, {
               userId: authenticatedUserId,
               workflowId,
+              workspaceId,
               chatId: actualChatId,
               autoExecuteTools: true,
-              interactive: true,
+              interactive: !isWorkspaceMode,
               onEvent: async (event) => {
                 await pushEvent(event)
               },
@@ -430,9 +458,10 @@ export async function POST(req: NextRequest) {
     const nonStreamingResult = await orchestrateCopilotStream(requestPayload, {
       userId: authenticatedUserId,
       workflowId,
+      workspaceId,
       chatId: actualChatId,
       autoExecuteTools: true,
-      interactive: true,
+      interactive: !isWorkspaceMode,
     })
 
     const responseData = {
@@ -560,16 +589,15 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const workflowId = searchParams.get('workflowId')
+    const workspaceId = searchParams.get('workspaceId')
     const chatId = searchParams.get('chatId')
 
-    // Get authenticated user using consolidated helper
     const { userId: authenticatedUserId, isAuthenticated } =
       await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !authenticatedUserId) {
       return createUnauthorizedResponse()
     }
 
-    // If chatId is provided, fetch a single chat
     if (chatId) {
       const [chat] = await db
         .select({
@@ -606,11 +634,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, chat: transformedChat })
     }
 
-    if (!workflowId) {
-      return createBadRequestResponse('workflowId or chatId is required')
+    if (!workflowId && !workspaceId) {
+      return createBadRequestResponse('workflowId, workspaceId, or chatId is required')
     }
 
-    // Fetch chats for this user and workflow
+    const scopeFilter = workflowId
+      ? eq(copilotChats.workflowId, workflowId)
+      : eq(copilotChats.workspaceId, workspaceId!)
+
     const chats = await db
       .select({
         id: copilotChats.id,
@@ -623,12 +654,9 @@ export async function GET(req: NextRequest) {
         updatedAt: copilotChats.updatedAt,
       })
       .from(copilotChats)
-      .where(
-        and(eq(copilotChats.userId, authenticatedUserId), eq(copilotChats.workflowId, workflowId))
-      )
+      .where(and(eq(copilotChats.userId, authenticatedUserId), scopeFilter))
       .orderBy(desc(copilotChats.updatedAt))
 
-    // Transform the data to include message count
     const transformedChats = chats.map((chat) => ({
       id: chat.id,
       title: chat.title,
@@ -641,7 +669,8 @@ export async function GET(req: NextRequest) {
       updatedAt: chat.updatedAt,
     }))
 
-    logger.info(`Retrieved ${transformedChats.length} chats for workflow ${workflowId}`)
+    const scope = workflowId ? `workflow ${workflowId}` : `workspace ${workspaceId}`
+    logger.info(`Retrieved ${transformedChats.length} chats for ${scope}`)
 
     return NextResponse.json({
       success: true,

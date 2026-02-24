@@ -6,13 +6,11 @@ import { useParams } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import type { ContentBlock, ToolCallInfo, ToolCallStatus } from './hooks/use-workspace-chat'
 import { useWorkspaceChat } from './hooks/use-workspace-chat'
 
 const REMARK_PLUGINS = [remarkGfm]
 
-/** Status icon for a tool call. */
 function ToolStatusIcon({ status }: { status: ToolCallStatus }) {
   switch (status) {
     case 'executing':
@@ -24,7 +22,6 @@ function ToolStatusIcon({ status }: { status: ToolCallStatus }) {
   }
 }
 
-/** Formats a tool name for display: "edit_workflow" → "Edit Workflow". */
 function formatToolName(name: string): string {
   return name
     .replace(/_v\d+$/, '')
@@ -33,7 +30,6 @@ function formatToolName(name: string): string {
     .join(' ')
 }
 
-/** Compact inline rendering of a single tool call. */
 function ToolCallItem({ toolCall }: { toolCall: ToolCallInfo }) {
   const label = toolCall.displayTitle || formatToolName(toolCall.name)
 
@@ -46,7 +42,6 @@ function ToolCallItem({ toolCall }: { toolCall: ToolCallInfo }) {
   )
 }
 
-/** Renders a subagent activity label. */
 function SubagentLabel({ label }: { label: string }) {
   return (
     <div className='flex items-center gap-2 py-0.5'>
@@ -56,7 +51,6 @@ function SubagentLabel({ label }: { label: string }) {
   )
 }
 
-/** Renders structured content blocks for an assistant message. */
 function AssistantContent({ blocks, isStreaming }: { blocks: ContentBlock[]; isStreaming: boolean }) {
   return (
     <div className='space-y-2'>
@@ -76,10 +70,8 @@ function AssistantContent({ blocks, isStreaming }: { blocks: ContentBlock[]; isS
           }
           case 'subagent': {
             if (!block.content) return null
-            // Only show the subagent label if it's the last subagent block and we're streaming
             const isLastSubagent =
-              isStreaming &&
-              blocks.slice(i + 1).every((b) => b.type !== 'subagent')
+              isStreaming && blocks.slice(i + 1).every((b) => b.type !== 'subagent')
             if (!isLastSubagent) return null
             return <SubagentLabel key={`sub-${i}`} label={block.content} />
           }
@@ -126,12 +118,10 @@ export function Chat() {
 
   return (
     <div className='flex h-full flex-col'>
-      {/* Header */}
       <div className='flex flex-shrink-0 items-center border-b border-[var(--border)] px-6 py-3'>
         <h1 className='font-medium text-[16px] text-[var(--text-primary)]'>Mothership</h1>
       </div>
 
-      {/* Messages area */}
       <div className='flex-1 overflow-y-auto px-6 py-4'>
         {messages.length === 0 && !isSending ? (
           <div className='flex h-full items-center justify-center'>
@@ -160,7 +150,6 @@ export function Chat() {
                 )
               }
 
-              // Skip empty assistant messages
               if (
                 msg.role === 'assistant' &&
                 !msg.content &&
@@ -168,7 +157,6 @@ export function Chat() {
               )
                 return null
 
-              // User messages
               if (msg.role === 'user') {
                 return (
                   <div key={msg.id} className='flex justify-end'>
@@ -179,7 +167,6 @@ export function Chat() {
                 )
               }
 
-              // Assistant messages with content blocks
               const hasBlocks = msg.contentBlocks && msg.contentBlocks.length > 0
               const isThisMessageStreaming = isSending && msg === messages[messages.length - 1]
 
@@ -207,14 +194,12 @@ export function Chat() {
         )}
       </div>
 
-      {/* Error display */}
       {error && (
         <div className='px-6 pb-2'>
           <p className='text-xs text-red-500'>{error}</p>
         </div>
       )}
 
-      {/* Input area */}
       <div className='flex-shrink-0 border-t border-[var(--border)] px-6 py-4'>
         <div className='mx-auto flex max-w-3xl items-end gap-2'>
           <textarea

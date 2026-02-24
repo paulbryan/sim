@@ -2,29 +2,24 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { COPILOT_CHAT_API_PATH } from '@/lib/copilot/constants'
 
 const logger = createLogger('useWorkspaceChat')
 
-/** Status of a tool call as it progresses through execution. */
 export type ToolCallStatus = 'executing' | 'success' | 'error'
 
-/** Lightweight info about a single tool call rendered in the chat. */
 export interface ToolCallInfo {
   id: string
   name: string
   status: ToolCallStatus
-  /** Human-readable title from the backend ToolUI metadata. */
   displayTitle?: string
 }
 
-/** A content block inside an assistant message. */
 export type ContentBlockType = 'text' | 'tool_call' | 'subagent'
 
 export interface ContentBlock {
   type: ContentBlockType
-  /** Text content (for 'text' and 'subagent' blocks). */
   content?: string
-  /** Tool call info (for 'tool_call' blocks). */
   toolCall?: ToolCallInfo
 }
 
@@ -33,9 +28,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp: string
-  /** Structured content blocks for rich rendering. When present, prefer over `content`. */
   contentBlocks?: ContentBlock[]
-  /** Name of the currently active subagent (shown as a label while streaming). */
   activeSubagent?: string | null
 }
 
@@ -52,13 +45,13 @@ interface UseWorkspaceChatReturn {
   clearMessages: () => void
 }
 
-/** Maps subagent IDs to human-readable labels. */
 const SUBAGENT_LABELS: Record<string, string> = {
   build: 'Building',
   deploy: 'Deploying',
   auth: 'Connecting credentials',
   research: 'Researching',
   knowledge: 'Managing knowledge base',
+  table: 'Managing tables',
   custom_tool: 'Creating tool',
   superagent: 'Executing action',
   plan: 'Planning',
@@ -101,12 +94,9 @@ export function useWorkspaceChat({ workspaceId }: UseWorkspaceChatProps): UseWor
       const abortController = new AbortController()
       abortControllerRef.current = abortController
 
-      // Mutable refs for the streaming context so we can build content blocks
-      // without relying on stale React state closures.
       const blocksRef: ContentBlock[] = []
-      const toolCallMapRef = new Map<string, number>() // toolCallId → index in blocksRef
+      const toolCallMapRef = new Map<string, number>()
 
-      /** Ensure the last block is a text block and return it. */
       const ensureTextBlock = (): ContentBlock => {
         const last = blocksRef[blocksRef.length - 1]
         if (last && last.type === 'text') return last
@@ -115,7 +105,6 @@ export function useWorkspaceChat({ workspaceId }: UseWorkspaceChatProps): UseWor
         return newBlock
       }
 
-      /** Push updated blocks + content into the assistant message. */
       const flushBlocks = (extra?: Partial<ChatMessage>) => {
         const fullText = blocksRef
           .filter((b) => b.type === 'text')
@@ -136,12 +125,14 @@ export function useWorkspaceChat({ workspaceId }: UseWorkspaceChatProps): UseWor
       }
 
       try {
-        const response = await fetch('/api/copilot/workspace-chat', {
+        const response = await fetch(COPILOT_CHAT_API_PATH, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message,
             workspaceId,
+            stream: true,
+            createNewChat: !chatIdRef.current,
             ...(chatIdRef.current ? { chatId: chatIdRef.current } : {}),
           }),
           signal: abortController.signal,
@@ -203,6 +194,9 @@ export function useWorkspaceChat({ workspaceId }: UseWorkspaceChatProps): UseWor
                   if (!toolCallId) break
 
                   const ui = event.ui || event.data?.ui
+                  const hidden = ui?.hidden
+                  if (hidden) break
+
                   const displayTitle = ui?.title || ui?.phaseLabel
 
                   if (!toolCallMapRef.has(toolCallId)) {
