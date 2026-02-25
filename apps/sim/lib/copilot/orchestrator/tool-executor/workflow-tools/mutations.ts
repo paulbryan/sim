@@ -1,19 +1,22 @@
 import crypto from 'crypto'
-import { db } from '@sim/db'
-import { apiKey, workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull, max } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
-import { createApiKey } from '@/lib/api-key/auth'
+import { createWorkspaceApiKey } from '@/lib/api-key/auth'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import {
   getExecutionState,
   getLatestExecutionState,
 } from '@/lib/workflows/executor/execution-state'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  createFolderRecord,
+  createWorkflowRecord,
+  deleteFolderRecord,
+  deleteWorkflowRecord,
+  setWorkflowVariables,
+  updateFolderRecord,
+  updateWorkflowRecord,
+} from '@/lib/workflows/utils'
 import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } from '../access'
 import type {
   CreateFolderParams,
@@ -58,46 +61,21 @@ export async function executeCreateWorkflow(
 
     await ensureWorkspaceAccess(workspaceId, context.userId, true)
 
-    const workflowId = crypto.randomUUID()
-    const now = new Date()
-
-    const folderCondition = folderId ? eq(workflow.folderId, folderId) : isNull(workflow.folderId)
-    const [maxResult] = await db
-      .select({ maxOrder: max(workflow.sortOrder) })
-      .from(workflow)
-      .where(and(eq(workflow.workspaceId, workspaceId), folderCondition))
-    const sortOrder = (maxResult?.maxOrder ?? 0) + 1
-
-    await db.insert(workflow).values({
-      id: workflowId,
+    const result = await createWorkflowRecord({
       userId: context.userId,
       workspaceId,
-      folderId,
-      sortOrder,
       name,
       description,
-      color: '#3972F6',
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      runCount: 0,
-      variables: {},
+      folderId,
     })
-
-    const { workflowState } = buildDefaultWorkflowArtifacts()
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
-    if (!saveResult.success) {
-      throw new Error(saveResult.error || 'Failed to save workflow state')
-    }
 
     return {
       success: true,
       output: {
-        workflowId,
-        workflowName: name,
-        workspaceId,
-        folderId,
+        workflowId: result.workflowId,
+        workflowName: result.name,
+        workspaceId: result.workspaceId,
+        folderId: result.folderId,
       },
     }
   } catch (error) {
@@ -123,30 +101,14 @@ export async function executeCreateFolder(
 
     await ensureWorkspaceAccess(workspaceId, context.userId, true)
 
-    const [maxResult] = await db
-      .select({ maxOrder: max(workflowFolder.sortOrder) })
-      .from(workflowFolder)
-      .where(
-        and(
-          eq(workflowFolder.workspaceId, workspaceId),
-          parentId ? eq(workflowFolder.parentId, parentId) : isNull(workflowFolder.parentId)
-        )
-      )
-    const sortOrder = (maxResult?.maxOrder ?? 0) + 1
-
-    const folderId = crypto.randomUUID()
-    await db.insert(workflowFolder).values({
-      id: folderId,
+    const result = await createFolderRecord({
       userId: context.userId,
       workspaceId,
-      parentId,
       name,
-      sortOrder,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      parentId,
     })
 
-    return { success: true, output: { folderId, name, workspaceId, parentId } }
+    return { success: true, output: result }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -292,10 +254,7 @@ export async function executeSetGlobalWorkflowVariables(
 
     const nextVarsRecord = Object.fromEntries(Object.values(byName).map((v) => [String(v.id), v]))
 
-    await db
-      .update(workflow)
-      .set({ variables: nextVarsRecord, updatedAt: new Date() })
-      .where(eq(workflow.id, workflowId))
+    await setWorkflowVariables(workflowId, nextVarsRecord)
 
     return { success: true, output: { updated: Object.values(byName).length } }
   } catch (error) {
@@ -321,11 +280,7 @@ export async function executeRenameWorkflow(
     }
 
     await ensureWorkflowAccess(workflowId, context.userId)
-
-    await db
-      .update(workflow)
-      .set({ name, updatedAt: new Date() })
-      .where(eq(workflow.id, workflowId))
+    await updateWorkflowRecord(workflowId, { name })
 
     return { success: true, output: { workflowId, name } }
   } catch (error) {
@@ -344,13 +299,8 @@ export async function executeMoveWorkflow(
     }
 
     await ensureWorkflowAccess(workflowId, context.userId)
-
     const folderId = params.folderId || null
-
-    await db
-      .update(workflow)
-      .set({ folderId, updatedAt: new Date() })
-      .where(eq(workflow.id, workflowId))
+    await updateWorkflowRecord(workflowId, { folderId })
 
     return { success: true, output: { workflowId, folderId } }
   } catch (error) {
@@ -374,10 +324,7 @@ export async function executeMoveFolder(
       return { success: false, error: 'A folder cannot be moved into itself' }
     }
 
-    await db
-      .update(workflowFolder)
-      .set({ parentId, updatedAt: new Date() })
-      .where(eq(workflowFolder.id, folderId))
+    await updateFolderRecord(folderId, { parentId })
 
     return { success: true, output: { folderId, parentId } }
   } catch (error) {
@@ -452,51 +399,18 @@ export async function executeGenerateApiKey(
     const workspaceId = params.workspaceId || (await getDefaultWorkspaceId(context.userId))
     await ensureWorkspaceAccess(workspaceId, context.userId, true)
 
-    const existingKey = await db
-      .select({ id: apiKey.id })
-      .from(apiKey)
-      .where(
-        and(
-          eq(apiKey.workspaceId, workspaceId),
-          eq(apiKey.name, name),
-          eq(apiKey.type, 'workspace')
-        )
-      )
-      .limit(1)
-
-    if (existingKey.length > 0) {
-      return {
-        success: false,
-        error: `A workspace API key named "${name}" already exists. Choose a different name.`,
-      }
-    }
-
-    const { key: plainKey, encryptedKey } = await createApiKey(true)
-    if (!encryptedKey) {
-      return { success: false, error: 'Failed to encrypt API key for storage' }
-    }
-
-    const [newKey] = await db
-      .insert(apiKey)
-      .values({
-        id: nanoid(),
-        workspaceId,
-        userId: context.userId,
-        createdBy: context.userId,
-        name,
-        key: encryptedKey,
-        type: 'workspace',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .returning({ id: apiKey.id, name: apiKey.name, createdAt: apiKey.createdAt })
+    const newKey = await createWorkspaceApiKey({
+      workspaceId,
+      userId: context.userId,
+      name,
+    })
 
     return {
       success: true,
       output: {
         id: newKey.id,
         name: newKey.name,
-        key: plainKey,
+        key: newKey.key,
         workspaceId,
         message:
           'API key created successfully. Copy this key now — it will not be shown again. Use this key in the x-api-key header when calling workflow API endpoints.',
@@ -580,7 +494,7 @@ export async function executeUpdateWorkflow(
       return { success: false, error: 'workflowId is required' }
     }
 
-    const updates: Record<string, unknown> = { updatedAt: new Date() }
+    const updates: { name?: string; description?: string } = {}
 
     if (typeof params.name === 'string') {
       const name = params.name.trim()
@@ -596,17 +510,16 @@ export async function executeUpdateWorkflow(
       updates.description = params.description
     }
 
-    if (Object.keys(updates).length <= 1) {
+    if (Object.keys(updates).length === 0) {
       return { success: false, error: 'At least one of name or description is required' }
     }
 
     await ensureWorkflowAccess(workflowId, context.userId)
-
-    await db.update(workflow).set(updates).where(eq(workflow.id, workflowId))
+    await updateWorkflowRecord(workflowId, updates)
 
     return {
       success: true,
-      output: { workflowId, ...updates, updatedAt: undefined },
+      output: { workflowId, ...updates },
     }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
@@ -624,8 +537,7 @@ export async function executeDeleteWorkflow(
     }
 
     const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
-
-    await db.delete(workflow).where(eq(workflow.id, workflowId))
+    await deleteWorkflowRecord(workflowId)
 
     return {
       success: true,
@@ -653,10 +565,7 @@ export async function executeRenameFolder(
       return { success: false, error: 'Folder name must be 200 characters or less' }
     }
 
-    await db
-      .update(workflowFolder)
-      .set({ name, updatedAt: new Date() })
-      .where(eq(workflowFolder.id, folderId))
+    await updateFolderRecord(folderId, { name })
 
     return { success: true, output: { folderId, name } }
   } catch (error) {
@@ -674,31 +583,10 @@ export async function executeDeleteFolder(
       return { success: false, error: 'folderId is required' }
     }
 
-    // Get the folder to find its parent
-    const [folder] = await db
-      .select({ parentId: workflowFolder.parentId })
-      .from(workflowFolder)
-      .where(eq(workflowFolder.id, folderId))
-      .limit(1)
-
-    if (!folder) {
+    const deleted = await deleteFolderRecord(folderId)
+    if (!deleted) {
       return { success: false, error: 'Folder not found' }
     }
-
-    // Move child workflows to parent folder
-    await db
-      .update(workflow)
-      .set({ folderId: folder.parentId, updatedAt: new Date() })
-      .where(eq(workflow.folderId, folderId))
-
-    // Move child folders to parent folder
-    await db
-      .update(workflowFolder)
-      .set({ parentId: folder.parentId, updatedAt: new Date() })
-      .where(eq(workflowFolder.parentId, folderId))
-
-    // Delete the folder
-    await db.delete(workflowFolder).where(eq(workflowFolder.id, folderId))
 
     return { success: true, output: { folderId, deleted: true } }
   } catch (error) {

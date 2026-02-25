@@ -1,8 +1,6 @@
-import { db } from '@sim/db'
-import { customTools, permissions, workflow, workflowFolder, workspace } from '@sim/db/schema'
-import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { formatNormalizedWorkflowForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
+import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { mcpService } from '@/lib/mcp/service'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { getEffectiveBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
@@ -11,6 +9,8 @@ import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
+import { getWorkflowById, listFolders } from '@/lib/workflows/utils'
+import { listUserWorkspaces } from '@/lib/workspaces/utils'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { getBlock } from '@/blocks/registry'
 import { normalizeName } from '@/executor/constants'
@@ -32,25 +32,9 @@ export async function executeListUserWorkspaces(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const workspaces = await db
-      .select({
-        workspaceId: workspace.id,
-        workspaceName: workspace.name,
-        ownerId: workspace.ownerId,
-        permissionType: permissions.permissionType,
-      })
-      .from(permissions)
-      .innerJoin(workspace, eq(permissions.entityId, workspace.id))
-      .where(and(eq(permissions.userId, context.userId), eq(permissions.entityType, 'workspace')))
-      .orderBy(desc(workspace.createdAt))
+    const workspaces = await listUserWorkspaces(context.userId)
 
-    const output = workspaces.map((row) => ({
-      workspaceId: row.workspaceId,
-      workspaceName: row.workspaceName,
-      role: row.ownerId === context.userId ? 'owner' : row.permissionType,
-    }))
-
-    return { success: true, output: { workspaces: output } }
+    return { success: true, output: { workspaces } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -66,16 +50,7 @@ export async function executeListFolders(
 
     await ensureWorkspaceAccess(workspaceId, context.userId, false)
 
-    const folders = await db
-      .select({
-        folderId: workflowFolder.id,
-        folderName: workflowFolder.name,
-        parentId: workflowFolder.parentId,
-        sortOrder: workflowFolder.sortOrder,
-      })
-      .from(workflowFolder)
-      .where(eq(workflowFolder.workspaceId, workspaceId))
-      .orderBy(asc(workflowFolder.sortOrder), asc(workflowFolder.createdAt))
+    const folders = await listFolders(workspaceId)
 
     return {
       success: true,
@@ -125,15 +100,10 @@ export async function executeGetWorkflowData(
       if (!workspaceId) {
         return { success: false, error: 'workspaceId is required' }
       }
-      const conditions = [
-        eq(customTools.workspaceId, workspaceId),
-        and(eq(customTools.userId, context.userId), isNull(customTools.workspaceId)),
-      ]
-      const toolsRows = await db
-        .select()
-        .from(customTools)
-        .where(or(...conditions))
-        .orderBy(desc(customTools.createdAt))
+      const toolsRows = await listCustomTools({
+        userId: context.userId,
+        workspaceId,
+      })
 
       const customToolsData = toolsRows.map((tool) => {
         const schema = tool.schema as Record<string, unknown> | null
@@ -419,11 +389,7 @@ export async function executeGetBlockUpstreamReferences(
 async function getWorkflowVariablesForTool(
   workflowId: string
 ): Promise<Array<{ id: string; name: string; type: string; tag: string }>> {
-  const [workflowRecord] = await db
-    .select({ variables: workflow.variables })
-    .from(workflow)
-    .where(eq(workflow.id, workflowId))
-    .limit(1)
+  const workflowRecord = await getWorkflowById(workflowId)
 
   const variablesRecord = (workflowRecord?.variables as Record<string, unknown>) || {}
   return Object.values(variablesRecord)

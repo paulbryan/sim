@@ -1,8 +1,6 @@
-import { db } from '@sim/db'
-import { customTools, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq, isNull, or } from 'drizzle-orm'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { getWorkflowById } from '@/lib/workflows/utils'
 import type {
   ExecutionContext,
   ToolCallResult,
@@ -12,7 +10,12 @@ import { routeExecution } from '@/lib/copilot/tools/server/router'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
-import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
+import {
+  deleteCustomTool,
+  getCustomToolById,
+  listCustomTools,
+  upsertCustomTools,
+} from '@/lib/workflows/custom-tools/operations'
 import { getTool, resolveToolId } from '@/tools/utils'
 import {
   executeCheckDeploymentStatus,
@@ -123,22 +126,10 @@ async function executeManageCustomTool(
 
   try {
     if (operation === 'list') {
-      const toolsForUser = workspaceId
-        ? await db
-            .select()
-            .from(customTools)
-            .where(
-              or(
-                eq(customTools.workspaceId, workspaceId),
-                and(isNull(customTools.workspaceId), eq(customTools.userId, context.userId))
-              )
-            )
-            .orderBy(desc(customTools.createdAt))
-        : await db
-            .select()
-            .from(customTools)
-            .where(and(isNull(customTools.workspaceId), eq(customTools.userId, context.userId)))
-            .orderBy(desc(customTools.createdAt))
+      const toolsForUser = await listCustomTools({
+        userId: context.userId,
+        workspaceId,
+      })
 
       return {
         success: true,
@@ -171,13 +162,7 @@ async function executeManageCustomTool(
       }
 
       const resultTools = await upsertCustomTools({
-        tools: [
-          {
-            title,
-            schema: params.schema,
-            code: params.code,
-          },
-        ],
+        tools: [{ title, schema: params.schema, code: params.code }],
         workspaceId,
         userId: context.userId,
       })
@@ -212,28 +197,11 @@ async function executeManageCustomTool(
         }
       }
 
-      const workspaceTool = await db
-        .select()
-        .from(customTools)
-        .where(and(eq(customTools.id, params.toolId), eq(customTools.workspaceId, workspaceId)))
-        .limit(1)
-
-      const legacyTool =
-        workspaceTool.length === 0
-          ? await db
-              .select()
-              .from(customTools)
-              .where(
-                and(
-                  eq(customTools.id, params.toolId),
-                  isNull(customTools.workspaceId),
-                  eq(customTools.userId, context.userId)
-                )
-              )
-              .limit(1)
-          : []
-
-      const existing = workspaceTool[0] || legacyTool[0]
+      const existing = await getCustomToolById({
+        toolId: params.toolId,
+        userId: context.userId,
+        workspaceId,
+      })
       if (!existing) {
         return { success: false, error: `Custom tool not found: ${params.toolId}` }
       }
@@ -243,14 +211,7 @@ async function executeManageCustomTool(
       const title = params.title || mergedSchema.function?.name || existing.title
 
       await upsertCustomTools({
-        tools: [
-          {
-            id: params.toolId,
-            title,
-            schema: mergedSchema,
-            code: mergedCode,
-          },
-        ],
+        tools: [{ id: params.toolId, title, schema: mergedSchema, code: mergedCode }],
         workspaceId,
         userId: context.userId,
       })
@@ -272,31 +233,11 @@ async function executeManageCustomTool(
         return { success: false, error: "'toolId' is required for operation 'delete'" }
       }
 
-      const workspaceDelete =
-        workspaceId != null
-          ? await db
-              .delete(customTools)
-              .where(
-                and(eq(customTools.id, params.toolId), eq(customTools.workspaceId, workspaceId))
-              )
-              .returning({ id: customTools.id })
-          : []
-
-      const legacyDelete =
-        workspaceDelete.length === 0
-          ? await db
-              .delete(customTools)
-              .where(
-                and(
-                  eq(customTools.id, params.toolId),
-                  isNull(customTools.workspaceId),
-                  eq(customTools.userId, context.userId)
-                )
-              )
-              .returning({ id: customTools.id })
-          : []
-
-      const deleted = workspaceDelete[0] || legacyDelete[0]
+      const deleted = await deleteCustomTool({
+        toolId: params.toolId,
+        userId: context.userId,
+        workspaceId,
+      })
       if (!deleted) {
         return { success: false, error: `Custom tool not found: ${params.toolId}` }
       }
@@ -587,12 +528,8 @@ export async function prepareExecutionContext(
   userId: string,
   workflowId: string
 ): Promise<ExecutionContext> {
-  const workflowResult = await db
-    .select({ workspaceId: workflow.workspaceId })
-    .from(workflow)
-    .where(eq(workflow.id, workflowId))
-    .limit(1)
-  const workspaceId = workflowResult[0]?.workspaceId ?? undefined
+  const wf = await getWorkflowById(workflowId)
+  const workspaceId = wf?.workspaceId ?? undefined
 
   const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workspaceId)
 
