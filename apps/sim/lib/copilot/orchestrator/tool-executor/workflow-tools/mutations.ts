@@ -20,24 +20,16 @@ import {
 } from '@/lib/workflows/utils'
 import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } from '../access'
 
-const MAX_STRING_LEN = 2000
-
-function sanitizeForLLM(value: unknown): unknown {
+function stripBinaryFields(value: unknown): unknown {
   if (value === null || value === undefined) return value
-  if (typeof value === 'string') {
-    if (value.length > MAX_STRING_LEN) return value.slice(0, MAX_STRING_LEN) + '... (truncated)'
-    return value
+  if (typeof value !== 'object') return value
+  if (Array.isArray(value)) return value.map(stripBinaryFields)
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (k === 'base64') continue
+    out[k] = stripBinaryFields(v)
   }
-  if (Array.isArray(value)) return value.map(sanitizeForLLM)
-  if (typeof value === 'object') {
-    const out: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if (k === 'base64' || k === 'data') continue
-      out[k] = sanitizeForLLM(v)
-    }
-    return out
-  }
-  return value
+  return out
 }
 
 function buildExecutionOutput(result: {
@@ -53,8 +45,8 @@ function buildExecutionOutput(result: {
       executionId: result.metadata?.executionId,
       success: result.success,
       ...extra,
-      output: sanitizeForLLM(result.output),
-      logs: sanitizeForLLM(result.logs),
+      output: stripBinaryFields(result.output),
+      logs: stripBinaryFields(result.logs),
     },
     error: result.success ? undefined : result.error || 'Workflow execution failed',
   }
