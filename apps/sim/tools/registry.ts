@@ -621,7 +621,6 @@ import {
 } from '@/tools/gong'
 import { googleSearchTool } from '@/tools/google'
 import { googleBooksVolumeDetailsTool, googleBooksVolumeSearchTool } from '@/tools/google_books'
-import { googleChatListSpacesTool, googleChatSendMessageTool } from '@/tools/google_chat'
 import {
   googleCalendarCreateTool,
   googleCalendarCreateV2Tool,
@@ -644,6 +643,7 @@ import {
   googleCalendarUpdateTool,
   googleCalendarUpdateV2Tool,
 } from '@/tools/google_calendar'
+import { googleChatListSpacesTool, googleChatSendMessageTool } from '@/tools/google_chat'
 import { googleDocsCreateTool, googleDocsReadTool, googleDocsWriteTool } from '@/tools/google_docs'
 import {
   googleDriveCopyTool,

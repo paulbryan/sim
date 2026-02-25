@@ -48,10 +48,7 @@ export const sendMessageTool: ToolConfig<GoogleChatSendMessageParams, GoogleChat
       const spaceName = spaceId.startsWith('spaces/') ? spaceId : `spaces/${spaceId}`
       const url = new URL(`https://chat.googleapis.com/v1/${spaceName}/messages`)
       if (params.threadKey) {
-        url.searchParams.set(
-          'messageReplyOption',
-          'REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD'
-        )
+        url.searchParams.set('messageReplyOption', 'REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD')
       }
       return url.toString()
     },
