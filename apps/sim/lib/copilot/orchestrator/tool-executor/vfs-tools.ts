@@ -4,6 +4,7 @@ import {
   downloadWorkspaceFile,
   listWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 
 const logger = createLogger('VfsTools')
@@ -128,31 +129,48 @@ export async function executeVfsRead(
   }
 }
 
-const MAX_FILE_READ_BYTES = 512 * 1024 // 512 KB
+const MAX_TEXT_READ_BYTES = 512 * 1024 // 512 KB
+const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 
 const TEXT_TYPES = new Set([
   'text/plain', 'text/csv', 'text/markdown', 'text/html', 'text/xml',
   'application/json', 'application/xml', 'application/javascript',
 ])
 
+const PARSEABLE_EXTENSIONS = new Set([
+  'pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt',
+])
+
 function isReadableType(contentType: string): boolean {
   return TEXT_TYPES.has(contentType) || contentType.startsWith('text/')
 }
 
-/**
- * Resolve a VFS path like "files/lit-rock.json" to actual workspace file content.
- * Matches by original filename against the workspace_files table.
- */
+function getExtension(filename: string): string {
+  const dot = filename.lastIndexOf('.')
+  return dot >= 0 ? filename.slice(dot + 1).toLowerCase() : ''
+}
+
+interface FileReadResult {
+  content: string
+  totalLines: number
+  attachment?: {
+    type: string
+    source: {
+      type: 'base64'
+      media_type: string
+      data: string
+    }
+  }
+}
+
 async function tryReadWorkspaceFile(
   path: string,
   workspaceId: string
-): Promise<{ content: string; totalLines: number } | null> {
-  // Match "files/{name}" or "files/{name}/content" patterns
+): Promise<FileReadResult | null> {
   const match = path.match(/^files\/(.+?)(?:\/content)?$/)
   if (!match) return null
   const fileName = match[1]
 
-  // Skip if it's a meta.json path (handled by normal VFS)
   if (fileName.endsWith('/meta.json') || path.endsWith('/meta.json')) return null
 
   try {
@@ -162,6 +180,45 @@ async function tryReadWorkspaceFile(
     )
     if (!record) return null
 
+    if (isImageFileType(record.type)) {
+      if (record.size > MAX_IMAGE_READ_BYTES) {
+        return {
+          content: `[Image too large: ${record.name} (${(record.size / 1024 / 1024).toFixed(1)}MB, limit 5MB)]`,
+          totalLines: 1,
+        }
+      }
+      const buffer = await downloadWorkspaceFile(record)
+      return {
+        content: `Image: ${record.name} (${(record.size / 1024).toFixed(1)}KB, ${record.type})`,
+        totalLines: 1,
+        attachment: {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: record.type,
+            data: buffer.toString('base64'),
+          },
+        },
+      }
+    }
+
+    const ext = getExtension(record.name)
+    if (PARSEABLE_EXTENSIONS.has(ext)) {
+      const buffer = await downloadWorkspaceFile(record)
+      try {
+        const { parseBuffer } = await import('@/lib/file-parsers')
+        const result = await parseBuffer(buffer, ext)
+        const content = result.content || ''
+        return { content, totalLines: content.split('\n').length }
+      } catch (parseErr) {
+        logger.warn('Failed to parse document', { fileName: record.name, ext, error: parseErr instanceof Error ? parseErr.message : String(parseErr) })
+        return {
+          content: `[Could not parse ${record.name} (${record.type}, ${record.size} bytes)]`,
+          totalLines: 1,
+        }
+      }
+    }
+
     if (!isReadableType(record.type)) {
       return {
         content: `[Binary file: ${record.name} (${record.type}, ${record.size} bytes). Cannot display as text.]`,
@@ -169,9 +226,9 @@ async function tryReadWorkspaceFile(
       }
     }
 
-    if (record.size > MAX_FILE_READ_BYTES) {
+    if (record.size > MAX_TEXT_READ_BYTES) {
       return {
-        content: `[File too large to display inline: ${record.name} (${record.size} bytes, limit ${MAX_FILE_READ_BYTES}). Use workspace_file read with fileId "${record.id}" to read it.]`,
+        content: `[File too large to display inline: ${record.name} (${record.size} bytes, limit ${MAX_TEXT_READ_BYTES})]`,
         totalLines: 1,
       }
     }

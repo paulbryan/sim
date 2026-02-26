@@ -77,6 +77,8 @@ export type KnowledgeBaseResult = z.infer<typeof KnowledgeBaseResultSchema>
 export const UserTableArgsSchema = z.object({
   operation: z.enum([
     'create',
+    'create_from_file',
+    'import_file',
     'get',
     'get_schema',
     'delete',
@@ -102,6 +104,7 @@ export const UserTableArgsSchema = z.object({
       sort: z.record(z.enum(['asc', 'desc'])).optional(),
       limit: z.number().optional(),
       offset: z.number().optional(),
+      filePath: z.string().optional(),
     })
     .optional(),
 })

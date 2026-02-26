@@ -16,9 +16,86 @@ import type {
   OrchestratorOptions,
   SSEEvent,
   StreamingContext,
+  ToolCallResult,
 } from '@/lib/copilot/orchestrator/types'
+import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('CopilotSseToolExecution')
+
+const OUTPUT_PATH_TOOLS = new Set([
+  'function_execute',
+  'user_table',
+])
+
+async function maybeWriteOutputToFile(
+  toolName: string,
+  params: Record<string, unknown> | undefined,
+  result: ToolCallResult,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  if (!result.success || !result.output) return result
+  if (!OUTPUT_PATH_TOOLS.has(toolName)) return result
+  if (!context.workspaceId || !context.userId) return result
+
+  const outputPath =
+    (params?.outputPath as string | undefined) ??
+    (params?.args as Record<string, unknown> | undefined)?.outputPath as string | undefined
+  if (!outputPath) return result
+
+  const fileName = outputPath.replace(/^files\//, '')
+
+  try {
+    let content: string
+    if (typeof result.output === 'string') {
+      content = result.output
+    } else {
+      content = JSON.stringify(result.output, null, 2)
+    }
+
+    const contentType = fileName.endsWith('.json')
+      ? 'application/json'
+      : fileName.endsWith('.csv')
+        ? 'text/csv'
+        : fileName.endsWith('.md')
+          ? 'text/markdown'
+          : fileName.endsWith('.html')
+            ? 'text/html'
+            : 'text/plain'
+
+    const buffer = Buffer.from(content, 'utf-8')
+    const uploaded = await uploadWorkspaceFile(
+      context.workspaceId,
+      context.userId,
+      buffer,
+      fileName,
+      contentType
+    )
+
+    logger.info('Tool output written to file', {
+      toolName,
+      fileName,
+      size: buffer.length,
+      fileId: uploaded.id,
+    })
+
+    return {
+      success: true,
+      output: {
+        message: `Output written to files/${fileName} (${buffer.length} bytes)`,
+        fileId: uploaded.id,
+        fileName,
+        size: buffer.length,
+      },
+    }
+  } catch (err) {
+    logger.warn('Failed to write tool output to file', {
+      toolName,
+      outputPath,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return result
+  }
+}
 
 export async function executeToolAndReport(
   toolCallId: string,
@@ -41,7 +118,8 @@ export async function executeToolAndReport(
   })
 
   try {
-    const result = await executeToolServerSide(toolCall, execContext)
+    let result = await executeToolServerSide(toolCall, execContext)
+    result = await maybeWriteOutputToFile(toolCall.name, toolCall.params, result, execContext)
     toolCall.status = result.success ? 'success' : 'error'
     toolCall.result = result
     toolCall.error = result.error
