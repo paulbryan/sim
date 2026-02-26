@@ -233,6 +233,7 @@ function createClientStreamingContext(messageId: string): ClientStreamingContext
     designWorkflowContent: '',
     pendingContent: '',
     doneEventCount: 0,
+    subAgentParentStack: [],
     subAgentContent: {},
     subAgentToolCalls: {},
     subAgentBlocks: {},

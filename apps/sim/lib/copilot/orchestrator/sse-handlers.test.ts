@@ -37,6 +37,7 @@ describe('sse-handlers tool lifecycle', () => {
       currentThinkingBlock: null,
       isInThinkingBlock: false,
       subAgentParentToolCallId: undefined,
+      subAgentParentStack: [],
       subAgentContent: {},
       subAgentToolCalls: {},
       pendingContent: '',

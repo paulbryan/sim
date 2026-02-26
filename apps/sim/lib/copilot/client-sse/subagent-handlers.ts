@@ -329,6 +329,7 @@ export async function applySseEvent(
     const startData = asRecord(data.data)
     const toolCallId = startData.tool_call_id as string | undefined
     if (toolCallId) {
+      context.subAgentParentStack.push(toolCallId)
       context.subAgentParentToolCallId = toolCallId
       const { toolCallsById } = get()
       const parentToolCall = toolCallsById[toolCallId]
@@ -343,6 +344,7 @@ export async function applySseEvent(
       logger.info('[SSE] Subagent session started', {
         subagent: data.subagent,
         parentToolCallId: toolCallId,
+        depth: context.subAgentParentStack.length,
       })
     }
     return true
@@ -371,7 +373,11 @@ export async function applySseEvent(
         })
       }
     }
-    context.subAgentParentToolCallId = undefined
+    context.subAgentParentStack.pop()
+    context.subAgentParentToolCallId =
+      context.subAgentParentStack.length > 0
+        ? context.subAgentParentStack[context.subAgentParentStack.length - 1]
+        : undefined
     return true
   }
 

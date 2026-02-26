@@ -45,6 +45,7 @@ export function createStreamingContext(overrides?: Partial<StreamingContext>): S
     currentThinkingBlock: null,
     isInThinkingBlock: false,
     subAgentParentToolCallId: undefined,
+    subAgentParentStack: [],
     subAgentContent: {},
     subAgentToolCalls: {},
     pendingContent: '',
@@ -125,11 +126,12 @@ export async function runStreamLoop(
         continue
       }
 
-      // Standard subagent start/end handling.
+      // Standard subagent start/end handling (stack-based for nested agents).
       if (normalizedEvent.type === 'subagent_start') {
         const eventData = normalizedEvent.data as Record<string, unknown> | undefined
         const toolCallId = eventData?.tool_call_id as string | undefined
         if (toolCallId) {
+          context.subAgentParentStack.push(toolCallId)
           context.subAgentParentToolCallId = toolCallId
           context.subAgentContent[toolCallId] = ''
           context.subAgentToolCalls[toolCallId] = []
@@ -138,7 +140,11 @@ export async function runStreamLoop(
       }
 
       if (normalizedEvent.type === 'subagent_end') {
-        context.subAgentParentToolCallId = undefined
+        context.subAgentParentStack.pop()
+        context.subAgentParentToolCallId =
+          context.subAgentParentStack.length > 0
+            ? context.subAgentParentStack[context.subAgentParentStack.length - 1]
+            : undefined
         continue
       }
 
