@@ -77,7 +77,8 @@ export const listSpacesTool: ToolConfig<GoogleChatListSpacesParams, GoogleChatRe
   outputs: {
     spaces: {
       type: 'json',
-      description: 'Array of Google Chat space objects (name, displayName, spaceType, singleUserBotDm, threaded, type)',
+      description:
+        'Array of Google Chat space objects (name, displayName, spaceType, singleUserBotDm, threaded, type)',
     },
     nextPageToken: {
       type: 'string',

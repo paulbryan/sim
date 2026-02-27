@@ -140,7 +140,11 @@ export const GoogleChatBlock: BlockConfig<GoogleChatResponse> = {
     threadName: { type: 'string', description: 'Thread resource name' },
     text: { type: 'string', description: 'Message text that was sent' },
     createTime: { type: 'string', description: 'Message creation timestamp' },
-    spaces: { type: 'json', description: 'Array of Google Chat space objects (name, displayName, spaceType, singleUserBotDm, threaded, type)' },
+    spaces: {
+      type: 'json',
+      description:
+        'Array of Google Chat space objects (name, displayName, spaceType, singleUserBotDm, threaded, type)',
+    },
     nextPageToken: { type: 'string', description: 'Token for next page of results' },
   },
 }
