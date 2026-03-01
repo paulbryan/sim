@@ -14,7 +14,7 @@ export type UsageLogCategory = 'model' | 'fixed'
 /**
  * Usage log source types
  */
-export type UsageLogSource = 'workflow' | 'wand' | 'copilot' | 'mcp_copilot'
+export type UsageLogSource = 'workflow' | 'wand' | 'copilot' | 'workspace-chat' | 'mcp_copilot'
 
 /**
  * Metadata for 'model' category charges
