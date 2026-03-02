@@ -1,5 +1,5 @@
-import { Rocket } from 'lucide-react'
 import type { BlockConfig } from '@/blocks/types'
+import { Blimp } from '@/components/emcn'
 import type { ToolResponse } from '@/tools/types'
 
 interface MothershipResponse extends ToolResponse {
@@ -27,7 +27,7 @@ export const MothershipBlock: BlockConfig<MothershipResponse> = {
   `,
   category: 'blocks',
   bgColor: '#802FDE',
-  icon: Rocket,
+  icon: Blimp,
   subBlocks: [
     {
       id: 'messages',
