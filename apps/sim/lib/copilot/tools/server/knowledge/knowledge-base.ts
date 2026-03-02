@@ -1,11 +1,8 @@
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import type { KnowledgeBaseArgs, KnowledgeBaseResult } from '@/lib/copilot/tools/shared/schemas'
+import { createSingleDocument, processDocumentAsync } from '@/lib/knowledge/documents/service'
 import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
-import {
-  createSingleDocument,
-  processDocumentAsync,
-} from '@/lib/knowledge/documents/service'
 import {
   createKnowledgeBase,
   deleteKnowledgeBase,
@@ -259,12 +256,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             requestId
           )
 
-          processDocumentAsync(args.knowledgeBaseId, doc.id, {
-            filename: fileRecord.name,
-            fileUrl: presignedUrl,
-            fileSize: fileRecord.size,
-            mimeType: fileRecord.type,
-          }, {}).catch((err) => {
+          processDocumentAsync(
+            args.knowledgeBaseId,
+            doc.id,
+            {
+              filename: fileRecord.name,
+              fileUrl: presignedUrl,
+              fileSize: fileRecord.size,
+              mimeType: fileRecord.type,
+            },
+            {}
+          ).catch((err) => {
             logger.error('Background document processing failed', {
               documentId: doc.id,
               error: err instanceof Error ? err.message : String(err),

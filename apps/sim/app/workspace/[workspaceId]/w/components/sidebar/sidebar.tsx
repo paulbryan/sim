@@ -2,22 +2,25 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import {
-  Database,
-  Files,
-  HelpCircle,
-  Layout,
-  MessageSquare,
-  Plus,
-  Search,
-  Settings,
-  Table,
-} from 'lucide-react'
+import { Database, Files, HelpCircle, MoreHorizontal, Plus, Search, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { Button, Download, FolderPlus, Library, Loader, Tooltip } from '@/components/emcn'
+import {
+  Blimp,
+  Button,
+  Download,
+  FolderPlus,
+  Home,
+  Library,
+  Loader,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverTrigger,
+  Tooltip,
+} from '@/components/emcn'
+import { Table } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
@@ -26,7 +29,6 @@ import {
   NavItemContextMenu,
   SearchModal,
   SettingsModal,
-  UsageIndicator,
   WorkflowList,
   WorkspaceHeader,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
@@ -51,9 +53,6 @@ import { useSettingsModalStore } from '@/stores/modals/settings/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
-
-/** Feature flag for billing usage indicator visibility */
-const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 /** Event name for sidebar scroll operations - centralized for consistency */
 export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
@@ -90,15 +89,7 @@ export const Sidebar = memo(function Sidebar() {
     initializeSearchData(filterBlocks)
   }, [initializeSearchData, filterBlocks])
 
-  /**
-   * Sidebar state from store with hydration tracking to prevent SSR mismatch.
-   * Uses default (expanded) state until hydrated.
-   */
-  const hasHydrated = useSidebarStore((state) => state._hasHydrated)
-  const isCollapsedStore = useSidebarStore((state) => state.isCollapsed)
-  const setIsCollapsed = useSidebarStore((state) => state.setIsCollapsed)
   const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
-  const isCollapsed = hasHydrated ? isCollapsedStore : false
   const isOnWorkflowPage = !!workflowId
 
   const workspaceFileInputRef = useRef<HTMLInputElement>(null)
@@ -255,27 +246,33 @@ export const Sidebar = memo(function Sidebar() {
     [workspaces, workspaceId]
   )
 
-  const footerNavigationItems = useMemo(
+  const topNavItems = useMemo(
+    () => [
+      {
+        id: 'home',
+        label: 'Home',
+        icon: Home,
+        href: `/workspace/${workspaceId}/home`,
+      },
+      {
+        id: 'search',
+        label: 'Search',
+        icon: Search,
+        onClick: openSearchModal,
+      },
+    ],
+    [workspaceId, openSearchModal]
+  )
+
+  const workspaceNavItems = useMemo(
     () =>
       [
         {
-          id: 'chat',
-          label: 'Mothership',
-          icon: MessageSquare,
-          href: `/workspace/${workspaceId}/chat`,
-        },
-        {
-          id: 'logs',
-          label: 'Logs',
-          icon: Library,
-          href: `/workspace/${workspaceId}/logs`,
-        },
-        {
-          id: 'templates',
-          label: 'Templates',
-          icon: Layout,
-          href: `/workspace/${workspaceId}/templates`,
-          hidden: permissionConfig.hideTemplates,
+          id: 'tables',
+          label: 'Tables',
+          icon: Table,
+          href: `/workspace/${workspaceId}/tables`,
+          hidden: permissionConfig.hideTablesTab,
         },
         {
           id: 'knowledge-base',
@@ -285,13 +282,6 @@ export const Sidebar = memo(function Sidebar() {
           hidden: permissionConfig.hideKnowledgeBaseTab,
         },
         {
-          id: 'tables',
-          label: 'Tables',
-          icon: Table,
-          href: `/workspace/${workspaceId}/tables`,
-          hidden: permissionConfig.hideTablesTab,
-        },
-        {
           id: 'files',
           label: 'Files',
           icon: Files,
@@ -299,20 +289,39 @@ export const Sidebar = memo(function Sidebar() {
           hidden: permissionConfig.hideFilesTab,
         },
         {
-          id: 'help',
-          label: 'Help',
-          icon: HelpCircle,
-          onClick: () => setIsHelpModalOpen(true),
-        },
-        {
-          id: 'settings',
-          label: 'Settings',
-          icon: Settings,
-          onClick: () => openSettingsModal(),
+          id: 'logs',
+          label: 'Logs',
+          icon: Library,
+          href: `/workspace/${workspaceId}/logs`,
         },
       ].filter((item) => !item.hidden),
-    [workspaceId, permissionConfig.hideTemplates, permissionConfig.hideKnowledgeBaseTab, permissionConfig.hideFilesTab]
+    [
+      workspaceId,
+      permissionConfig.hideKnowledgeBaseTab,
+      permissionConfig.hideTablesTab,
+      permissionConfig.hideFilesTab,
+    ]
   )
+
+  const footerItems = useMemo(
+    () => [
+      {
+        id: 'help',
+        label: 'Help',
+        icon: HelpCircle,
+        onClick: () => setIsHelpModalOpen(true),
+      },
+      {
+        id: 'settings',
+        label: 'Settings',
+        icon: Settings,
+        onClick: () => openSettingsModal(),
+      },
+    ],
+    []
+  )
+
+  const tasks = [{ id: '1', name: 'Finding leads for design engineers in SF' }]
 
   const isLoading = workflowsLoading || sessionLoading
   const initialScrollDoneRef = useRef(false)
@@ -329,12 +338,9 @@ export const Sidebar = memo(function Sidebar() {
 
   useEffect(() => {
     if (!isOnWorkflowPage) {
-      if (isCollapsed) {
-        setIsCollapsed(false)
-      }
       setSidebarWidth(SIDEBAR_WIDTH.MIN)
     }
-  }, [isOnWorkflowPage, isCollapsed, setIsCollapsed, setSidebarWidth])
+  }, [isOnWorkflowPage, setSidebarWidth])
 
   const handleCreateWorkflow = useCallback(async () => {
     const workflowId = await createWorkflow()
@@ -367,10 +373,6 @@ export const Sidebar = memo(function Sidebar() {
     },
     [workspaceId, switchWorkspace]
   )
-
-  const handleToggleCollapse = useCallback(() => {
-    setIsCollapsed(!isCollapsed)
-  }, [isCollapsed, setIsCollapsed])
 
   const handleSidebarClick = useCallback(
     (e: React.MouseEvent<HTMLElement>) => {
@@ -514,247 +516,260 @@ export const Sidebar = memo(function Sidebar() {
 
   return (
     <>
-      {isCollapsed ? (
-        /* Floating collapsed header - minimal pill showing workspace name and expand toggle */
-        <div className='fixed top-[14px] left-[10px] z-10 w-fit rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] py-[4px] pr-[10px] pl-[6px]'>
-          <WorkspaceHeader
-            activeWorkspace={activeWorkspace}
-            workspaceId={workspaceId}
-            workspaces={workspaces}
-            isWorkspacesLoading={isWorkspacesLoading}
-            isCreatingWorkspace={isCreatingWorkspace}
-            isWorkspaceMenuOpen={isWorkspaceMenuOpen}
-            setIsWorkspaceMenuOpen={setIsWorkspaceMenuOpen}
-            onWorkspaceSwitch={handleWorkspaceSwitch}
-            onCreateWorkspace={handleCreateWorkspace}
-            onToggleCollapse={handleToggleCollapse}
-            isCollapsed={isCollapsed}
-            onRenameWorkspace={handleRenameWorkspace}
-            onDeleteWorkspace={handleDeleteWorkspace}
-            onDuplicateWorkspace={handleDuplicateWorkspace}
-            onExportWorkspace={handleExportWorkspace}
-            onImportWorkspace={handleImportWorkspace}
-            isImportingWorkspace={isImportingWorkspace}
-            showCollapseButton={isOnWorkflowPage}
-            onLeaveWorkspace={handleLeaveWorkspaceWrapper}
-            sessionUserId={sessionData?.user?.id}
-          />
-        </div>
-      ) : (
-        /* Full sidebar */
-        <>
-          <aside
-            ref={sidebarRef}
-            className='sidebar-container fixed inset-y-0 left-0 z-10 overflow-hidden bg-[var(--surface-1)]'
-            aria-label='Workspace sidebar'
-            onClick={handleSidebarClick}
-          >
-            <div className='flex h-full flex-col border-[var(--border)] border-r pt-[12px]'>
-              {/* Header */}
-              <div className='flex-shrink-0 px-[14px]'>
-                <WorkspaceHeader
-                  activeWorkspace={activeWorkspace}
-                  workspaceId={workspaceId}
-                  workspaces={workspaces}
-                  isWorkspacesLoading={isWorkspacesLoading}
-                  isCreatingWorkspace={isCreatingWorkspace}
-                  isWorkspaceMenuOpen={isWorkspaceMenuOpen}
-                  setIsWorkspaceMenuOpen={setIsWorkspaceMenuOpen}
-                  onWorkspaceSwitch={handleWorkspaceSwitch}
-                  onCreateWorkspace={handleCreateWorkspace}
-                  onToggleCollapse={handleToggleCollapse}
-                  isCollapsed={isCollapsed}
-                  onRenameWorkspace={handleRenameWorkspace}
-                  onDeleteWorkspace={handleDeleteWorkspace}
-                  onDuplicateWorkspace={handleDuplicateWorkspace}
-                  onExportWorkspace={handleExportWorkspace}
-                  onImportWorkspace={handleImportWorkspace}
-                  isImportingWorkspace={isImportingWorkspace}
-                  showCollapseButton={isOnWorkflowPage}
-                  onLeaveWorkspace={handleLeaveWorkspaceWrapper}
-                  sessionUserId={sessionData?.user?.id}
-                />
-              </div>
+      <aside
+        ref={sidebarRef}
+        className='sidebar-container relative h-full overflow-hidden bg-[#F4F4F4] dark:bg-[var(--surface-1)]'
+        aria-label='Workspace sidebar'
+        onClick={handleSidebarClick}
+      >
+        <div className='flex h-full flex-col pt-[12px]'>
+          {/* Header */}
+          <div className='flex-shrink-0 px-[16px]'>
+            <WorkspaceHeader
+              activeWorkspace={activeWorkspace}
+              workspaceId={workspaceId}
+              workspaces={workspaces}
+              isWorkspacesLoading={isWorkspacesLoading}
+              isCreatingWorkspace={isCreatingWorkspace}
+              isWorkspaceMenuOpen={isWorkspaceMenuOpen}
+              setIsWorkspaceMenuOpen={setIsWorkspaceMenuOpen}
+              onWorkspaceSwitch={handleWorkspaceSwitch}
+              onCreateWorkspace={handleCreateWorkspace}
+              onRenameWorkspace={handleRenameWorkspace}
+              onDeleteWorkspace={handleDeleteWorkspace}
+              onDuplicateWorkspace={handleDuplicateWorkspace}
+              onExportWorkspace={handleExportWorkspace}
+              onImportWorkspace={handleImportWorkspace}
+              isImportingWorkspace={isImportingWorkspace}
+              onLeaveWorkspace={handleLeaveWorkspaceWrapper}
+              sessionUserId={sessionData?.user?.id}
+            />
+          </div>
 
-              {/* Search */}
-              <div
-                className='mx-[8px] mt-[10px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[8px] border border-[var(--border)] bg-transparent px-[8px] py-[6px] transition-colors duration-100 hover:border-[var(--border-1)] hover:bg-[var(--surface-6)] dark:bg-[var(--surface-4)] dark:hover:border-[var(--border-1)] dark:hover:bg-[var(--surface-5)]'
-                onClick={() => setIsSearchModalOpen(true)}
-              >
-                <div className='flex items-center gap-[6px]'>
-                  <Search className='h-[14px] w-[14px] text-[var(--text-subtle)]' />
-                  <p className='translate-y-[0.25px] font-medium text-[var(--text-tertiary)] text-small'>
-                    Search
-                  </p>
-                </div>
-                <p className='font-medium text-[var(--text-subtle)] text-small'>⌘K</p>
-              </div>
+          {/* Top Navigation: Home, Search */}
+          <div className='mt-[12px] flex flex-shrink-0 flex-col gap-[2px] px-[8px]'>
+            {topNavItems.map((item) => {
+              const Icon = item.icon
+              const active = item.href ? pathname?.startsWith(item.href) : false
+              const baseClasses =
+                'group flex h-[28px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+              const activeClasses = active ? 'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]' : ''
+              const textColor = active
+                ? 'text-[var(--text-primary)]'
+                : 'text-[var(--text-secondary)]'
 
-              {/* Workflows */}
-              <div className='workflows-section relative mt-[14px] flex flex-1 flex-col overflow-hidden'>
-                {/* Header - Always visible */}
-                <div className='flex flex-shrink-0 flex-col space-y-[4px] px-[14px]'>
-                  <div className='flex items-center justify-between'>
-                    <div className='font-medium text-[var(--text-tertiary)] text-small'>
-                      Workflows
-                    </div>
-                    <div className='flex items-center justify-center gap-[10px]'>
-                      {isImporting ? (
-                        <Button
-                          variant='ghost'
-                          className='translate-y-[-0.25px] p-[1px]'
-                          disabled={!canEdit || isImporting}
-                        >
-                          <Loader className='h-[14px] w-[14px]' animate />
-                        </Button>
-                      ) : (
-                        <Tooltip.Root>
-                          <Tooltip.Trigger asChild>
-                            <Button
-                              variant='ghost'
-                              className='translate-y-[-0.25px] p-[1px]'
-                              onClick={handleImportWorkflow}
-                              disabled={!canEdit}
-                            >
-                              <Download className='h-[14px] w-[14px]' />
-                            </Button>
-                          </Tooltip.Trigger>
-                          <Tooltip.Content>
-                            <p>Import workflows</p>
-                          </Tooltip.Content>
-                        </Tooltip.Root>
-                      )}
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            variant='ghost'
-                            className='mr-[1px] translate-y-[-0.25px] p-[1px]'
-                            onClick={handleCreateFolder}
-                            disabled={isCreatingFolder || !canEdit}
-                          >
-                            <FolderPlus className='h-[14px] w-[14px]' />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>
-                          <p>{isCreatingFolder ? 'Creating folder...' : 'Create folder'}</p>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            variant='outline'
-                            className='translate-y-[-0.25px] p-[1px]'
-                            onClick={handleCreateWorkflow}
-                            disabled={isCreatingWorkflow || !canEdit}
-                          >
-                            <Plus className='h-[14px] w-[14px]' />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content>
-                          <p>{isCreatingWorkflow ? 'Creating workflow...' : 'Create workflow'}</p>
-                        </Tooltip.Content>
-                      </Tooltip.Root>
+              if (item.onClick) {
+                return (
+                  <button
+                    key={item.id}
+                    type='button'
+                    data-item-id={item.id}
+                    className={`${baseClasses} ${activeClasses}`}
+                    onClick={item.onClick}
+                  >
+                    <Icon className={`h-[14px] w-[14px] flex-shrink-0 ${textColor}`} />
+                    <span className={`truncate font-medium ${textColor}`}>{item.label}</span>
+                  </button>
+                )
+              }
+
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href!}
+                  data-item-id={item.id}
+                  className={`${baseClasses} ${activeClasses}`}
+                  onContextMenu={(e) => handleNavItemContextMenu(e, item.href!)}
+                >
+                  <Icon className={`h-[14px] w-[14px] flex-shrink-0 ${textColor}`} />
+                  <span className={`truncate font-medium ${textColor}`}>{item.label}</span>
+                </Link>
+              )
+            })}
+          </div>
+
+          {/* Tasks */}
+          {tasks.length > 0 && (
+            <div className='mt-[12px] flex flex-shrink-0 flex-col'>
+              <div className='px-[16px]'>
+                <div className='font-medium text-[var(--text-tertiary)] text-small'>All tasks</div>
+              </div>
+              <div className='mt-[6px] px-[8px]'>
+                {tasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className='mx-[2px] flex h-[28px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                  >
+                    <Blimp className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-secondary)]' />
+                    <div className='min-w-0 truncate font-medium text-[var(--text-secondary)]'>
+                      {task.name}
                     </div>
                   </div>
-                </div>
-
-                {/* Scrollable workflow list */}
-                <div
-                  ref={scrollContainerRef}
-                  className='mt-[6px] flex-1 overflow-y-auto overflow-x-hidden px-[8px]'
-                >
-                  <WorkflowList
-                    regularWorkflows={regularWorkflows}
-                    isLoading={isLoading}
-                    canReorder={canEdit}
-                    handleFileChange={handleImportFileChange}
-                    fileInputRef={fileInputRef}
-                    scrollContainerRef={scrollContainerRef}
-                    onCreateWorkflow={handleCreateWorkflow}
-                    onCreateFolder={handleCreateFolder}
-                    disableCreate={!canEdit || isCreatingWorkflow || isCreatingFolder}
-                  />
-                </div>
+                ))}
               </div>
+            </div>
+          )}
 
-              {/* Usage Indicator */}
-              {isBillingEnabled && <UsageIndicator />}
+          {/* Workspace */}
+          <div className='mt-[12px] flex flex-shrink-0 flex-col'>
+            <div className='px-[16px] pb-[6px]'>
+              <div className='font-medium text-[var(--text-tertiary)] text-small'>Workspace</div>
+            </div>
+            <div className='flex flex-col gap-[2px] px-[8px]'>
+              {workspaceNavItems.map((item) => {
+                const Icon = item.icon
+                const active = item.href ? pathname?.startsWith(item.href) : false
+                const baseClasses =
+                  'group flex h-[28px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                const activeClasses = active
+                  ? 'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]'
+                  : ''
+                const textColor = active
+                  ? 'text-[var(--text-primary)]'
+                  : 'text-[var(--text-secondary)]'
 
-              {/* Footer Navigation */}
-              <div className='flex flex-shrink-0 flex-col gap-[2px] border-[var(--border)] border-t px-[7.75px] pt-[8px] pb-[8px]'>
-                {footerNavigationItems.map((item) => {
-                  const Icon = item.icon
-                  const active = item.href ? pathname?.startsWith(item.href) : false
-                  const baseClasses =
-                    'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
-                  const activeClasses = active
-                    ? 'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]'
-                    : ''
-                  const textClasses = active
-                    ? 'text-[var(--text-primary)]'
-                    : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href!}
+                    data-item-id={item.id}
+                    className={`${baseClasses} ${activeClasses}`}
+                    onContextMenu={(e) => handleNavItemContextMenu(e, item.href!)}
+                  >
+                    <Icon className={`h-[14px] w-[14px] flex-shrink-0 ${textColor}`} />
+                    <span className={`truncate font-medium ${textColor}`}>{item.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
 
-                  const content = (
-                    <>
-                      <Icon className={`h-[14px] w-[14px] flex-shrink-0 ${textClasses}`} />
-                      <span className={`truncate font-medium text-[13px] ${textClasses}`}>
-                        {item.label}
-                      </span>
-                    </>
-                  )
-
-                  if (item.onClick) {
-                    return (
-                      <button
-                        key={item.id}
-                        type='button'
-                        data-item-id={item.id}
-                        className={`${baseClasses} ${activeClasses}`}
-                        onClick={item.onClick}
+          {/* Workflows */}
+          <div className='workflows-section relative mt-[12px] flex flex-1 flex-col overflow-hidden'>
+            <div className='flex flex-shrink-0 flex-col space-y-[4px] px-[16px]'>
+              <div className='flex items-center justify-between'>
+                <div className='font-medium text-[var(--text-tertiary)] text-small'>Workflows</div>
+                <div className='flex items-center justify-center gap-[8px]'>
+                  <Popover>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                            disabled={!canEdit}
+                          >
+                            {isImporting || isCreatingFolder ? (
+                              <Loader className='h-[14px] w-[14px]' animate />
+                            ) : (
+                              <MoreHorizontal className='h-[14px] w-[14px]' />
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        <p>More actions</p>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                    <PopoverContent align='end' sideOffset={8} minWidth={160}>
+                      <PopoverItem
+                        onClick={handleImportWorkflow}
+                        disabled={!canEdit || isImporting}
                       >
-                        {content}
-                      </button>
-                    )
-                  }
-
-                  return (
-                    <Link
-                      key={item.id}
-                      href={item.href!}
-                      data-item-id={item.id}
-                      className={`${baseClasses} ${activeClasses}`}
-                      onContextMenu={(e) => handleNavItemContextMenu(e, item.href!)}
-                    >
-                      {content}
-                    </Link>
-                  )
-                })}
+                        <Download className='h-[14px] w-[14px]' />
+                        <span>{isImporting ? 'Importing...' : 'Import workflow'}</span>
+                      </PopoverItem>
+                      <PopoverItem
+                        onClick={handleCreateFolder}
+                        disabled={!canEdit || isCreatingFolder}
+                      >
+                        <FolderPlus className='h-[14px] w-[14px]' />
+                        <span>{isCreatingFolder ? 'Creating folder...' : 'Create folder'}</span>
+                      </PopoverItem>
+                    </PopoverContent>
+                  </Popover>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <Button
+                        variant='ghost'
+                        className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                        onClick={handleCreateWorkflow}
+                        disabled={isCreatingWorkflow || !canEdit}
+                      >
+                        <Plus className='h-[14px] w-[14px]' />
+                      </Button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content>
+                      <p>{isCreatingWorkflow ? 'Creating workflow...' : 'Create workflow'}</p>
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                </div>
               </div>
+            </div>
 
-              {/* Nav Item Context Menu */}
-              <NavItemContextMenu
-                isOpen={isNavContextMenuOpen}
-                position={navContextMenuPosition}
-                menuRef={navMenuRef}
-                onClose={handleNavContextMenuClose}
-                onOpenInNewTab={handleNavOpenInNewTab}
-                onCopyLink={handleNavCopyLink}
+            {/* Scrollable workflow list */}
+            <div
+              ref={scrollContainerRef}
+              className='mt-[6px] flex-1 overflow-y-auto overflow-x-hidden px-[8px]'
+            >
+              <WorkflowList
+                regularWorkflows={regularWorkflows}
+                isLoading={isLoading}
+                canReorder={canEdit}
+                handleFileChange={handleImportFileChange}
+                fileInputRef={fileInputRef}
+                scrollContainerRef={scrollContainerRef}
+                onCreateWorkflow={handleCreateWorkflow}
+                onCreateFolder={handleCreateFolder}
+                disableCreate={!canEdit || isCreatingWorkflow || isCreatingFolder}
               />
             </div>
-          </aside>
+          </div>
 
-          {/* Resize Handle - Only visible on workflow pages */}
-          {isOnWorkflowPage && (
-            <div
-              className='fixed top-0 bottom-0 left-[calc(var(--sidebar-width)-4px)] z-20 w-[8px] cursor-ew-resize'
-              onMouseDown={handleMouseDown}
-              role='separator'
-              aria-orientation='vertical'
-              aria-label='Resize sidebar'
-            />
-          )}
-        </>
-      )}
+          {/* Footer */}
+          <div className='flex flex-shrink-0 flex-col gap-[2px] px-[8px] py-[8px]'>
+            {footerItems.map((item) => {
+              const Icon = item.icon
+
+              return (
+                <button
+                  key={item.id}
+                  type='button'
+                  data-item-id={item.id}
+                  className='group mx-[2px] flex h-[28px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                  onClick={item.onClick}
+                >
+                  <Icon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-secondary)]' />
+                  <span className='truncate font-medium text-[var(--text-secondary)]'>
+                    {item.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Nav Item Context Menu */}
+          <NavItemContextMenu
+            isOpen={isNavContextMenuOpen}
+            position={navContextMenuPosition}
+            menuRef={navMenuRef}
+            onClose={handleNavContextMenuClose}
+            onOpenInNewTab={handleNavOpenInNewTab}
+            onCopyLink={handleNavCopyLink}
+          />
+        </div>
+
+        {/* Resize Handle */}
+        {isOnWorkflowPage && (
+          <div
+            className='absolute top-0 right-[-4px] bottom-0 z-20 w-[8px] cursor-ew-resize'
+            onMouseDown={handleMouseDown}
+            role='separator'
+            aria-orientation='vertical'
+            aria-label='Resize sidebar'
+          />
+        )}
+      </aside>
 
       {/* Universal Search Modal */}
       <SearchModal
@@ -762,6 +777,7 @@ export const Sidebar = memo(function Sidebar() {
         onOpenChange={setIsSearchModalOpen}
         workflows={searchModalWorkflows}
         workspaces={searchModalWorkspaces}
+        tasks={tasks}
         isOnWorkflowPage={!!workflowId}
       />
 

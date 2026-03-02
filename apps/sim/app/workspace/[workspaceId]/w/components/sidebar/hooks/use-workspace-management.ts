@@ -141,7 +141,7 @@ export function useWorkspaceManagement({
 
     try {
       logger.info('Creating new workspace')
-      const workspaceName = await generateWorkspaceName()
+      const workspaceName = generateWorkspaceName()
       logger.info(`Generated workspace name: ${workspaceName}`)
 
       const newWorkspace = await createWorkspaceMutation.mutateAsync({ name: workspaceName })

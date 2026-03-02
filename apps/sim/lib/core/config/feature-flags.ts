@@ -1,7 +1,7 @@
 /**
  * Environment utility functions for consistent environment detection across the application
  */
-import { env, getEnv, isFalsy, isTruthy } from './env'
+import { env, isFalsy, isTruthy } from './env'
 
 /**
  * Is the application running in production mode

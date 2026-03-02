@@ -38,7 +38,9 @@ async function resolveWorkspaceFile(
     (f) => f.name === fileName || f.name.normalize('NFC') === fileName.normalize('NFC')
   )
   if (!record) {
-    throw new Error(`File not found: "${fileName}". Use glob("files/*/meta.json") to list available files.`)
+    throw new Error(
+      `File not found: "${fileName}". Use glob("files/*/meta.json") to list available files.`
+    )
   }
   const buffer = await downloadWorkspaceFile(record)
   return { buffer, name: record.name, type: record.type }
@@ -56,9 +58,7 @@ function parseFileRows(
   if (ext === 'csv' || ext === 'tsv' || contentType === 'text/csv') {
     return parseCsvRows(buffer)
   }
-  throw new Error(
-    `Unsupported file format: "${ext}". Supported: csv, tsv, json`
-  )
+  throw new Error(`Unsupported file format: "${ext}". Supported: csv, tsv, json`)
 }
 
 async function parseJsonRows(
@@ -110,7 +110,7 @@ function inferColumnType(values: unknown[]): ColumnType {
 
   const allNumber = nonEmpty.every((v) => {
     const n = Number(v)
-    return !isNaN(n) && String(v).trim() !== ''
+    return !Number.isNaN(n) && String(v).trim() !== ''
   })
   if (allNumber) return 'number'
 
@@ -123,17 +123,14 @@ function inferColumnType(values: unknown[]): ColumnType {
   const isoDatePattern = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?/
   const allDate = nonEmpty.every((v) => {
     const s = String(v)
-    return isoDatePattern.test(s) && !isNaN(Date.parse(s))
+    return isoDatePattern.test(s) && !Number.isNaN(Date.parse(s))
   })
   if (allDate) return 'date'
 
   return 'string'
 }
 
-function inferSchema(
-  headers: string[],
-  rows: Record<string, unknown>[]
-): ColumnDefinition[] {
+function inferSchema(headers: string[], rows: Record<string, unknown>[]): ColumnDefinition[] {
   const sample = rows.slice(0, SCHEMA_SAMPLE_SIZE)
   return headers.map((name) => ({
     name,
@@ -146,7 +143,7 @@ function coerceValue(value: unknown, colType: ColumnType): string | number | boo
   switch (colType) {
     case 'number': {
       const n = Number(value)
-      return isNaN(n) ? null : n
+      return Number.isNaN(n) ? null : n
     }
     case 'boolean': {
       const s = String(value).toLowerCase()
@@ -185,11 +182,7 @@ async function batchInsertAll(
   for (let i = 0; i < rows.length; i += MAX_BATCH_SIZE) {
     const batch = rows.slice(i, i + MAX_BATCH_SIZE)
     const requestId = crypto.randomUUID().slice(0, 8)
-    const result = await batchInsertRows(
-      { tableId, rows: batch, workspaceId },
-      table,
-      requestId
-    )
+    const result = await batchInsertRows({ tableId, rows: batch, workspaceId }, table, requestId)
     inserted += result.length
   }
   return inserted

@@ -374,7 +374,7 @@ export const Panel = memo(function Panel() {
     <>
       <aside
         ref={panelRef}
-        className='panel-container fixed inset-y-0 right-0 z-10 overflow-hidden bg-[var(--surface-1)]'
+        className='panel-container relative shrink-0 overflow-hidden bg-[var(--surface-1)]'
         aria-label='Workflow panel'
       >
         <div className='flex h-full flex-col border-[var(--border)] border-l pt-[14px]'>
@@ -553,16 +553,16 @@ export const Panel = memo(function Panel() {
             </div>
           </div>
         </div>
-      </aside>
 
-      {/* Resize Handle */}
-      <div
-        className='fixed top-0 right-[calc(var(--panel-width)-4px)] bottom-0 z-20 w-[8px] cursor-ew-resize'
-        onMouseDown={handleMouseDown}
-        role='separator'
-        aria-orientation='vertical'
-        aria-label='Resize panel'
-      />
+        {/* Resize Handle */}
+        <div
+          className='absolute top-0 bottom-0 left-[-4px] z-20 w-[8px] cursor-ew-resize'
+          onMouseDown={handleMouseDown}
+          role='separator'
+          aria-orientation='vertical'
+          aria-label='Resize panel'
+        />
+      </aside>
 
       {/* Delete Confirmation Modal */}
       <Modal open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>

@@ -89,19 +89,15 @@ function handleClientCompletion(
   toolCall.status = success ? 'success' : 'error'
   toolCall.endTime = Date.now()
   const msg = completion?.message || (success ? 'Tool completed' : 'Tool failed or timed out')
-  markToolComplete(
-    toolCall.id,
-    toolCall.name,
-    success ? 200 : 500,
-    msg,
-    completion?.data
-  ).catch((err) => {
-    logger.error('markToolComplete fire-and-forget failed (client completion)', {
-      toolCallId: toolCall.id,
-      toolName: toolCall.name,
-      error: err instanceof Error ? err.message : String(err),
-    })
-  })
+  markToolComplete(toolCall.id, toolCall.name, success ? 200 : 500, msg, completion?.data).catch(
+    (err) => {
+      logger.error('markToolComplete fire-and-forget failed (client completion)', {
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  )
   markToolResultSeen(toolCallId)
 }
 

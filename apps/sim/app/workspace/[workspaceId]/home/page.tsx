@@ -1,15 +1,15 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
-import { Chat } from './chat'
+import { Home } from './home'
 
-interface ChatPageProps {
+interface HomePageProps {
   params: Promise<{
     workspaceId: string
   }>
 }
 
-export default async function ChatPage({ params }: ChatPageProps) {
+export default async function HomePage({ params }: HomePageProps) {
   const { workspaceId } = await params
   const session = await getSession()
 
@@ -22,5 +22,5 @@ export default async function ChatPage({ params }: ChatPageProps) {
     redirect('/')
   }
 
-  return <Chat />
+  return <Home />
 }

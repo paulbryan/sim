@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Command } from 'cmdk'
-import { Database, Files, HelpCircle, Layout, Settings, Table } from 'lucide-react'
+import { Database, Files, HelpCircle, Layout, Settings } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
-import { Library } from '@/components/emcn'
+import { Blimp, Library } from '@/components/emcn'
+import { Table } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
@@ -35,11 +36,17 @@ function customFilter(value: string, search: string): number {
   return 0
 }
 
+interface TaskItem {
+  id: string
+  name: string
+}
+
 interface SearchModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workflows?: WorkflowItem[]
   workspaces?: WorkspaceItem[]
+  tasks?: TaskItem[]
   isOnWorkflowPage?: boolean
 }
 
@@ -73,6 +80,7 @@ export function SearchModal({
   onOpenChange,
   workflows = [],
   workspaces = [],
+  tasks = [],
   isOnWorkflowPage = false,
 }: SearchModalProps) {
   const params = useParams()
@@ -371,12 +379,36 @@ export function SearchModal({
                     className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
                   >
                     <div
-                      className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px]'
-                      style={{ backgroundColor: workflow.color }}
+                      className='h-[14px] w-[14px] flex-shrink-0 rounded-[4px] border-[2px]'
+                      style={{
+                        backgroundColor: workflow.color,
+                        borderColor: `${workflow.color}60`,
+                        backgroundClip: 'padding-box',
+                      }}
                     />
                     <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
                       {workflow.name}
                       {workflow.isCurrent && ' (current)'}
+                    </span>
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            )}
+
+            {tasks.length > 0 && (
+              <Command.Group heading='Tasks' className={groupHeadingClassName}>
+                {tasks.map((task) => (
+                  <Command.Item
+                    key={task.id}
+                    value={`${task.name} task-${task.id}`}
+                    onSelect={() => onOpenChange(false)}
+                    className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
+                  >
+                    <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+                      <Blimp className='h-[14px] w-[14px] text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]' />
+                    </div>
+                    <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                      {task.name}
                     </span>
                   </Command.Item>
                 ))}

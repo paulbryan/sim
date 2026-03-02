@@ -33,7 +33,8 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
         case 'write': {
           const fileName = (args as Record<string, unknown>).fileName as string | undefined
           const content = (args as Record<string, unknown>).content as string | undefined
-          const contentType = ((args as Record<string, unknown>).contentType as string) || 'text/plain'
+          const contentType =
+            ((args as Record<string, unknown>).contentType as string) || 'text/plain'
 
           if (!fileName) {
             return { success: false, message: 'fileName is required for write operation' }

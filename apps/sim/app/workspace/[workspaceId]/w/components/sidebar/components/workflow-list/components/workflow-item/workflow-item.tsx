@@ -360,7 +360,7 @@ export function WorkflowItem({
         href={`/workspace/${workspaceId}/w/${workflow.id}`}
         data-item-id={workflow.id}
         className={clsx(
-          'group flex h-[26px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]',
+          'group mx-[2px] flex h-[28px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px]',
           active && 'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]',
           !active &&
             !isAnyDragActive &&
@@ -378,8 +378,12 @@ export function WorkflowItem({
         onContextMenu={handleContextMenu}
       >
         <div
-          className='h-[14px] w-[14px] flex-shrink-0 rounded-[4px]'
-          style={{ backgroundColor: workflow.color }}
+          className='h-[14px] w-[14px] flex-shrink-0 rounded-[4px] border-[2px]'
+          style={{
+            backgroundColor: workflow.color,
+            borderColor: `${workflow.color}60`,
+            backgroundClip: 'padding-box',
+          }}
         />
         <div className='min-w-0 flex-1'>
           <div className='flex min-w-0 items-center gap-[8px]'>
@@ -390,11 +394,7 @@ export function WorkflowItem({
                 onChange={(e) => setEditValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleInputBlur}
-                className={clsx(
-                  'w-full min-w-0 border-0 bg-transparent p-0 font-medium text-[14px] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
-                  active ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]',
-                  !active && !isAnyDragActive && 'group-hover:text-[var(--text-primary)]'
-                )}
+                className='w-full min-w-0 border-0 bg-transparent p-0 font-medium text-[14px] text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
                 maxLength={100}
                 disabled={isRenaming}
                 onClick={(e) => {
@@ -410,8 +410,7 @@ export function WorkflowItem({
               <div
                 className={clsx(
                   'min-w-0 truncate font-medium',
-                  active ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]',
-                  !active && !isAnyDragActive && 'group-hover:text-[var(--text-primary)]'
+                  active ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
                 )}
                 onDoubleClick={handleDoubleClick}
               >

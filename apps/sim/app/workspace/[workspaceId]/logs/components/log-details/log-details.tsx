@@ -408,14 +408,21 @@ export const LogDetails = memo(function LogDetails({
                       Workflow
                     </div>
                     <div className='flex min-w-0 items-center gap-[8px]'>
-                      <div
-                        className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
-                        style={{
-                          backgroundColor:
-                            log.workflow?.color ||
-                            (!log.workflowId ? DELETED_WORKFLOW_COLOR : undefined),
-                        }}
-                      />
+                      {(() => {
+                        const c =
+                          log.workflow?.color ||
+                          (!log.workflowId ? DELETED_WORKFLOW_COLOR : undefined)
+                        return (
+                          <div
+                            className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
+                            style={{
+                              backgroundColor: c,
+                              borderColor: c ? `${c}60` : undefined,
+                              backgroundClip: 'padding-box',
+                            }}
+                          />
+                        )
+                      })()}
                       <span className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-secondary)]'>
                         {log.workflow?.name ||
                           (!log.workflowId ? DELETED_WORKFLOW_LABEL : 'Unknown')}

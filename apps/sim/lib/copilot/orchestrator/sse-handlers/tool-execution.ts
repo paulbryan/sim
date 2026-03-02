@@ -22,10 +22,7 @@ import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-
 
 const logger = createLogger('CopilotSseToolExecution')
 
-const OUTPUT_PATH_TOOLS = new Set([
-  'function_execute',
-  'user_table',
-])
+const OUTPUT_PATH_TOOLS = new Set(['function_execute', 'user_table'])
 
 async function maybeWriteOutputToFile(
   toolName: string,
@@ -39,7 +36,7 @@ async function maybeWriteOutputToFile(
 
   const outputPath =
     (params?.outputPath as string | undefined) ??
-    (params?.args as Record<string, unknown> | undefined)?.outputPath as string | undefined
+    ((params?.args as Record<string, unknown> | undefined)?.outputPath as string | undefined)
   if (!outputPath) return result
 
   const fileName = outputPath.replace(/^files\//, '')

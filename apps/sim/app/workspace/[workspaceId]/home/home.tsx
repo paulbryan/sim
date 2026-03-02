@@ -1,21 +1,17 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { Check, CircleAlert, Loader2, Send, Square, Zap } from 'lucide-react'
+import { ArrowUp, Check, CircleAlert, Loader2, Zap } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/emcn'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import { cn } from '@/lib/core/utils/cn'
 
 const REMARK_PLUGINS = [remarkGfm]
 
 // ── Types ──
-
-interface SSEEvent {
-  timestamp: string
-  raw: string
-}
 
 type ToolCallStatus = 'executing' | 'success' | 'error'
 
@@ -130,16 +126,14 @@ function AssistantBlocks({
 
 // ── Main component ──
 
-export function Chat() {
+export function Home() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const [inputValue, setInputValue] = useState('')
-  const [events, setEvents] = useState<SSEEvent[]>([])
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const chatIdRef = useRef<string | undefined>(undefined)
-  const rawBottomRef = useRef<HTMLDivElement>(null)
   const chatBottomRef = useRef<HTMLDivElement>(null)
 
   const sendMessage = useCallback(
@@ -152,10 +146,7 @@ export function Chat() {
       const userMessageId = crypto.randomUUID()
       const assistantId = crypto.randomUUID()
 
-      setEvents((prev) => [
-        ...prev,
-        { timestamp: new Date().toISOString(), raw: JSON.stringify({ type: 'user', message }) },
-      ])
+      console.log('[SSE] user:', JSON.stringify({ type: 'user', message }))
 
       setMessages((prev) => [
         ...prev,
@@ -226,7 +217,7 @@ export function Chat() {
             if (!line.startsWith('data: ')) continue
             const payload = line.slice(6)
 
-            setEvents((prev) => [...prev, { timestamp: new Date().toISOString(), raw: payload }])
+            console.log('[SSE] event:', payload)
 
             let parsed: any
             try {
@@ -320,7 +311,6 @@ export function Chat() {
       } finally {
         setIsSending(false)
         abortControllerRef.current = null
-        rawBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
         chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
       }
     },
@@ -345,112 +335,121 @@ export function Chat() {
   )
 
   const clear = () => {
-    setEvents([])
     setMessages([])
     chatIdRef.current = undefined
   }
 
-  return (
-    <div className='flex h-full flex-col'>
-      <div className='flex flex-shrink-0 items-center justify-between border-[var(--border)] border-b px-6 py-3'>
-        <h1 className='font-medium text-[16px] text-[var(--text-primary)]'>Mothership</h1>
-        {(events.length > 0 || messages.length > 0) && (
-          <button
-            onClick={clear}
-            className='text-[var(--text-tertiary)] text-xs hover:text-[var(--text-secondary)]'
-          >
-            Clear
-          </button>
-        )}
+  const canSubmit = inputValue.trim().length > 0 && !isSending
+
+  const inputBar = (
+    <div className='mx-auto w-full max-w-2xl rounded-2xl border border-[var(--border-1)] bg-white px-3 py-[10px] shadow-sm dark:bg-[var(--surface-4)]'>
+      <div className='relative mb-[6px]'>
+        <textarea
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder='What do you want to build?'
+          rows={1}
+          className='m-0 box-border h-auto max-h-[120px] min-h-[24px] w-full resize-none overflow-y-auto overflow-x-hidden break-words border-0 bg-transparent px-1 py-1 font-medium font-sans text-[var(--text-primary)] text-sm leading-[1.25rem] outline-none [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
+        />
       </div>
 
-      {/* Split pane: left = rendered chat, right = raw SSE */}
-      <div className='flex min-h-0 flex-1'>
-        {/* Rendered chat */}
-        <div className='flex w-1/2 flex-col border-[var(--border)] border-r'>
-          <div className='border-[var(--border)] border-b px-4 py-2'>
-            <span className='font-medium text-[var(--text-tertiary)] text-xs'>Chat</span>
-          </div>
-          <div className='flex-1 overflow-y-auto px-4 py-4'>
-            {messages.length === 0 ? (
-              <div className='flex h-full items-center justify-center'>
-                <p className='text-[var(--text-tertiary)] text-sm'>Send a message to start</p>
-              </div>
-            ) : (
-              <div className='space-y-4'>
-                {messages.map((msg) => {
-                  if (msg.role === 'user') {
-                    return (
-                      <div key={msg.id} className='flex justify-end'>
-                        <div className='max-w-[85%] rounded-lg bg-[var(--accent)] px-4 py-2 text-[var(--accent-foreground)] text-sm'>
-                          <p className='whitespace-pre-wrap'>{msg.content}</p>
-                        </div>
-                      </div>
-                    )
-                  }
-
-                  const hasBlocks = msg.contentBlocks && msg.contentBlocks.length > 0
-                  const isThisStreaming = isSending && msg === messages[messages.length - 1]
-
-                  if (!hasBlocks && !msg.content && isThisStreaming) {
-                    return (
-                      <div key={msg.id} className='flex justify-start'>
-                        <div className='flex items-center gap-2 rounded-lg bg-[var(--surface-3)] px-4 py-2 text-[var(--text-secondary)] text-sm'>
-                          <Loader2 className='h-3 w-3 animate-spin' />
-                          Thinking...
-                        </div>
-                      </div>
-                    )
-                  }
-
-                  if (!hasBlocks && !msg.content) return null
-
-                  return (
-                    <div key={msg.id} className='flex justify-start'>
-                      <div className='max-w-[85%] rounded-lg bg-[var(--surface-3)] px-4 py-2 text-[var(--text-primary)] text-sm'>
-                        {hasBlocks ? (
-                          <AssistantBlocks
-                            blocks={msg.contentBlocks!}
-                            isStreaming={isThisStreaming}
-                          />
-                        ) : (
-                          <div className='prose-sm prose-invert max-w-none'>
-                            <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
-                              {msg.content}
-                            </ReactMarkdown>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-                <div ref={chatBottomRef} />
-              </div>
+      <div className='flex items-center justify-end'>
+        {isSending ? (
+          <Button
+            onClick={() => {
+              abortControllerRef.current?.abort()
+              setIsSending(false)
+            }}
+            className={cn(
+              'h-[28px] w-[28px] rounded-full border-0 p-0 transition-colors',
+              'bg-[var(--c-383838)] hover:bg-[var(--c-575757)] dark:bg-[var(--c-E0E0E0)] dark:hover:bg-[var(--c-CFCFCF)]'
             )}
-          </div>
-        </div>
+            title='Stop generation'
+          >
+            <svg
+              className='block h-[14px] w-[14px] fill-white dark:fill-black'
+              viewBox='0 0 24 24'
+              xmlns='http://www.w3.org/2000/svg'
+            >
+              <rect x='4' y='4' width='16' height='16' rx='3' ry='3' />
+            </svg>
+          </Button>
+        ) : (
+          <Button
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className={cn(
+              'h-[28px] w-[28px] rounded-full border-0 p-0 transition-colors',
+              canSubmit
+                ? 'bg-[var(--c-383838)] hover:bg-[var(--c-575757)] dark:bg-[var(--c-E0E0E0)] dark:hover:bg-[var(--c-CFCFCF)]'
+                : 'bg-[var(--c-808080)] dark:bg-[var(--c-808080)]'
+            )}
+          >
+            <ArrowUp className='block h-4 w-4 text-white dark:text-black' strokeWidth={2.25} />
+          </Button>
+        )}
+      </div>
+    </div>
+  )
 
-        {/* Raw SSE events */}
-        <div className='flex w-1/2 flex-col'>
-          <div className='border-[var(--border)] border-b px-4 py-2'>
-            <span className='font-medium text-[var(--text-tertiary)] text-xs'>Raw SSE</span>
-          </div>
-          <div className='flex-1 overflow-y-auto bg-[var(--surface-1)] font-mono text-xs'>
-            {events.map((evt, i) => (
-              <div
-                key={i}
-                className='border-[var(--border)] border-b px-4 py-2 hover:bg-[var(--surface-2)]'
-              >
-                <span className='mr-2 text-[var(--text-tertiary)]'>
-                  {new Date(evt.timestamp).toLocaleTimeString()}
-                </span>
-                <span className='whitespace-pre-wrap break-all text-[var(--text-primary)]'>
-                  {evt.raw}
-                </span>
+  if (messages.length === 0) {
+    return (
+      <div className='flex h-full flex-col items-center justify-center px-6'>
+        <h1 className='mb-6 font-semibold text-2xl text-[var(--text-primary)]'>
+          What do you want to build?
+        </h1>
+        {inputBar}
+      </div>
+    )
+  }
+
+  return (
+    <div className='flex h-full flex-col'>
+      <div className='min-h-0 flex-1 overflow-y-auto px-4 py-4'>
+        <div className='mx-auto max-w-3xl space-y-4'>
+          {messages.map((msg) => {
+            if (msg.role === 'user') {
+              return (
+                <div key={msg.id} className='flex justify-end'>
+                  <div className='max-w-[85%] rounded-lg bg-[var(--accent)] px-4 py-2 text-[var(--accent-foreground)] text-sm'>
+                    <p className='whitespace-pre-wrap'>{msg.content}</p>
+                  </div>
+                </div>
+              )
+            }
+
+            const hasBlocks = msg.contentBlocks && msg.contentBlocks.length > 0
+            const isThisStreaming = isSending && msg === messages[messages.length - 1]
+
+            if (!hasBlocks && !msg.content && isThisStreaming) {
+              return (
+                <div key={msg.id} className='flex justify-start'>
+                  <div className='flex items-center gap-2 rounded-lg bg-[var(--surface-3)] px-4 py-2 text-[var(--text-secondary)] text-sm'>
+                    <Loader2 className='h-3 w-3 animate-spin' />
+                    Thinking...
+                  </div>
+                </div>
+              )
+            }
+
+            if (!hasBlocks && !msg.content) return null
+
+            return (
+              <div key={msg.id} className='flex justify-start'>
+                <div className='max-w-[85%] rounded-lg bg-[var(--surface-3)] px-4 py-2 text-[var(--text-primary)] text-sm'>
+                  {hasBlocks ? (
+                    <AssistantBlocks blocks={msg.contentBlocks!} isStreaming={isThisStreaming} />
+                  ) : (
+                    <div className='prose-sm prose-invert max-w-none'>
+                      <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>{msg.content}</ReactMarkdown>
+                    </div>
+                  )}
+                </div>
               </div>
-            ))}
-            <div ref={rawBottomRef} />
-          </div>
+            )
+          })}
+          <div ref={chatBottomRef} />
         </div>
       </div>
 
@@ -460,47 +459,7 @@ export function Chat() {
         </div>
       )}
 
-      <div className='flex-shrink-0 border-[var(--border)] border-t px-6 py-4'>
-        <div className='mx-auto flex max-w-3xl items-end gap-2'>
-          <textarea
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder='Send a message...'
-            rows={1}
-            className='flex-1 resize-none rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2.5 text-[var(--text-primary)] text-sm placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)] focus:outline-none'
-            style={{ maxHeight: '120px' }}
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement
-              target.style.height = 'auto'
-              target.style.height = `${Math.min(target.scrollHeight, 120)}px`
-            }}
-          />
-          {isSending ? (
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => {
-                abortControllerRef.current?.abort()
-                setIsSending(false)
-              }}
-              className='h-[38px] w-[38px] flex-shrink-0 p-0'
-            >
-              <Square className='h-4 w-4' />
-            </Button>
-          ) : (
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={handleSubmit}
-              disabled={!inputValue.trim()}
-              className='h-[38px] w-[38px] flex-shrink-0 p-0'
-            >
-              <Send className='h-4 w-4' />
-            </Button>
-          )}
-        </div>
-      </div>
+      <div className='flex-shrink-0 border-[var(--border)] border-t px-6 py-4'>{inputBar}</div>
     </div>
   )
 }

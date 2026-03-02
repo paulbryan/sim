@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
+import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import {
   downloadWorkspaceFile,
   listWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
-import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 
 const logger = createLogger('VfsTools')
 
@@ -106,7 +106,10 @@ export async function executeVfsRead(
       // resolves to the actual file content from storage.
       const fileContent = await tryReadWorkspaceFile(path, workspaceId)
       if (fileContent) {
-        logger.debug('vfs_read resolved workspace file', { path, totalLines: fileContent.totalLines })
+        logger.debug('vfs_read resolved workspace file', {
+          path,
+          totalLines: fileContent.totalLines,
+        })
         return { success: true, output: fileContent }
       }
 
@@ -133,13 +136,17 @@ const MAX_TEXT_READ_BYTES = 512 * 1024 // 512 KB
 const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 
 const TEXT_TYPES = new Set([
-  'text/plain', 'text/csv', 'text/markdown', 'text/html', 'text/xml',
-  'application/json', 'application/xml', 'application/javascript',
+  'text/plain',
+  'text/csv',
+  'text/markdown',
+  'text/html',
+  'text/xml',
+  'application/json',
+  'application/xml',
+  'application/javascript',
 ])
 
-const PARSEABLE_EXTENSIONS = new Set([
-  'pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt',
-])
+const PARSEABLE_EXTENSIONS = new Set(['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'])
 
 function isReadableType(contentType: string): boolean {
   return TEXT_TYPES.has(contentType) || contentType.startsWith('text/')
@@ -211,7 +218,11 @@ async function tryReadWorkspaceFile(
         const content = result.content || ''
         return { content, totalLines: content.split('\n').length }
       } catch (parseErr) {
-        logger.warn('Failed to parse document', { fileName: record.name, ext, error: parseErr instanceof Error ? parseErr.message : String(parseErr) })
+        logger.warn('Failed to parse document', {
+          fileName: record.name,
+          ext,
+          error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+        })
         return {
           content: `[Could not parse ${record.name} (${record.type}, ${record.size} bytes)]`,
           totalLines: 1,

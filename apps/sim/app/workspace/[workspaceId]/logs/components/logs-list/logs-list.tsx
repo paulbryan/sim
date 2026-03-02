@@ -95,8 +95,12 @@ const LogRow = memo(
             className={`flex ${LOG_COLUMNS.workflow.width} ${LOG_COLUMNS.workflow.minWidth} items-center gap-[8px] pr-[8px]`}
           >
             <div
-              className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px]'
-              style={{ backgroundColor: workflowColor }}
+              className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
+              style={{
+                backgroundColor: workflowColor,
+                borderColor: `${workflowColor}60`,
+                backgroundClip: 'padding-box',
+              }}
             />
             <span
               className={cn(

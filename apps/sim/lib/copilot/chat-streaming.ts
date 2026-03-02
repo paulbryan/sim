@@ -114,9 +114,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         try {
           if (!clientDisconnected) {
             controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ ...event, eventId, streamId })}\n\n`
-              )
+              encoder.encode(`data: ${JSON.stringify({ ...event, eventId, streamId })}\n\n`)
             )
           }
         } catch {

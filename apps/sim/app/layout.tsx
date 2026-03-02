@@ -95,7 +95,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     var width = state && state.sidebarWidth;
                     var maxSidebarWidth = window.innerWidth * 0.3;
 
-                    if (width >= 232 && width <= maxSidebarWidth) {
+                    if (width >= 248 && width <= maxSidebarWidth) {
                       document.documentElement.style.setProperty('--sidebar-width', width + 'px');
                     } else if (width > maxSidebarWidth) {
                       document.documentElement.style.setProperty('--sidebar-width', maxSidebarWidth + 'px');

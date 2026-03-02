@@ -10,7 +10,7 @@
  * @see stores/constants.ts for the source of truth
  */
 :root {
-  --sidebar-width: 232px; /* SIDEBAR_WIDTH.DEFAULT */
+  --sidebar-width: 248px; /* SIDEBAR_WIDTH.DEFAULT */
   --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
   --toolbar-triggers-height: 300px; /* TOOLBAR_TRIGGERS_HEIGHT.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
@@ -93,14 +93,14 @@
     --border: #e0e0e0; /* primary border */
     --surface-5: #f3f3f3; /* inputs, form elements */
     --border-1: #e0e0e0; /* stronger border */
-    --surface-6: #f0f0f0; /* popovers, elevated surfaces */
-    --surface-7: #ececec;
+    --surface-6: #e5e5e5; /* popovers, elevated surfaces */
+    --surface-7: #d9d9d9;
 
     --workflow-edge: #e0e0e0; /* workflow handles/edges - matches border-1 */
 
     /* Text - neutral */
     --text-primary: #2d2d2d;
-    --text-secondary: #404040;
+    --text-secondary: #4e4e4e;
     --text-tertiary: #5c5c5c;
     --text-muted: #737373;
     --text-subtle: #8c8c8c;
@@ -125,7 +125,7 @@
 
     /* Font weights - lighter for light mode */
     --font-weight-base: 430;
-    --font-weight-medium: 450;
+    --font-weight-medium: 440;
     --font-weight-semibold: 500;
 
     /* Extended palette */
@@ -211,7 +211,7 @@
     --surface-5: #363636;
     --border-1: #3d3d3d;
     --surface-6: #454545;
-    --surface-7: #454545;
+    --surface-7: #505050;
 
     --workflow-edge: #454545; /* workflow handles/edges - same as surface-6 in dark */
 
