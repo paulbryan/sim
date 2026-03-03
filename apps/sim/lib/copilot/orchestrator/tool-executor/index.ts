@@ -272,7 +272,7 @@ const SERVER_TOOLS = new Set<string>([
   'get_blocks_metadata',
   'get_trigger_blocks',
   'edit_workflow',
-  'get_workflow_console',
+  'get_workflow_logs',
   'search_documentation',
   'search_online',
   'set_environment_variables',
@@ -284,6 +284,7 @@ const SERVER_TOOLS = new Set<string>([
   'run_block',
   'run_from_block',
   'workspace_file',
+  'get_execution_summary',
 ])
 
 const SIM_WORKFLOW_TOOL_HANDLERS: Record<
@@ -469,11 +470,12 @@ async function executeServerToolDirect(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    // Inject workflowId from context if not provided in params
-    // This is needed for tools like set_environment_variables that require workflowId
     const enrichedParams = { ...params }
     if (!enrichedParams.workflowId && context.workflowId) {
       enrichedParams.workflowId = context.workflowId
+    }
+    if (!enrichedParams.workspaceId && context.workspaceId) {
+      enrichedParams.workspaceId = context.workspaceId
     }
 
     const result = await routeExecution(toolName, enrichedParams, {

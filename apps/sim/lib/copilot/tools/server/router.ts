@@ -11,7 +11,8 @@ import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
-import { getWorkflowConsoleServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-console'
+import { getExecutionSummaryServerTool } from '@/lib/copilot/tools/server/workflow/get-execution-summary'
+import { getWorkflowLogsServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-logs'
 import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
 
 export { ExecuteResponseSuccessSchema }
@@ -24,7 +25,8 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [getBlocksMetadataServerTool.name]: getBlocksMetadataServerTool,
   [getTriggerBlocksServerTool.name]: getTriggerBlocksServerTool,
   [editWorkflowServerTool.name]: editWorkflowServerTool,
-  [getWorkflowConsoleServerTool.name]: getWorkflowConsoleServerTool,
+  [getExecutionSummaryServerTool.name]: getExecutionSummaryServerTool,
+  [getWorkflowLogsServerTool.name]: getWorkflowLogsServerTool,
   [searchDocumentationServerTool.name]: searchDocumentationServerTool,
   [searchOnlineServerTool.name]: searchOnlineServerTool,
   [setEnvironmentVariablesServerTool.name]: setEnvironmentVariablesServerTool,

@@ -5,9 +5,9 @@ import { and, desc, eq } from 'drizzle-orm'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
-const logger = createLogger('GetWorkflowConsoleServerTool')
+const logger = createLogger('GetWorkflowLogsServerTool')
 
-interface GetWorkflowConsoleArgs {
+interface GetWorkflowLogsArgs {
   workflowId: string
   executionId?: string
   limit?: number
@@ -64,15 +64,15 @@ function extractBlockExecutionsFromTraceSpans(traceSpans: any[]): BlockExecution
   return blockExecutions
 }
 
-export const getWorkflowConsoleServerTool: BaseServerTool<GetWorkflowConsoleArgs, any> = {
-  name: 'get_workflow_console',
-  async execute(rawArgs: GetWorkflowConsoleArgs, context?: { userId: string }): Promise<any> {
+export const getWorkflowLogsServerTool: BaseServerTool<GetWorkflowLogsArgs, any> = {
+  name: 'get_workflow_logs',
+  async execute(rawArgs: GetWorkflowLogsArgs, context?: { userId: string }): Promise<any> {
     const {
       workflowId,
       executionId,
       limit = 2,
       includeDetails = false,
-    } = rawArgs || ({} as GetWorkflowConsoleArgs)
+    } = rawArgs || ({} as GetWorkflowLogsArgs)
 
     if (!workflowId || typeof workflowId !== 'string') {
       throw new Error('workflowId is required')
@@ -90,7 +90,7 @@ export const getWorkflowConsoleServerTool: BaseServerTool<GetWorkflowConsoleArgs
       throw new Error(authorization.message || 'Unauthorized workflow access')
     }
 
-    logger.info('Fetching workflow console logs', {
+    logger.info('Fetching workflow logs', {
       workflowId,
       executionId,
       limit,
@@ -158,7 +158,7 @@ export const getWorkflowConsoleServerTool: BaseServerTool<GetWorkflowConsoleArgs
     })
 
     const resultSize = JSON.stringify(simplifiedExecutions).length
-    logger.info('Workflow console result prepared', {
+    logger.info('Workflow logs result prepared', {
       executionCount: simplifiedExecutions.length,
       resultSizeKB: Math.round(resultSize / 1024),
     })

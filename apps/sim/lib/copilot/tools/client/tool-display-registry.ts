@@ -732,7 +732,7 @@ const META_get_trigger_examples: ToolMetadata = {
   interrupt: undefined,
 }
 
-const META_get_workflow_console: ToolMetadata = {
+const META_get_workflow_logs: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Fetching execution logs', icon: Loader2 },
     [ClientToolCallState.executing]: { text: 'Fetching execution logs', icon: Loader2 },
@@ -2169,6 +2169,26 @@ const META_table: ToolMetadata = {
   },
 }
 
+const META_run: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Running', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Running', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Running', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Ran', icon: Play },
+    [ClientToolCallState.error]: { text: 'Failed to run', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped run', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted run', icon: XCircle },
+  },
+  uiConfig: {
+    subagent: {
+      streamingLabel: 'Running',
+      completedLabel: 'Ran',
+      shouldCollapse: true,
+      outputArtifacts: [],
+    },
+  },
+}
+
 const META_get_deployed_workflow_state: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Checking deployed state', icon: Loader2 },
@@ -2330,7 +2350,7 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   get_page_contents: META_get_page_contents,
   get_platform_actions: META_get_platform_actions,
   get_trigger_examples: META_get_trigger_examples,
-  get_workflow_console: META_get_workflow_console,
+  get_workflow_logs: META_get_workflow_logs,
   get_workflow_data: META_get_workflow_data,
   glob: META_glob,
   grep: META_grep,
@@ -2354,6 +2374,7 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   rename_workflow: META_rename_workflow,
   remember_debug: META_remember_debug,
   research: META_research,
+  run: META_run,
   run_block: META_run_block,
   run_from_block: META_run_from_block,
   run_workflow: META_run_workflow,
