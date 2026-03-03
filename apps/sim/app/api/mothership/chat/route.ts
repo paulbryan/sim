@@ -112,6 +112,7 @@ export async function POST(req: NextRequest) {
     const requestPayload = await buildCopilotRequestPayload(
       {
         message,
+        workspaceId,
         userId: authenticatedUserId,
         userMessageId,
         mode: 'agent',

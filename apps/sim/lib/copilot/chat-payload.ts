@@ -12,6 +12,7 @@ export interface BuildPayloadParams {
   message: string
   workflowId?: string
   workflowName?: string
+  workspaceId?: string
   userId: string
   userMessageId: string
   mode: string
@@ -146,6 +147,7 @@ export async function buildCopilotRequestPayload(
     message,
     ...(workflowId ? { workflowId } : {}),
     ...(params.workflowName ? { workflowName: params.workflowName } : {}),
+    ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),
     userId,
     ...(selectedModel ? { model: selectedModel } : {}),
     ...(provider ? { provider } : {}),

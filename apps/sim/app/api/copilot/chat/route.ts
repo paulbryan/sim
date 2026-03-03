@@ -140,6 +140,16 @@ export async function POST(req: NextRequest) {
     const workflowId = resolved.workflowId
     const workflowResolvedName = resolved.workflowName
 
+    // Resolve workspace from workflow so it can be sent as implicit context to the Go backend.
+    let resolvedWorkspaceId: string | undefined
+    try {
+      const { getWorkflowById } = await import('@/lib/workflows/utils')
+      const wf = await getWorkflowById(workflowId)
+      resolvedWorkspaceId = wf?.workspaceId ?? undefined
+    } catch {
+      logger.warn(`[${tracker.requestId}] Failed to resolve workspaceId from workflow`)
+    }
+
     const userMessageIdToUse = userMessageId || crypto.randomUUID()
     try {
       logger.info(`[${tracker.requestId}] Received chat POST`, {
@@ -213,6 +223,7 @@ export async function POST(req: NextRequest) {
         message,
         workflowId: workflowId || '',
         workflowName: workflowResolvedName,
+        workspaceId: resolvedWorkspaceId,
         userId: authenticatedUserId,
         userMessageId: userMessageIdToUse,
         mode,
