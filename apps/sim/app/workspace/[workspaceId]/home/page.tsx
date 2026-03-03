@@ -22,5 +22,5 @@ export default async function HomePage({ params }: HomePageProps) {
     redirect('/')
   }
 
-  return <Home />
+  return <Home key='home' />
 }

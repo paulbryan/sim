@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { usePathname } from 'next/navigation'
 import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
 import {
   type TaskStoredContentBlock,
@@ -21,7 +22,6 @@ export interface UseChatReturn {
   messages: ChatMessage[]
   isSending: boolean
   error: string | null
-  currentChatId: string | undefined
   sendMessage: (message: string) => Promise<void>
   stopGeneration: () => void
   chatBottomRef: React.RefObject<HTMLDivElement | null>
@@ -68,20 +68,18 @@ function getPayloadData(payload: SSEPayload): SSEPayloadData | undefined {
   return typeof payload.data === 'object' ? payload.data : undefined
 }
 
-export function useChat(
-  workspaceId: string,
-  initialChatId?: string,
-  initialStreamId?: string,
-  initialMessage?: string
-): UseChatReturn {
+export function useChat(workspaceId: string, initialChatId?: string): UseChatReturn {
+  const pathname = usePathname()
   const queryClient = useQueryClient()
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [isSending, setIsSending] = useState(Boolean(initialStreamId))
+  const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const chatIdRef = useRef<string | undefined>(initialChatId)
   const chatBottomRef = useRef<HTMLDivElement>(null)
   const appliedChatIdRef = useRef<string | undefined>(undefined)
+
+  const isHomePage = pathname.endsWith('/home')
 
   const { data: chatHistory } = useChatHistory(initialChatId)
 
@@ -90,7 +88,19 @@ export function useChat(
     appliedChatIdRef.current = undefined
     setMessages([])
     setError(null)
+    setIsSending(false)
   }, [initialChatId])
+
+  useEffect(() => {
+    if (!isHomePage || !chatIdRef.current) return
+    chatIdRef.current = undefined
+    appliedChatIdRef.current = undefined
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+    setMessages([])
+    setError(null)
+    setIsSending(false)
+  }, [isHomePage])
 
   useEffect(() => {
     if (!chatHistory || appliedChatIdRef.current === chatHistory.id) return
@@ -288,47 +298,6 @@ export function useChat(
     }
   }, [chatHistory?.activeStreamId, processSSEStream, finalize])
 
-  useEffect(() => {
-    if (!initialStreamId) return
-
-    const abortController = new AbortController()
-    abortControllerRef.current = abortController
-
-    const userMessageId = initialStreamId
-    const assistantId = crypto.randomUUID()
-
-    setMessages([
-      { id: userMessageId, role: 'user', content: initialMessage || '' },
-      { id: assistantId, role: 'assistant', content: '', contentBlocks: [] },
-    ])
-
-    const connectToStream = async () => {
-      try {
-        const response = await fetch(
-          `/api/copilot/chat/stream?streamId=${initialStreamId}&from=0`,
-          { signal: abortController.signal }
-        )
-
-        if (!response.ok || !response.body) {
-          throw new Error('Failed to connect to stream')
-        }
-
-        await processSSEStream(response.body.getReader(), assistantId)
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return
-        setError(err instanceof Error ? err.message : 'Failed to connect to stream')
-      } finally {
-        finalize()
-      }
-    }
-
-    connectToStream()
-
-    return () => {
-      abortController.abort()
-    }
-  }, [initialStreamId, initialMessage, workspaceId, processSSEStream, finalize])
-
   const sendMessage = useCallback(
     async (message: string) => {
       if (!message.trim() || !workspaceId) return
@@ -389,7 +358,6 @@ export function useChat(
     messages,
     isSending,
     error,
-    currentChatId: chatIdRef.current,
     sendMessage,
     stopGeneration,
     chatBottomRef,

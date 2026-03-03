@@ -362,7 +362,6 @@ export const Sidebar = memo(function Sidebar() {
     [fetchedTasks, workspaceId]
   )
 
-  const [isScrolledFromTop, setIsScrolledFromTop] = useState(false)
   const [hasOverflowBottom, setHasOverflowBottom] = useState(false)
 
   useEffect(() => {
@@ -370,7 +369,6 @@ export const Sidebar = memo(function Sidebar() {
     if (!container) return
 
     const updateScrollState = () => {
-      setIsScrolledFromTop(container.scrollTop > 0)
       setHasOverflowBottom(
         container.scrollHeight > container.scrollTop + container.clientHeight + 1
       )
@@ -654,12 +652,7 @@ export const Sidebar = memo(function Sidebar() {
           </div>
 
           {/* Workspace */}
-          <div
-            className={cn(
-              'mt-[14px] flex flex-shrink-0 flex-col border-b pb-[4px] transition-colors duration-150',
-              !isScrolledFromTop && 'border-transparent'
-            )}
-          >
+          <div className='mt-[14px] flex flex-shrink-0 flex-col pb-[5px]'>
             <div className='px-[16px] pb-[6px]'>
               <div className='font-base text-[var(--text-tertiary)] text-small'>Workspace</div>
             </div>

@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertTriangle, ArrowLeft, RefreshCw } from 'lucide-react'
+import { ArrowLeft, RefreshCw } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/emcn'
 
@@ -38,9 +38,6 @@ export default function TableViewerError({ error, reset }: TableViewerErrorProps
       {/* Error Content */}
       <div className='flex flex-1 items-center justify-center'>
         <div className='flex flex-col items-center gap-[16px] text-center'>
-          <div className='flex h-[48px] w-[48px] items-center justify-center rounded-full bg-[var(--surface-4)]'>
-            <AlertTriangle className='h-[24px] w-[24px] text-[var(--text-error)]' />
-          </div>
           <div className='flex flex-col gap-[8px]'>
             <h2 className='font-semibold text-[16px] text-[var(--text-primary)]'>
               Failed to load table

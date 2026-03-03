@@ -2,51 +2,28 @@
 
 import { useCallback, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
-import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import { useParams } from 'next/navigation'
 import { MessageContent, UserInput } from './components'
 import { useChat } from './hooks'
 
 interface HomeProps {
   chatId?: string
-  streamId?: string
-  initialMessage?: string
 }
 
-export function Home({ chatId, streamId, initialMessage }: HomeProps = {}) {
+export function Home({ chatId }: HomeProps = {}) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const router = useRouter()
   const [inputValue, setInputValue] = useState('')
-  const { messages, isSending, currentChatId, sendMessage, stopGeneration, chatBottomRef } =
-    useChat(workspaceId, chatId, streamId, initialMessage)
+  const { messages, isSending, sendMessage, stopGeneration, chatBottomRef } = useChat(
+    workspaceId,
+    chatId
+  )
 
   const handleSubmit = useCallback(() => {
     const trimmed = inputValue.trim()
     if (!trimmed) return
     setInputValue('')
-
-    if (chatId || currentChatId) {
-      sendMessage(trimmed)
-      return
-    }
-
-    const userMessageId = crypto.randomUUID()
-
-    fetch(MOTHERSHIP_CHAT_API_PATH, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: trimmed,
-        workspaceId,
-        userMessageId,
-        createNewChat: true,
-      }),
-    }).catch(() => {})
-
-    router.push(
-      `/workspace/${workspaceId}/task/new?sid=${userMessageId}&m=${encodeURIComponent(trimmed)}`
-    )
-  }, [inputValue, chatId, currentChatId, sendMessage, workspaceId, router])
+    sendMessage(trimmed)
+  }, [inputValue, sendMessage])
 
   const hasMessages = messages.length > 0
 

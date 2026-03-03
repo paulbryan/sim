@@ -5,19 +5,9 @@ interface TaskPageProps {
     workspaceId: string
     taskId: string
   }>
-  searchParams: Promise<{
-    sid?: string
-    m?: string
-  }>
 }
 
-export default async function TaskPage({ params, searchParams }: TaskPageProps) {
+export default async function TaskPage({ params }: TaskPageProps) {
   const { taskId } = await params
-
-  if (taskId === 'new') {
-    const { sid, m } = await searchParams
-    return <Home streamId={sid} initialMessage={m} />
-  }
-
-  return <Home chatId={taskId} />
+  return <Home key={taskId} chatId={taskId} />
 }
