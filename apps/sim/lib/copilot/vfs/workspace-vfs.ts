@@ -4,6 +4,7 @@ import {
   account,
   apiKey,
   chat as chatTable,
+  copilotChats,
   customTools,
   document,
   environment,
@@ -36,6 +37,8 @@ import {
   serializeKBMeta,
   serializeRecentExecutions,
   serializeTableMeta,
+  serializeTaskChat,
+  serializeTaskSession,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
@@ -194,6 +197,8 @@ function getStaticComponentFiles(): Map<string, string> {
  *   knowledgebases/{name}/documents.json
  *   tables/{name}/meta.json
  *   files/{name}/meta.json
+ *   tasks/{title}/session.md
+ *   tasks/{title}/chat.json
  *   custom-tools/{name}.json
  *   environment/credentials.json
  *   environment/api-keys.json
@@ -219,6 +224,7 @@ export class WorkspaceVFS {
       this.materializeFiles(workspaceId),
       this.materializeEnvironment(workspaceId, userId),
       this.materializeCustomTools(workspaceId),
+      this.materializeTasks(workspaceId, userId),
       generateWorkspaceContext(workspaceId, userId).then((content) => {
         this.files.set('WORKSPACE.md', content)
       }),
@@ -637,6 +643,57 @@ export class WorkspaceVFS {
       }
     } catch (err) {
       logger.warn('Failed to materialize custom tools', {
+        workspaceId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
+  /**
+   * Materialize mothership task chats as browsable conversation files.
+   */
+  private async materializeTasks(workspaceId: string, userId: string): Promise<void> {
+    try {
+      const taskRows = await db
+        .select({
+          id: copilotChats.id,
+          title: copilotChats.title,
+          messages: copilotChats.messages,
+          createdAt: copilotChats.createdAt,
+          updatedAt: copilotChats.updatedAt,
+        })
+        .from(copilotChats)
+        .where(
+          and(
+            eq(copilotChats.workspaceId, workspaceId),
+            eq(copilotChats.userId, userId),
+            eq(copilotChats.type, 'mothership')
+          )
+        )
+
+      for (const task of taskRows) {
+        const title = task.title || 'Untitled task'
+        const safeName = sanitizeName(title)
+        const prefix = `tasks/${safeName}/`
+        const messages = Array.isArray(task.messages) ? task.messages : []
+
+        this.files.set(
+          `${prefix}session.md`,
+          serializeTaskSession({
+            id: task.id,
+            title,
+            messageCount: messages.length,
+            createdAt: task.createdAt,
+            updatedAt: task.updatedAt,
+          })
+        )
+
+        if (messages.length > 0) {
+          this.files.set(`${prefix}chat.json`, serializeTaskChat(messages))
+        }
+      }
+    } catch (err) {
+      logger.warn('Failed to materialize tasks', {
         workspaceId,
         error: err instanceof Error ? err.message : String(err),
       })

@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   account,
+  copilotChats,
   knowledgeBase,
   userTableDefinitions,
   userTableRows,
@@ -8,7 +9,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, isNull } from 'drizzle-orm'
+import { and, count, desc, eq, isNull } from 'drizzle-orm'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -24,7 +25,8 @@ export async function generateWorkspaceContext(
   userId: string
 ): Promise<string> {
   try {
-    const [wsRow, members, workflows, kbs, tables, files, credentials] = await Promise.all([
+    const [wsRow, members, workflows, kbs, tables, files, credentials, recentTasks] =
+      await Promise.all([
       db
         .select({ id: workspace.id, name: workspace.name, ownerId: workspace.ownerId })
         .from(workspace)
@@ -72,7 +74,24 @@ export async function generateWorkspaceContext(
         })
         .from(account)
         .where(eq(account.userId, userId)),
-    ])
+
+      db
+        .select({
+          id: copilotChats.id,
+          title: copilotChats.title,
+          updatedAt: copilotChats.updatedAt,
+        })
+        .from(copilotChats)
+        .where(
+          and(
+            eq(copilotChats.workspaceId, workspaceId),
+            eq(copilotChats.userId, userId),
+            eq(copilotChats.type, 'mothership')
+          )
+        )
+        .orderBy(desc(copilotChats.updatedAt))
+        .limit(5),
+      ])
 
     const sections: string[] = []
 
@@ -155,6 +174,15 @@ export async function generateWorkspaceContext(
       sections.push(`## Credentials\nConnected: ${providers.join(', ')}`)
     } else {
       sections.push('## Credentials\n(none)')
+    }
+
+    // Recent tasks (mothership conversations)
+    if (recentTasks.length > 0) {
+      const lines = recentTasks.map((t) => {
+        const date = t.updatedAt.toISOString().split('T')[0]
+        return `- **${t.title || 'Untitled'}** (${t.id}) — ${date}`
+      })
+      sections.push(`## Recent Tasks (${recentTasks.length})\n${lines.join('\n')}`)
     }
 
     return sections.join('\n\n')
