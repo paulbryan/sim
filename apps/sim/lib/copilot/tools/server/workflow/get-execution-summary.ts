@@ -62,7 +62,12 @@ export const getExecutionSummaryServerTool: BaseServerTool<
 
     const clampedLimit = Math.min(Math.max(1, limit), 20)
 
-    logger.info('Fetching execution summary', { workspaceId, workflowId, limit: clampedLimit, status })
+    logger.info('Fetching execution summary', {
+      workspaceId,
+      workflowId,
+      limit: clampedLimit,
+      status,
+    })
 
     const conditions: SQL[] = [eq(workflowExecutionLogs.workspaceId, workspaceId)]
 
@@ -97,8 +102,7 @@ export const getExecutionSummaryServerTool: BaseServerTool<
 
     const summaries: ExecutionSummary[] = rows.map((row) => {
       const costData = row.cost as any
-      const errorMsg =
-        row.level === 'error' ? extractErrorMessage(row.executionData) : null
+      const errorMsg = row.level === 'error' ? extractErrorMessage(row.executionData) : null
 
       return {
         executionId: row.executionId,

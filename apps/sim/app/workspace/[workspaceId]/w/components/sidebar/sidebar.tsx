@@ -582,13 +582,13 @@ export const Sidebar = memo(function Sidebar() {
     <>
       <aside
         ref={sidebarRef}
-        className='sidebar-container relative h-full overflow-hidden bg-[#F4F4F4] dark:bg-[var(--surface-1)]'
+        className='sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)]'
         aria-label='Workspace sidebar'
         onClick={handleSidebarClick}
       >
         <div className='flex h-full flex-col pt-[12px]'>
           {/* Header */}
-          <div className='flex-shrink-0 px-[16px]'>
+          <div className='flex-shrink-0 px-[8px]'>
             <WorkspaceHeader
               activeWorkspace={activeWorkspace}
               workspaceId={workspaceId}
@@ -611,16 +611,17 @@ export const Sidebar = memo(function Sidebar() {
           </div>
 
           {/* Top Navigation: Home, Search */}
-          <div className='mt-[14px] flex flex-shrink-0 flex-col gap-[2px] px-[8px]'>
+          <div className='mt-[10px] flex flex-shrink-0 flex-col gap-[2px] px-[8px]'>
             {topNavItems.map((item) => {
               const Icon = item.icon
               const active = item.href ? pathname?.startsWith(item.href) : false
               const baseClasses =
-                'group flex h-[28px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
-              const activeClasses = active ? 'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]' : ''
+                'group flex h-[30px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
+              const activeClasses = active ? 'bg-[var(--surface-active)]' : ''
               const textColor = active
                 ? 'text-[var(--text-primary)]'
                 : 'text-[var(--text-secondary)]'
+              const iconColor = active ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'
 
               if (item.onClick) {
                 return (
@@ -631,8 +632,8 @@ export const Sidebar = memo(function Sidebar() {
                     className={`${baseClasses} ${activeClasses}`}
                     onClick={item.onClick}
                   >
-                    <Icon className={`h-[14px] w-[14px] flex-shrink-0 ${textColor}`} />
-                    <span className={`truncate font-medium ${textColor}`}>{item.label}</span>
+                    <Icon className={`h-[16px] w-[16px] flex-shrink-0 ${iconColor}`} />
+                    <span className={`truncate font-base ${textColor}`}>{item.label}</span>
                   </button>
                 )
               }
@@ -645,8 +646,8 @@ export const Sidebar = memo(function Sidebar() {
                   className={`${baseClasses} ${activeClasses}`}
                   onContextMenu={(e) => handleNavItemContextMenu(e, item.href!)}
                 >
-                  <Icon className={`h-[14px] w-[14px] flex-shrink-0 ${textColor}`} />
-                  <span className={`truncate font-medium ${textColor}`}>{item.label}</span>
+                  <Icon className={`h-[16px] w-[16px] flex-shrink-0 ${iconColor}`} />
+                  <span className={`truncate font-base ${textColor}`}>{item.label}</span>
                 </Link>
               )
             })}
@@ -660,20 +661,19 @@ export const Sidebar = memo(function Sidebar() {
             )}
           >
             <div className='px-[16px] pb-[6px]'>
-              <div className='font-medium text-[var(--text-tertiary)] text-small'>Workspace</div>
+              <div className='font-base text-[var(--text-tertiary)] text-small'>Workspace</div>
             </div>
             <div className='flex flex-col gap-[2px] px-[8px]'>
               {workspaceNavItems.map((item) => {
                 const Icon = item.icon
                 const active = item.href ? pathname?.startsWith(item.href) : false
                 const baseClasses =
-                  'group flex h-[28px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
-                const activeClasses = active
-                  ? 'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]'
-                  : ''
+                  'group flex h-[30px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
+                const activeClasses = active ? 'bg-[var(--surface-active)]' : ''
                 const textColor = active
                   ? 'text-[var(--text-primary)]'
                   : 'text-[var(--text-secondary)]'
+                const iconColor = active ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'
 
                 return (
                   <Link
@@ -683,8 +683,8 @@ export const Sidebar = memo(function Sidebar() {
                     className={`${baseClasses} ${activeClasses}`}
                     onContextMenu={(e) => handleNavItemContextMenu(e, item.href!)}
                   >
-                    <Icon className={`h-[14px] w-[14px] flex-shrink-0 ${textColor}`} />
-                    <span className={`truncate font-medium ${textColor}`}>{item.label}</span>
+                    <Icon className={`h-[16px] w-[16px] flex-shrink-0 ${iconColor}`} />
+                    <span className={`truncate font-base ${textColor}`}>{item.label}</span>
                   </Link>
                 )
               })}
@@ -699,7 +699,7 @@ export const Sidebar = memo(function Sidebar() {
             {/* Tasks */}
             <div className='flex flex-shrink-0 flex-col'>
               <div className='px-[16px]'>
-                <div className='font-medium text-[var(--text-tertiary)] text-small'>All tasks</div>
+                <div className='font-base text-[var(--text-tertiary)] text-small'>All tasks</div>
               </div>
               <div className='mt-[6px] flex flex-col gap-[2px] px-[8px]'>
                 {tasks.map((task) => {
@@ -707,16 +707,19 @@ export const Sidebar = memo(function Sidebar() {
                   const textColor = active
                     ? 'text-[var(--text-primary)]'
                     : 'text-[var(--text-secondary)]'
+                  const iconColor = active
+                    ? 'text-[var(--text-primary)]'
+                    : 'text-[var(--text-muted)]'
 
                   return (
                     <Link
                       key={task.id}
                       href={task.href}
-                      className={`mx-[2px] flex h-[28px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)] ${active ? 'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]' : ''}`}
+                      className={`mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)] ${active ? 'bg-[var(--surface-active)]' : ''}`}
                       onContextMenu={(e) => handleTaskContextMenu(e, task.href, task.id)}
                     >
-                      <Blimp className={`h-[14px] w-[14px] flex-shrink-0 ${textColor}`} />
-                      <div className={`min-w-0 truncate font-medium ${textColor}`}>{task.name}</div>
+                      <Blimp className={`h-[16px] w-[16px] flex-shrink-0 ${iconColor}`} />
+                      <div className={`min-w-0 truncate font-base ${textColor}`}>{task.name}</div>
                     </Link>
                   )
                 })}
@@ -727,9 +730,7 @@ export const Sidebar = memo(function Sidebar() {
             <div className='workflows-section mt-[14px] flex flex-col'>
               <div className='flex flex-shrink-0 flex-col space-y-[4px] px-[16px]'>
                 <div className='flex items-center justify-between'>
-                  <div className='font-medium text-[var(--text-tertiary)] text-small'>
-                    Workflows
-                  </div>
+                  <div className='font-base text-[var(--text-tertiary)] text-small'>Workflows</div>
                   <div className='flex items-center justify-center gap-[8px]'>
                     <Popover>
                       <Tooltip.Root>
@@ -737,13 +738,13 @@ export const Sidebar = memo(function Sidebar() {
                           <PopoverTrigger asChild>
                             <Button
                               variant='ghost'
-                              className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                              className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
                               disabled={!canEdit}
                             >
                               {isImporting || isCreatingFolder ? (
-                                <Loader className='h-[14px] w-[14px]' animate />
+                                <Loader className='h-[16px] w-[16px]' animate />
                               ) : (
-                                <MoreHorizontal className='h-[14px] w-[14px]' />
+                                <MoreHorizontal className='h-[16px] w-[16px]' />
                               )}
                             </Button>
                           </PopoverTrigger>
@@ -757,14 +758,14 @@ export const Sidebar = memo(function Sidebar() {
                           onClick={handleImportWorkflow}
                           disabled={!canEdit || isImporting}
                         >
-                          <Download className='h-[14px] w-[14px]' />
+                          <Download className='h-[16px] w-[16px]' />
                           <span>{isImporting ? 'Importing...' : 'Import workflow'}</span>
                         </PopoverItem>
                         <PopoverItem
                           onClick={handleCreateFolder}
                           disabled={!canEdit || isCreatingFolder}
                         >
-                          <FolderPlus className='h-[14px] w-[14px]' />
+                          <FolderPlus className='h-[16px] w-[16px]' />
                           <span>{isCreatingFolder ? 'Creating folder...' : 'Create folder'}</span>
                         </PopoverItem>
                       </PopoverContent>
@@ -773,11 +774,11 @@ export const Sidebar = memo(function Sidebar() {
                       <Tooltip.Trigger asChild>
                         <Button
                           variant='ghost'
-                          className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                          className='h-[18px] w-[18px] rounded-[4px] p-0 hover:bg-[var(--surface-active)]'
                           onClick={handleCreateWorkflow}
                           disabled={isCreatingWorkflow || !canEdit}
                         >
-                          <Plus className='h-[14px] w-[14px]' />
+                          <Plus className='h-[16px] w-[16px]' />
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content>
@@ -819,11 +820,11 @@ export const Sidebar = memo(function Sidebar() {
                   key={item.id}
                   type='button'
                   data-item-id={item.id}
-                  className='group mx-[2px] flex h-[28px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                  className='group mx-[2px] flex h-[30px] items-center gap-[8px] rounded-[8px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
                   onClick={item.onClick}
                 >
-                  <Icon className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-secondary)]' />
-                  <span className='truncate font-medium text-[var(--text-secondary)]'>
+                  <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-muted)]' />
+                  <span className='truncate font-base text-[var(--text-secondary)]'>
                     {item.label}
                   </span>
                 </button>

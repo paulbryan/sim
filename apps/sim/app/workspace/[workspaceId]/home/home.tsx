@@ -57,7 +57,7 @@ export function Home({ chatId, streamId }: HomeProps = {}) {
 
   if (!hasMessages) {
     return (
-      <div className='flex h-full flex-col items-center justify-center bg-[#FCFCFC] px-[24px] dark:bg-[var(--surface-1)]'>
+      <div className='flex h-full flex-col items-center justify-center bg-[#FCFCFC] px-[24px] dark:bg-[var(--surface-2)]'>
         <h1 className='mb-[24px] font-[450] font-season text-[32px] text-[var(--text-primary)] tracking-[-0.02em]'>
           What do you want to do?
         </h1>
@@ -73,7 +73,7 @@ export function Home({ chatId, streamId }: HomeProps = {}) {
   }
 
   return (
-    <div className='flex h-full bg-[#FCFCFC] dark:bg-[var(--surface-1)]'>
+    <div className='flex h-full bg-[#FCFCFC] dark:bg-[var(--surface-2)]'>
       <div className='flex h-full min-w-0 flex-1 flex-col'>
         <div className='min-h-0 flex-1 overflow-y-auto px-[16px] py-[16px]'>
           <div className='mx-auto max-w-[768px] space-y-[16px]'>

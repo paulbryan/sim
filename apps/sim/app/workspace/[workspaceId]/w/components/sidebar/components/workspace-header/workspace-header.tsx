@@ -149,6 +149,12 @@ export function WorkspaceHeader({
 
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
 
+  const workspaceInitial = (() => {
+    const name = activeWorkspace?.name || ''
+    const stripped = name.replace(/workspace/gi, '').trim()
+    return (stripped[0] || name[0] || 'W').toUpperCase()
+  })()
+
   /**
    * Opens the context menu for a workspace at the specified position
    */
@@ -310,7 +316,7 @@ export function WorkspaceHeader({
               <button
                 type='button'
                 aria-label='Switch workspace'
-                className='group -mx-[6px] flex h-[28px] min-w-0 max-w-full cursor-pointer items-center gap-[8px] rounded-[8px] bg-transparent px-[8px] transition-colors hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+                className='group flex h-[32px] w-full min-w-0 cursor-pointer items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-[#FCFCFC] px-[8px] transition-colors hover:bg-[var(--surface-5)] dark:bg-[var(--surface-2)] dark:hover:bg-[var(--surface-3)]'
                 title={activeWorkspace?.name || 'Loading...'}
                 onContextMenu={(e) => {
                   if (activeWorkspaceFull) {
@@ -318,7 +324,10 @@ export function WorkspaceHeader({
                   }
                 }}
               >
-                <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--surface-7)] font-medium text-[12px] text-[var(--text-secondary)] leading-none'>
+                  {workspaceInitial}
+                </div>
+                <span className='min-w-0 flex-1 truncate text-left font-base text-[14px] text-[var(--text-primary)]'>
                   {activeWorkspace?.name || 'Loading...'}
                 </span>
                 <ChevronDown
@@ -395,7 +404,7 @@ export function WorkspaceHeader({
                     {workspaces.map((workspace, index) => (
                       <div key={workspace.id} className={index > 0 ? 'mt-[2px]' : ''}>
                         {editingWorkspaceId === workspace.id ? (
-                          <div className='flex h-[26px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-5)] px-[6px]'>
+                          <div className='flex h-[26px] items-center gap-[8px] rounded-[8px] bg-[var(--surface-6)] px-[6px]'>
                             <input
                               ref={(el) => {
                                 if (el && !hasInputFocusedRef.current) {
@@ -481,11 +490,14 @@ export function WorkspaceHeader({
           <button
             type='button'
             aria-label='Switch workspace'
-            className='-mx-[6px] flex h-[28px] min-w-0 max-w-full cursor-pointer items-center gap-[8px] rounded-[8px] bg-transparent px-[8px] transition-colors hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]'
+            className='flex h-[32px] w-full min-w-0 items-center gap-[8px] rounded-[8px] border border-[var(--border)] bg-[#FCFCFC] px-[8px] dark:bg-[var(--surface-2)]'
             title={activeWorkspace?.name || 'Loading...'}
             disabled
           >
-            <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+            <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--surface-7)] font-medium text-[12px] text-[var(--text-secondary)] leading-none'>
+              {workspaceInitial}
+            </div>
+            <span className='min-w-0 flex-1 truncate text-left font-base text-[14px] text-[var(--text-primary)]'>
               {activeWorkspace?.name || 'Loading...'}
             </span>
             <ChevronDown className='h-[8px] w-[10px] flex-shrink-0 text-[var(--text-muted)]' />
@@ -546,8 +558,8 @@ export function WorkspaceHeader({
           <ModalBody>
             <p className='text-[12px] text-[var(--text-secondary)]'>
               Are you sure you want to leave{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{leaveTarget?.name}</span>?
-              You will lose access to all workflows and data in this workspace.{' '}
+              <span className='font-base text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You
+              will lose access to all workflows and data in this workspace.{' '}
               <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>

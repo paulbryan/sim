@@ -20,7 +20,6 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, desc, eq, isNull } from 'drizzle-orm'
-import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
 import type { DirEntry, GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
 import * as ops from '@/lib/copilot/vfs/operations'
 import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
@@ -41,6 +40,7 @@ import {
   serializeTaskSession,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
+import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'

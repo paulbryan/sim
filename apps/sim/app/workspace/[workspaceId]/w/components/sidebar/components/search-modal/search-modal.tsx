@@ -386,7 +386,7 @@ export function SearchModal({
                         backgroundClip: 'padding-box',
                       }}
                     />
-                    <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                    <span className='truncate font-base text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
                       {workflow.name}
                       {workflow.isCurrent && ' (current)'}
                     </span>
@@ -407,7 +407,7 @@ export function SearchModal({
                     <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
                       <Blimp className='h-[14px] w-[14px] text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]' />
                     </div>
-                    <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                    <span className='truncate font-base text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
                       {task.name}
                     </span>
                   </Command.Item>
@@ -441,7 +441,7 @@ export function SearchModal({
                     onSelect={() => handleWorkspaceSelect(workspace)}
                     className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
                   >
-                    <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                    <span className='truncate font-base text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
                       {workspace.name}
                       {workspace.isCurrent && ' (current)'}
                     </span>
@@ -481,11 +481,11 @@ export function SearchModal({
                       <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
                         <Icon className='h-[14px] w-[14px] text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]' />
                       </div>
-                      <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                      <span className='truncate font-base text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
                         {page.name}
                       </span>
                       {page.shortcut && (
-                        <span className='ml-auto flex-shrink-0 font-medium text-[13px] text-[var(--text-subtle)]'>
+                        <span className='ml-auto flex-shrink-0 font-base text-[13px] text-[var(--text-subtle)]'>
                           {page.shortcut}
                         </span>
                       )}
@@ -503,7 +503,7 @@ export function SearchModal({
 }
 
 const groupHeadingClassName =
-  '[&_[cmdk-group-heading]]:pt-[2px] [&_[cmdk-group-heading]]:pb-[4px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-[13px] [&_[cmdk-group-heading]]:text-[var(--text-subtle)] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide'
+  '[&_[cmdk-group-heading]]:pt-[2px] [&_[cmdk-group-heading]]:pb-[4px] [&_[cmdk-group-heading]]:font-base [&_[cmdk-group-heading]]:text-[13px] [&_[cmdk-group-heading]]:text-[var(--text-subtle)] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide'
 
 interface CommandItemProps {
   value: string
@@ -541,7 +541,7 @@ function CommandItem({
           )}
         />
       </div>
-      <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+      <span className='truncate font-base text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
         {children}
       </span>
     </Command.Item>

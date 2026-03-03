@@ -113,9 +113,19 @@ export async function POST(req: NextRequest) {
     }
 
     if (actualChatId) {
+      const userMsg = {
+        id: userMessageId,
+        role: 'user' as const,
+        content: message,
+        timestamp: new Date().toISOString(),
+      }
+
       await db
         .update(copilotChats)
-        .set({ conversationId: userMessageId })
+        .set({
+          messages: [...conversationHistory, userMsg],
+          conversationId: userMessageId,
+        })
         .where(eq(copilotChats.id, actualChatId))
     }
 

@@ -445,9 +445,9 @@ export function FolderItem({
         aria-expanded={isExpanded}
         aria-label={`${folder.name} folder, ${isExpanded ? 'expanded' : 'collapsed'}`}
         className={clsx(
-          'group mx-[2px] flex h-[28px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[8px] text-[14px]',
-          !isAnyDragActive && 'hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
-          isSelected ? 'bg-[var(--surface-6)] dark:bg-[var(--surface-5)]' : '',
+          'group mx-[2px] flex h-[30px] cursor-pointer items-center gap-[8px] rounded-[8px] px-[8px] text-[14px]',
+          !isAnyDragActive && 'hover:bg-[var(--surface-active)]',
+          isSelected ? 'bg-[var(--surface-active)]' : '',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         onClick={handleClick}
@@ -460,19 +460,19 @@ export function FolderItem({
       >
         <ChevronRight
           className={clsx(
-            'h-[14px] w-[14px] flex-shrink-0 text-[var(--text-secondary)] transition-transform duration-100',
+            'h-[16px] w-[16px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
             isExpanded && 'rotate-90'
           )}
           aria-hidden='true'
         />
         {isExpanded ? (
           <FolderOpen
-            className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-secondary)]'
+            className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-muted)]'
             aria-hidden='true'
           />
         ) : (
           <Folder
-            className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-secondary)]'
+            className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-muted)]'
             aria-hidden='true'
           />
         )}
@@ -483,7 +483,7 @@ export function FolderItem({
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleRenameKeyDown}
             onBlur={handleInputBlur}
-            className='min-w-0 flex-1 border-0 bg-transparent p-0 font-medium text-[14px] text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='min-w-0 flex-1 border-0 bg-transparent p-0 font-base text-[14px] text-[var(--text-primary)] outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
             maxLength={50}
             disabled={isRenaming}
             onClick={(e) => {
@@ -498,7 +498,7 @@ export function FolderItem({
         ) : (
           <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
             <span
-              className='min-w-0 flex-1 truncate font-medium text-[var(--text-secondary)]'
+              className='min-w-0 flex-1 truncate font-base text-[var(--text-secondary)]'
               onDoubleClick={handleDoubleClick}
             >
               {folder.name}
@@ -513,7 +513,7 @@ export function FolderItem({
                 !isAnyDragActive && 'group-hover:opacity-100'
               )}
             >
-              <MoreHorizontal className='h-[14px] w-[14px] text-[var(--text-tertiary)]' />
+              <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-muted)]' />
             </button>
           </div>
         )}

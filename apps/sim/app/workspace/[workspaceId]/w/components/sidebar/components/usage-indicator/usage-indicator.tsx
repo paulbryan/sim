@@ -468,7 +468,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
     return (
       <div className='flex flex-shrink-0 flex-col border-t px-[13.5px] pt-[8px] pb-[10px]'>
         <div className='flex h-[18px] items-center'>
-          <span className='font-medium text-[12px] text-[var(--text-primary)]'>
+          <span className='font-base text-[12px] text-[var(--text-primary)]'>
             {PLAN_NAMES[planType]}
           </span>
         </div>
@@ -490,7 +490,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
           <div className='flex min-w-0 flex-1 items-center gap-[6px]'>
             {showPlanText && (
               <>
-                <span className='flex-shrink-0 font-medium text-[12px] text-[var(--text-primary)]'>
+                <span className='flex-shrink-0 font-base text-[12px] text-[var(--text-primary)]'>
                   {PLAN_NAMES[planType]}
                 </span>
                 <div className='h-[14px] w-[1.5px] flex-shrink-0 bg-[var(--divider)]' />
@@ -498,16 +498,16 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
             )}
             <div className='flex min-w-0 flex-1 items-center gap-[4px]'>
               {statusText.isError ? (
-                <span className='font-medium text-[12px] text-[var(--text-error)]'>
+                <span className='font-base text-[12px] text-[var(--text-error)]'>
                   {statusText.text}
                 </span>
               ) : (
                 <>
-                  <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
+                  <span className='font-base text-[12px] text-[var(--text-secondary)] tabular-nums'>
                     ${usage.current.toFixed(2)}
                   </span>
-                  <span className='font-medium text-[12px] text-[var(--text-secondary)]'>/</span>
-                  <span className='font-medium text-[12px] text-[var(--text-secondary)] tabular-nums'>
+                  <span className='font-base text-[12px] text-[var(--text-secondary)]'>/</span>
+                  <span className='font-base text-[12px] text-[var(--text-secondary)] tabular-nums'>
                     ${usage.limit.toFixed(2)}
                   </span>
                 </>
