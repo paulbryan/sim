@@ -8,11 +8,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: brand.name === 'Sim' ? 'Sim — Build AI Agents & Run Your Agentic Workforce' : brand.name,
     short_name: brand.name,
     description:
-<<<<<<< HEAD
       'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to orchestrate agentic workflows.',
-=======
-      'Open-source AI agent workflow builder. 70,000+ developers build and deploy agentic workflows on Sim. Visual drag-and-drop interface for creating AI automations. SOC2 and HIPAA compliant.',
->>>>>>> staging
     start_url: '/',
     scope: '/',
     display: 'standalone',

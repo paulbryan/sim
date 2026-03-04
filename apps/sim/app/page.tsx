@@ -45,11 +45,7 @@ export const metadata: Metadata = {
     creator: '@simdotai',
     title: 'Sim — Build AI Agents & Run Your Agentic Workforce',
     description:
-<<<<<<< HEAD
       'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to orchestrate agentic workflows.',
-=======
-      'Open-source platform for agentic workflows. 70,000+ developers. Visual builder. 100+ integrations. SOC2 & HIPAA compliant.',
->>>>>>> staging
     images: {
       url: '/logo/426-240/primary/small.png',
       alt: 'Sim — Build AI Agents & Run Your Agentic Workforce',
