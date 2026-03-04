@@ -1,26 +1,24 @@
 import { db } from '@sim/db'
 import {
   a2aAgent,
-  account,
-  apiKey,
   chat as chatTable,
   copilotChats,
-  customTools,
   document,
-  environment,
   form,
-  knowledgeBase,
-  userTableDefinitions,
-  workflow,
   workflowDeploymentVersion,
   workflowExecutionLogs,
   workflowMcpServer,
   workflowMcpTool,
-  workspaceEnvironment,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, desc, eq, isNull } from 'drizzle-orm'
-import type { DirEntry, GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
+import { and, desc, eq, isNull } from 'drizzle-orm'
+import { listApiKeys } from '@/lib/api-key/service'
+import type {
+  DirEntry,
+  GrepMatch,
+  GrepOptions,
+  ReadResult,
+} from '@/lib/copilot/vfs/operations'
 import * as ops from '@/lib/copilot/vfs/operations'
 import type { DeploymentData } from '@/lib/copilot/vfs/serializers'
 import {
@@ -40,11 +38,25 @@ import {
   serializeTaskSession,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
-import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
-import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
+import { type WorkspaceMdData, buildWorkspaceMd } from '@/lib/copilot/workspace-context'
+import { getAccessibleEnvCredentials } from '@/lib/credentials/environment'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
+import { getKnowledgeBases } from '@/lib/knowledge/service'
+import { listTables } from '@/lib/table/service'
+import {
+  downloadWorkspaceFile,
+  listWorkspaceFiles,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
+import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import { listWorkflows } from '@/lib/workflows/utils'
+import {
+  getWorkspaceWithOwner,
+  getUsersWithPermissions,
+} from '@/lib/workspaces/permissions/utils'
 import { getAllBlocks } from '@/blocks/registry'
 import { tools as toolRegistry } from '@/tools/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
@@ -78,8 +90,6 @@ function getStaticComponentFiles(): Map<string, string> {
   }
   blocksFiltered = allBlocks.length - visibleBlocks.length
 
-  // Build a reverse index: tool ID → service name from block registry.
-  // The block type (stripped of version suffix) is used as the service directory.
   const toolToService = new Map<string, string>()
   for (const block of visibleBlocks) {
     if (!block.tools?.access) continue
@@ -99,7 +109,6 @@ function getStaticComponentFiles(): Map<string, string> {
       continue
     }
 
-    // Derive operation name by stripping the service prefix
     const prefix = `${service}_`
     const operation = baseName.startsWith(prefix) ? baseName.slice(prefix.length) : baseName
 
@@ -108,7 +117,6 @@ function getStaticComponentFiles(): Map<string, string> {
     integrationCount++
   }
 
-  // Add synthetic component files for subflow containers (not in block registry)
   files.set(
     'components/blocks/loop.json',
     JSON.stringify(
@@ -179,7 +187,6 @@ function getStaticComponentFiles(): Map<string, string> {
     integrations: integrationCount,
   })
 
-  // Only cache after successful completion to avoid poisoning with partial results
   staticComponentFiles = files
   return staticComponentFiles
 }
@@ -208,29 +215,58 @@ function getStaticComponentFiles(): Map<string, string> {
  */
 export class WorkspaceVFS {
   private files: Map<string, string> = new Map()
+  private _workspaceId: string = ''
+
+  get workspaceId(): string {
+    return this._workspaceId
+  }
 
   /**
-   * Materialize workspace data from DB into the VFS.
-   * Queries workflows, knowledge bases, and merges static component schemas.
+   * Materialize workspace data into the VFS.
+   * Uses shared service functions for all data access, then generates
+   * WORKSPACE.md from the summaries returned by each materializer.
    */
   async materialize(workspaceId: string, userId: string): Promise<void> {
     const start = Date.now()
     this.files = new Map()
+    this._workspaceId = workspaceId
 
-    await Promise.all([
+    const [
+      wfSummary,
+      kbSummary,
+      tblSummary,
+      fileSummary,
+      envSummary,
+      _tools,
+      taskSummary,
+      wsRow,
+      members,
+    ] = await Promise.all([
       this.materializeWorkflows(workspaceId, userId),
-      this.materializeKnowledgeBases(workspaceId),
+      this.materializeKnowledgeBases(workspaceId, userId),
       this.materializeTables(workspaceId),
       this.materializeFiles(workspaceId),
       this.materializeEnvironment(workspaceId, userId),
-      this.materializeCustomTools(workspaceId),
+      this.materializeCustomTools(workspaceId, userId),
       this.materializeTasks(workspaceId, userId),
-      generateWorkspaceContext(workspaceId, userId).then((content) => {
-        this.files.set('WORKSPACE.md', content)
-      }),
+      getWorkspaceWithOwner(workspaceId),
+      getUsersWithPermissions(workspaceId),
     ])
 
-    // Merge static component files
+    this.files.set(
+      'WORKSPACE.md',
+      buildWorkspaceMd({
+        workspace: wsRow,
+        members,
+        workflows: wfSummary,
+        knowledgeBases: kbSummary,
+        tables: tblSummary,
+        files: fileSummary,
+        credentials: envSummary,
+        tasks: taskSummary,
+      })
+    )
+
     for (const [path, content] of getStaticComponentFiles()) {
       this.files.set(path, content)
     }
@@ -267,34 +303,111 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Materialize all workflows in the workspace.
+   * Attempt to read dynamic workspace file content from storage.
+   * Handles images (base64), parseable documents (PDF, etc.), and text files.
+   * Returns null if the path doesn't match `files/{name}` or the file isn't found.
    */
-  private async materializeWorkflows(workspaceId: string, userId: string): Promise<void> {
-    const workflowRows = await db
-      .select({
-        id: workflow.id,
-        name: workflow.name,
-        description: workflow.description,
-        isDeployed: workflow.isDeployed,
-        deployedAt: workflow.deployedAt,
-        runCount: workflow.runCount,
-        lastRunAt: workflow.lastRunAt,
-        createdAt: workflow.createdAt,
-        updatedAt: workflow.updatedAt,
-      })
-      .from(workflow)
-      .where(eq(workflow.workspaceId, workspaceId))
+  async readFileContent(path: string): Promise<FileReadResult | null> {
+    const match = path.match(/^files\/(.+?)(?:\/content)?$/)
+    if (!match) return null
+    const fileName = match[1]
 
-    // Load normalized data + executions in parallel for all workflows
+    if (fileName.endsWith('/meta.json') || path.endsWith('/meta.json')) return null
+
+    try {
+      const files = await listWorkspaceFiles(this._workspaceId)
+      const record = files.find(
+        (f) => f.name === fileName || f.name.normalize('NFC') === fileName.normalize('NFC')
+      )
+      if (!record) return null
+
+      if (isImageFileType(record.type)) {
+        if (record.size > MAX_IMAGE_READ_BYTES) {
+          return {
+            content: `[Image too large: ${record.name} (${(record.size / 1024 / 1024).toFixed(1)}MB, limit 5MB)]`,
+            totalLines: 1,
+          }
+        }
+        const buffer = await downloadWorkspaceFile(record)
+        return {
+          content: `Image: ${record.name} (${(record.size / 1024).toFixed(1)}KB, ${record.type})`,
+          totalLines: 1,
+          attachment: {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: record.type,
+              data: buffer.toString('base64'),
+            },
+          },
+        }
+      }
+
+      const ext = getExtension(record.name)
+      if (PARSEABLE_EXTENSIONS.has(ext)) {
+        const buffer = await downloadWorkspaceFile(record)
+        try {
+          const { parseBuffer } = await import('@/lib/file-parsers')
+          const result = await parseBuffer(buffer, ext)
+          const content = result.content || ''
+          return { content, totalLines: content.split('\n').length }
+        } catch (parseErr) {
+          logger.warn('Failed to parse document', {
+            fileName: record.name,
+            ext,
+            error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+          })
+          return {
+            content: `[Could not parse ${record.name} (${record.type}, ${record.size} bytes)]`,
+            totalLines: 1,
+          }
+        }
+      }
+
+      if (!isReadableType(record.type)) {
+        return {
+          content: `[Binary file: ${record.name} (${record.type}, ${record.size} bytes). Cannot display as text.]`,
+          totalLines: 1,
+        }
+      }
+
+      if (record.size > MAX_TEXT_READ_BYTES) {
+        return {
+          content: `[File too large to display inline: ${record.name} (${record.size} bytes, limit ${MAX_TEXT_READ_BYTES})]`,
+          totalLines: 1,
+        }
+      }
+
+      const buffer = await downloadWorkspaceFile(record)
+      const content = buffer.toString('utf-8')
+      return { content, totalLines: content.split('\n').length }
+    } catch (err) {
+      logger.warn('Failed to read workspace file content', {
+        path,
+        fileName,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return null
+    }
+  }
+
+  /**
+   * Materialize all workflows using the shared listWorkflows function.
+   * Returns a summary for WORKSPACE.md generation.
+   */
+  private async materializeWorkflows(
+    workspaceId: string,
+    _userId: string
+  ): Promise<WorkspaceMdData['workflows']> {
+    const workflowRows = await listWorkflows(workspaceId)
+
     await Promise.all(
       workflowRows.map(async (wf) => {
         const safeName = sanitizeName(wf.name)
         const prefix = `workflows/${safeName}/`
 
-        // Meta
         this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf))
 
-        // Workflow state (blocks with embedded connections, nested loops/parallels)
         let normalized: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>> = null
         try {
           normalized = await loadWorkflowFromNormalizedTables(wf.id)
@@ -314,7 +427,6 @@ export class WorkspaceVFS {
           })
         }
 
-        // Recent executions (last 5)
         try {
           const execRows = await db
             .select({
@@ -341,7 +453,6 @@ export class WorkspaceVFS {
           })
         }
 
-        // Deployment configuration
         try {
           const deploymentData = await this.getWorkflowDeployments(
             wf.id,
@@ -361,88 +472,92 @@ export class WorkspaceVFS {
         }
       })
     )
+
+    return workflowRows.map((wf) => ({
+      id: wf.id,
+      name: wf.name,
+      description: wf.description,
+      isDeployed: wf.isDeployed,
+      lastRunAt: wf.lastRunAt,
+    }))
   }
 
   /**
-   * Materialize all knowledge bases in the workspace.
+   * Materialize knowledge bases using the shared getKnowledgeBases function.
+   * Returns a summary for WORKSPACE.md generation.
    */
-  private async materializeKnowledgeBases(workspaceId: string): Promise<void> {
-    const kbRows = await db
-      .select({
-        id: knowledgeBase.id,
-        name: knowledgeBase.name,
-        description: knowledgeBase.description,
-        embeddingModel: knowledgeBase.embeddingModel,
-        embeddingDimension: knowledgeBase.embeddingDimension,
-        tokenCount: knowledgeBase.tokenCount,
-        createdAt: knowledgeBase.createdAt,
-        updatedAt: knowledgeBase.updatedAt,
-      })
-      .from(knowledgeBase)
-      .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt)))
+  private async materializeKnowledgeBases(
+    workspaceId: string,
+    userId: string
+  ): Promise<WorkspaceMdData['knowledgeBases']> {
+    const kbs = await getKnowledgeBases(userId, workspaceId)
 
     await Promise.all(
-      kbRows.map(async (kb) => {
+      kbs.map(async (kb) => {
         const safeName = sanitizeName(kb.name)
         const prefix = `knowledgebases/${safeName}/`
-
-        // Get document count
-        const [docCountRow] = await db
-          .select({ count: count() })
-          .from(document)
-          .where(and(eq(document.knowledgeBaseId, kb.id), isNull(document.deletedAt)))
 
         this.files.set(
           `${prefix}meta.json`,
           serializeKBMeta({
-            ...kb,
-            documentCount: docCountRow?.count ?? 0,
+            id: kb.id,
+            name: kb.name,
+            description: kb.description,
+            embeddingModel: kb.embeddingModel,
+            embeddingDimension: kb.embeddingDimension,
+            tokenCount: kb.tokenCount,
+            createdAt: kb.createdAt,
+            updatedAt: kb.updatedAt,
+            documentCount: kb.docCount,
           })
         )
 
-        // Documents metadata
-        const docRows = await db
-          .select({
-            id: document.id,
-            filename: document.filename,
-            fileSize: document.fileSize,
-            mimeType: document.mimeType,
-            chunkCount: document.chunkCount,
-            tokenCount: document.tokenCount,
-            processingStatus: document.processingStatus,
-            enabled: document.enabled,
-            uploadedAt: document.uploadedAt,
-          })
-          .from(document)
-          .where(and(eq(document.knowledgeBaseId, kb.id), isNull(document.deletedAt)))
+        try {
+          const docRows = await db
+            .select({
+              id: document.id,
+              filename: document.filename,
+              fileSize: document.fileSize,
+              mimeType: document.mimeType,
+              chunkCount: document.chunkCount,
+              tokenCount: document.tokenCount,
+              processingStatus: document.processingStatus,
+              enabled: document.enabled,
+              uploadedAt: document.uploadedAt,
+            })
+            .from(document)
+            .where(and(eq(document.knowledgeBaseId, kb.id), isNull(document.deletedAt)))
 
-        if (docRows.length > 0) {
-          this.files.set(`${prefix}documents.json`, serializeDocuments(docRows))
+          if (docRows.length > 0) {
+            this.files.set(`${prefix}documents.json`, serializeDocuments(docRows))
+          }
+        } catch (err) {
+          logger.warn('Failed to load KB documents', {
+            knowledgeBaseId: kb.id,
+            error: err instanceof Error ? err.message : String(err),
+          })
         }
       })
     )
+
+    return kbs.map((kb) => ({
+      id: kb.id,
+      name: kb.name,
+      description: kb.description,
+    }))
   }
 
   /**
-   * Materialize all user tables in the workspace (metadata only, no row data).
+   * Materialize tables using the shared listTables function.
+   * Returns a summary for WORKSPACE.md generation.
    */
-  private async materializeTables(workspaceId: string): Promise<void> {
+  private async materializeTables(
+    workspaceId: string
+  ): Promise<WorkspaceMdData['tables']> {
     try {
-      const tableRows = await db
-        .select({
-          id: userTableDefinitions.id,
-          name: userTableDefinitions.name,
-          description: userTableDefinitions.description,
-          schema: userTableDefinitions.schema,
-          rowCount: userTableDefinitions.rowCount,
-          maxRows: userTableDefinitions.maxRows,
-          createdAt: userTableDefinitions.createdAt,
-          updatedAt: userTableDefinitions.updatedAt,
-        })
-        .from(userTableDefinitions)
-        .where(eq(userTableDefinitions.workspaceId, workspaceId))
+      const tables = await listTables(workspaceId)
 
-      for (const table of tableRows) {
+      for (const table of tables) {
         const safeName = sanitizeName(table.name)
         this.files.set(
           `tables/${safeName}/meta.json`,
@@ -458,18 +573,29 @@ export class WorkspaceVFS {
           })
         )
       }
+
+      return tables.map((t) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        rowCount: t.rowCount,
+      }))
     } catch (err) {
       logger.warn('Failed to materialize tables', {
         workspaceId,
         error: err instanceof Error ? err.message : String(err),
       })
+      return []
     }
   }
 
   /**
-   * Materialize all workspace files (metadata only, no file content).
+   * Materialize workspace files (already uses listWorkspaceFiles).
+   * Returns a summary for WORKSPACE.md generation.
    */
-  private async materializeFiles(workspaceId: string): Promise<void> {
+  private async materializeFiles(
+    workspaceId: string
+  ): Promise<WorkspaceMdData['files']> {
     try {
       const files = await listWorkspaceFiles(workspaceId)
 
@@ -486,11 +612,14 @@ export class WorkspaceVFS {
           })
         )
       }
+
+      return files.map((f) => ({ name: f.name, type: f.type, size: f.size }))
     } catch (err) {
       logger.warn('Failed to materialize files', {
         workspaceId,
         error: err instanceof Error ? err.message : String(err),
       })
+      return []
     }
   }
 
@@ -579,7 +708,6 @@ export class WorkspaceVFS {
       a2aRows.length > 0
     if (!hasAnyDeployment) return null
 
-    // Compute needsRedeployment by comparing current state to deployed state
     let needsRedeployment: boolean | undefined
     const deployedVersion = versionRows[0]
     if (isDeployed && deployedVersion?.state && currentNormalized) {
@@ -615,19 +743,11 @@ export class WorkspaceVFS {
   }
 
   /**
-   * Materialize all custom tools in the workspace.
+   * Materialize custom tools using the shared listCustomTools function.
    */
-  private async materializeCustomTools(workspaceId: string): Promise<void> {
+  private async materializeCustomTools(workspaceId: string, userId: string): Promise<void> {
     try {
-      const toolRows = await db
-        .select({
-          id: customTools.id,
-          title: customTools.title,
-          schema: customTools.schema,
-          code: customTools.code,
-        })
-        .from(customTools)
-        .where(eq(customTools.workspaceId, workspaceId))
+      const toolRows = await listCustomTools({ userId, workspaceId })
 
       for (const tool of toolRows) {
         const safeName = sanitizeName(tool.title)
@@ -651,8 +771,12 @@ export class WorkspaceVFS {
 
   /**
    * Materialize mothership task chats as browsable conversation files.
+   * Returns a summary for WORKSPACE.md generation.
    */
-  private async materializeTasks(workspaceId: string, userId: string): Promise<void> {
+  private async materializeTasks(
+    workspaceId: string,
+    userId: string
+  ): Promise<WorkspaceMdData['tasks']> {
     try {
       const taskRows = await db
         .select({
@@ -692,77 +816,68 @@ export class WorkspaceVFS {
           this.files.set(`${prefix}chat.json`, serializeTaskChat(messages))
         }
       }
+
+      return taskRows.map((t) => ({
+        id: t.id,
+        title: t.title || 'Untitled task',
+        updatedAt: t.updatedAt,
+      }))
     } catch (err) {
       logger.warn('Failed to materialize tasks', {
         workspaceId,
         error: err instanceof Error ? err.message : String(err),
       })
+      return []
     }
   }
 
   /**
-   * Materialize environment data: credentials, API keys, env variable names.
+   * Materialize environment data using shared service functions:
+   * - getAccessibleEnvCredentials for workspace-scoped credentials
+   * - listApiKeys for workspace API keys
+   * - getPersonalAndWorkspaceEnv for env variable names
+   *
+   * Returns a credential summary for WORKSPACE.md generation.
    */
-  private async materializeEnvironment(workspaceId: string, userId: string): Promise<void> {
+  private async materializeEnvironment(
+    workspaceId: string,
+    userId: string
+  ): Promise<WorkspaceMdData['credentials']> {
     try {
-      // OAuth credentials — which integrations are connected (no tokens)
-      const oauthRows = await db
-        .select({
-          providerId: account.providerId,
-          scope: account.scope,
-          createdAt: account.createdAt,
-        })
-        .from(account)
-        .where(eq(account.userId, userId))
+      const [envCredentials, apiKeyRows, envData] = await Promise.all([
+        getAccessibleEnvCredentials(workspaceId, userId),
+        listApiKeys(workspaceId),
+        getPersonalAndWorkspaceEnv(userId, workspaceId),
+      ])
 
-      this.files.set('environment/credentials.json', serializeCredentials(oauthRows))
-
-      // API keys — names and types (no key values)
-      const apiKeyRows = await db
-        .select({
-          id: apiKey.id,
-          name: apiKey.name,
-          type: apiKey.type,
-          lastUsed: apiKey.lastUsed,
-          createdAt: apiKey.createdAt,
-          expiresAt: apiKey.expiresAt,
-        })
-        .from(apiKey)
-        .where(eq(apiKey.workspaceId, workspaceId))
+      this.files.set(
+        'environment/credentials.json',
+        serializeCredentials(
+          envCredentials.map((c) => ({
+            providerId: c.envKey,
+            scope: c.type === 'env_workspace' ? 'workspace' : 'personal',
+            createdAt: c.updatedAt,
+          }))
+        )
+      )
 
       this.files.set('environment/api-keys.json', serializeApiKeys(apiKeyRows))
 
-      // Environment variables — names only (no values)
-      let personalVarNames: string[] = []
-      let workspaceVarNames: string[] = []
-
-      const [personalEnv] = await db
-        .select({ variables: environment.variables })
-        .from(environment)
-        .where(eq(environment.userId, userId))
-
-      if (personalEnv?.variables && typeof personalEnv.variables === 'object') {
-        personalVarNames = Object.keys(personalEnv.variables as Record<string, unknown>)
-      }
-
-      const [workspaceEnv] = await db
-        .select({ variables: workspaceEnvironment.variables })
-        .from(workspaceEnvironment)
-        .where(eq(workspaceEnvironment.workspaceId, workspaceId))
-
-      if (workspaceEnv?.variables && typeof workspaceEnv.variables === 'object') {
-        workspaceVarNames = Object.keys(workspaceEnv.variables as Record<string, unknown>)
-      }
-
+      const personalVarNames = Object.keys(envData.personalEncrypted)
+      const workspaceVarNames = Object.keys(envData.workspaceEncrypted)
       this.files.set(
         'environment/variables.json',
         serializeEnvironmentVariables(personalVarNames, workspaceVarNames)
       )
+
+      const uniqueKeys = [...new Set(envCredentials.map((c) => c.envKey))]
+      return uniqueKeys.map((key) => ({ providerId: key }))
     } catch (err) {
       logger.warn('Failed to materialize environment data', {
         workspaceId,
         error: err instanceof Error ? err.message : String(err),
       })
+      return []
     }
   }
 }
@@ -781,12 +896,50 @@ export async function getOrMaterializeVFS(
   return vfs
 }
 
+const MAX_TEXT_READ_BYTES = 512 * 1024 // 512 KB
+const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
+
+const TEXT_TYPES = new Set([
+  'text/plain',
+  'text/csv',
+  'text/markdown',
+  'text/html',
+  'text/xml',
+  'application/json',
+  'application/xml',
+  'application/javascript',
+])
+
+const PARSEABLE_EXTENSIONS = new Set(['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'])
+
+function isReadableType(contentType: string): boolean {
+  return TEXT_TYPES.has(contentType) || contentType.startsWith('text/')
+}
+
+function getExtension(filename: string): string {
+  const dot = filename.lastIndexOf('.')
+  return dot >= 0 ? filename.slice(dot + 1).toLowerCase() : ''
+}
+
+export interface FileReadResult {
+  content: string
+  totalLines: number
+  attachment?: {
+    type: string
+    source: {
+      type: 'base64'
+      media_type: string
+      data: string
+    }
+  }
+}
+
 /**
  * Sanitize a name for use as a VFS path segment.
  * Normalizes Unicode to NFC, collapses whitespace, strips control
  * characters, and replaces forward slashes (path separators).
  */
-function sanitizeName(name: string): string {
+export function sanitizeName(name: string): string {
   return name
     .normalize('NFC')
     .trim()

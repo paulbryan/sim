@@ -7,11 +7,8 @@ export type {
   ReadResult,
 } from '@/lib/copilot/vfs/operations'
 export {
-  serializeBlockSchema,
-  serializeDocuments,
-  serializeIntegrationSchema,
-  serializeKBMeta,
-  serializeRecentExecutions,
-  serializeWorkflowMeta,
-} from '@/lib/copilot/vfs/serializers'
-export { getOrMaterializeVFS, WorkspaceVFS } from '@/lib/copilot/vfs/workspace-vfs'
+  getOrMaterializeVFS,
+  sanitizeName,
+  WorkspaceVFS,
+} from '@/lib/copilot/vfs/workspace-vfs'
+export type { FileReadResult } from '@/lib/copilot/vfs/workspace-vfs'

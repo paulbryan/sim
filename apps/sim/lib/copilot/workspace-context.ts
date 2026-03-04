@@ -1,19 +1,111 @@
 import { db } from '@sim/db'
-import {
-  account,
-  copilotChats,
-  knowledgeBase,
-  userTableDefinitions,
-  userTableRows,
-  workflow,
-  workspace,
-} from '@sim/db/schema'
+import { account, copilotChats, knowledgeBase, userTableDefinitions, userTableRows, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, desc, eq, isNull } from 'drizzle-orm'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceContext')
+
+export interface WorkspaceMdData {
+  workspace: { id: string; name: string; ownerId: string } | null
+  members: Array<{ name: string; email: string; permissionType: string }>
+  workflows: Array<{
+    id: string
+    name: string
+    description?: string | null
+    isDeployed: boolean
+    lastRunAt?: Date | null
+  }>
+  knowledgeBases: Array<{ id: string; name: string; description?: string | null }>
+  tables: Array<{ id: string; name: string; description?: string | null; rowCount: number }>
+  files: Array<{ name: string; type: string; size: number }>
+  credentials: Array<{ providerId: string }>
+  tasks: Array<{ id: string; title: string; updatedAt: Date }>
+}
+
+/**
+ * Pure formatting: build WORKSPACE.md content from pre-fetched data.
+ * No DB access — callers are responsible for providing the data.
+ */
+export function buildWorkspaceMd(data: WorkspaceMdData): string {
+  const sections: string[] = []
+
+  if (data.workspace) {
+    sections.push(
+      `## Workspace\n- **Name**: ${data.workspace.name}\n- **ID**: ${data.workspace.id}\n- **Owner**: ${data.workspace.ownerId}`
+    )
+  }
+
+  if (data.members.length > 0) {
+    const lines = data.members.map((m) => {
+      const display = m.name ? `${m.name} (${m.email})` : m.email
+      return `- ${display} — ${m.permissionType}`
+    })
+    sections.push(`## Members\n${lines.join('\n')}`)
+  }
+
+  if (data.workflows.length > 0) {
+    const lines = data.workflows.map((wf) => {
+      const parts = [`- **${wf.name}** (${wf.id})`]
+      if (wf.description) parts.push(`  ${wf.description}`)
+      const flags: string[] = []
+      if (wf.isDeployed) flags.push('deployed')
+      if (wf.lastRunAt) flags.push(`last run: ${wf.lastRunAt.toISOString().split('T')[0]}`)
+      if (flags.length > 0) parts[0] += ` — ${flags.join(', ')}`
+      return parts.join('\n')
+    })
+    sections.push(`## Workflows (${data.workflows.length})\n${lines.join('\n')}`)
+  } else {
+    sections.push('## Workflows (0)\n(none)')
+  }
+
+  if (data.knowledgeBases.length > 0) {
+    const lines = data.knowledgeBases.map((kb) => {
+      let line = `- **${kb.name}** (${kb.id})`
+      if (kb.description) line += ` — ${kb.description}`
+      return line
+    })
+    sections.push(`## Knowledge Bases (${data.knowledgeBases.length})\n${lines.join('\n')}`)
+  } else {
+    sections.push('## Knowledge Bases (0)\n(none)')
+  }
+
+  if (data.tables.length > 0) {
+    const lines = data.tables.map((t) => {
+      let line = `- **${t.name}** (${t.id}) — ${t.rowCount} rows`
+      if (t.description) line += `, ${t.description}`
+      return line
+    })
+    sections.push(`## Tables (${data.tables.length})\n${lines.join('\n')}`)
+  } else {
+    sections.push('## Tables (0)\n(none)')
+  }
+
+  if (data.files.length > 0) {
+    const lines = data.files.map((f) => `- **${f.name}** (${f.type}, ${formatSize(f.size)})`)
+    sections.push(`## Files (${data.files.length})\n${lines.join('\n')}`)
+  } else {
+    sections.push('## Files (0)\n(none)')
+  }
+
+  if (data.credentials.length > 0) {
+    const providers = [...new Set(data.credentials.map((c) => c.providerId))]
+    sections.push(`## Credentials\nConnected: ${providers.join(', ')}`)
+  } else {
+    sections.push('## Credentials\n(none)')
+  }
+
+  if (data.tasks.length > 0) {
+    const lines = data.tasks.map((t) => {
+      const date = t.updatedAt.toISOString().split('T')[0]
+      return `- **${t.title || 'Untitled'}** (${t.id}) — ${date}`
+    })
+    sections.push(`## Recent Tasks (${data.tasks.length})\n${lines.join('\n')}`)
+  }
+
+  return sections.join('\n\n')
+}
 
 /**
  * Generate WORKSPACE.md content from actual database state.
@@ -93,99 +185,33 @@ export async function generateWorkspaceContext(
           .limit(5),
       ])
 
-    const sections: string[] = []
+    const rowCounts =
+      tables.length > 0
+        ? await Promise.all(
+            tables.map(async (t) => {
+              const [row] = await db
+                .select({ count: count() })
+                .from(userTableRows)
+                .where(eq(userTableRows.tableId, t.id))
+              return row?.count ?? 0
+            })
+          )
+        : []
 
-    // Workspace identity
-    if (wsRow) {
-      sections.push(
-        `## Workspace\n- **Name**: ${wsRow.name}\n- **ID**: ${wsRow.id}\n- **Owner**: ${wsRow.ownerId}`
-      )
-    }
-
-    // Members & permissions
-    if (members.length > 0) {
-      const lines = members.map((m) => {
-        const display = m.name ? `${m.name} (${m.email})` : m.email
-        return `- ${display} — ${m.permissionType}`
-      })
-      sections.push(`## Members\n${lines.join('\n')}`)
-    }
-
-    // Workflows
-    if (workflows.length > 0) {
-      const lines = workflows.map((wf) => {
-        const parts = [`- **${wf.name}** (${wf.id})`]
-        if (wf.description) parts.push(`  ${wf.description}`)
-        const flags: string[] = []
-        if (wf.isDeployed) flags.push('deployed')
-        if (wf.lastRunAt) flags.push(`last run: ${wf.lastRunAt.toISOString().split('T')[0]}`)
-        if (flags.length > 0) parts[0] += ` — ${flags.join(', ')}`
-        return parts.join('\n')
-      })
-      sections.push(`## Workflows (${workflows.length})\n${lines.join('\n')}`)
-    } else {
-      sections.push('## Workflows (0)\n(none)')
-    }
-
-    // Knowledge Bases
-    if (kbs.length > 0) {
-      const lines = kbs.map((kb) => {
-        let line = `- **${kb.name}** (${kb.id})`
-        if (kb.description) line += ` — ${kb.description}`
-        return line
-      })
-      sections.push(`## Knowledge Bases (${kbs.length})\n${lines.join('\n')}`)
-    } else {
-      sections.push('## Knowledge Bases (0)\n(none)')
-    }
-
-    // Tables (live row counts)
-    if (tables.length > 0) {
-      const rowCounts = await Promise.all(
-        tables.map(async (t) => {
-          const [row] = await db
-            .select({ count: count() })
-            .from(userTableRows)
-            .where(eq(userTableRows.tableId, t.id))
-          return row?.count ?? 0
-        })
-      )
-      const lines = tables.map((t, i) => {
-        let line = `- **${t.name}** (${t.id}) — ${rowCounts[i]} rows`
-        if (t.description) line += `, ${t.description}`
-        return line
-      })
-      sections.push(`## Tables (${tables.length})\n${lines.join('\n')}`)
-    } else {
-      sections.push('## Tables (0)\n(none)')
-    }
-
-    // Files
-    if (files.length > 0) {
-      const lines = files.map((f) => `- **${f.name}** (${f.type}, ${formatSize(f.size)})`)
-      sections.push(`## Files (${files.length})\n${lines.join('\n')}`)
-    } else {
-      sections.push('## Files (0)\n(none)')
-    }
-
-    // Credentials
-    if (credentials.length > 0) {
-      const providers = [...new Set(credentials.map((c) => c.providerId))]
-      sections.push(`## Credentials\nConnected: ${providers.join(', ')}`)
-    } else {
-      sections.push('## Credentials\n(none)')
-    }
-
-    // Recent tasks (mothership conversations)
-    if (recentTasks.length > 0) {
-      const lines = recentTasks.map((t) => {
-        const date = t.updatedAt.toISOString().split('T')[0]
-        return `- **${t.title || 'Untitled'}** (${t.id}) — ${date}`
-      })
-      sections.push(`## Recent Tasks (${recentTasks.length})\n${lines.join('\n')}`)
-    }
-
-    return sections.join('\n\n')
+    return buildWorkspaceMd({
+      workspace: wsRow,
+      members,
+      workflows,
+      knowledgeBases: kbs,
+      tables: tables.map((t, i) => ({ ...t, rowCount: rowCounts[i] ?? 0 })),
+      files: files.map((f) => ({ name: f.name, type: f.type, size: f.size })),
+      credentials: credentials.map((c) => ({ providerId: c.providerId })),
+      tasks: recentTasks.map((t) => ({
+        id: t.id,
+        title: t.title || 'Untitled',
+        updatedAt: t.updatedAt,
+      })),
+    })
   } catch (err) {
     logger.error('Failed to generate workspace context', {
       workspaceId,

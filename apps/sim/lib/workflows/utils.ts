@@ -19,6 +19,14 @@ export async function getWorkflowById(id: string) {
   return rows[0]
 }
 
+export async function listWorkflows(workspaceId: string) {
+  return db
+    .select()
+    .from(workflowTable)
+    .where(eq(workflowTable.workspaceId, workspaceId))
+    .orderBy(asc(workflowTable.sortOrder), asc(workflowTable.createdAt))
+}
+
 export async function resolveWorkflowIdForUser(
   userId: string,
   workflowId?: string,

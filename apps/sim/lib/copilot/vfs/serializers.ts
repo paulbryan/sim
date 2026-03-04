@@ -159,8 +159,8 @@ export function serializeTableMeta(table: {
   schema: unknown
   rowCount: number
   maxRows: number
-  createdAt: Date
-  updatedAt: Date
+  createdAt: Date | string
+  updatedAt: Date | string
 }): string {
   return JSON.stringify(
     {
@@ -170,8 +170,14 @@ export function serializeTableMeta(table: {
       schema: table.schema,
       rowCount: table.rowCount,
       maxRows: table.maxRows,
-      createdAt: table.createdAt.toISOString(),
-      updatedAt: table.updatedAt.toISOString(),
+      createdAt:
+        table.createdAt instanceof Date
+          ? table.createdAt.toISOString()
+          : table.createdAt,
+      updatedAt:
+        table.updatedAt instanceof Date
+          ? table.updatedAt.toISOString()
+          : table.updatedAt,
     },
     null,
     2
