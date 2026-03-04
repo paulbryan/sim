@@ -10,7 +10,11 @@ export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
   title: 'Sim — Build AI Agents & Run Your Agentic Workforce',
   description:
+<<<<<<< HEAD
     'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to orchestrate agentic workflows.',
+=======
+    'Open-source AI agent workflow builder used by 70,000+ developers. Build and deploy agentic workflows with a visual drag-and-drop canvas. Connect 100+ apps and ship SOC2 & HIPAA-ready AI automations from startups to Fortune 500.',
+>>>>>>> staging
   keywords:
     'AI agents, agentic workforce, open-source AI agent platform, agentic workflows, LLM orchestration, AI automation, knowledge base, workflow builder, AI integrations, SOC2 compliant, HIPAA compliant, enterprise AI',
   authors: [{ name: 'Sim' }],
@@ -24,7 +28,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Sim — Build AI Agents & Run Your Agentic Workforce',
     description:
+<<<<<<< HEAD
       'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs. Join over 100,000 builders.',
+=======
+      'Open-source platform used by 70,000+ developers. Design, deploy, and monitor agentic workflows with a visual drag-and-drop interface, 100+ integrations, and enterprise-grade security.',
+>>>>>>> staging
     type: 'website',
     url: baseUrl,
     siteName: 'Sim',
@@ -45,7 +53,11 @@ export const metadata: Metadata = {
     creator: '@simdotai',
     title: 'Sim — Build AI Agents & Run Your Agentic Workforce',
     description:
+<<<<<<< HEAD
       'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to orchestrate agentic workflows.',
+=======
+      'Open-source platform for agentic workflows. 70,000+ developers. Visual builder. 100+ integrations. SOC2 & HIPAA compliant.',
+>>>>>>> staging
     images: {
       url: '/logo/426-240/primary/small.png',
       alt: 'Sim — Build AI Agents & Run Your Agentic Workforce',

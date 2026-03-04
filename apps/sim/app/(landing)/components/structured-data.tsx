@@ -38,7 +38,11 @@ export default function StructuredData() {
         url: 'https://sim.ai',
         name: 'Sim — Build AI Agents & Run Your Agentic Workforce',
         description:
+<<<<<<< HEAD
           'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Join 100,000+ builders.',
+=======
+          'Open-source AI agent workflow builder. 70,000+ developers build and deploy agentic workflows. SOC2 and HIPAA compliant.',
+>>>>>>> staging
         publisher: {
           '@id': 'https://sim.ai/#organization',
         },
@@ -87,7 +91,11 @@ export default function StructuredData() {
         '@id': 'https://sim.ai/#software',
         name: 'Sim — Build AI Agents & Run Your Agentic Workforce',
         description:
+<<<<<<< HEAD
           'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs. Trusted by over 100,000 builders. SOC2 and HIPAA compliant.',
+=======
+          'Open-source AI agent workflow builder used by 70,000+ developers. Build agentic workflows with visual drag-and-drop interface. SOC2 and HIPAA compliant. Integrate with 100+ apps.',
+>>>>>>> staging
         applicationCategory: 'DeveloperApplication',
         applicationSubCategory: 'AI Development Tools',
         operatingSystem: 'Web, Windows, macOS, Linux',
@@ -188,7 +196,11 @@ export default function StructuredData() {
             name: 'What is Sim?',
             acceptedAnswer: {
               '@type': 'Answer',
+<<<<<<< HEAD
               text: 'Sim is the open-source platform to build AI agents and run your agentic workforce. Teams connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs. Trusted by over 100,000 builders. SOC2 and HIPAA compliant.',
+=======
+              text: 'Sim is an open-source AI agent workflow builder used by 70,000+ developers at trail-blazing startups to Fortune 500 companies. It provides a visual drag-and-drop interface for building and deploying agentic workflows. Sim is SOC2 and HIPAA compliant.',
+>>>>>>> staging
             },
           },
           {

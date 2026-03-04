@@ -268,6 +268,7 @@ export async function POST(req: NextRequest) {
     } catch {}
 
     if (stream) {
+<<<<<<< HEAD
       const sseStream = createSSEStream({
         requestPayload,
         userId: authenticatedUserId,
@@ -286,6 +287,123 @@ export async function POST(req: NextRequest) {
           goRoute: '/api/copilot',
           autoExecuteTools: true,
           interactive: true,
+=======
+      const streamId = userMessageIdToUse
+      let eventWriter: ReturnType<typeof createStreamEventWriter> | null = null
+      let clientDisconnected = false
+      const transformedStream = new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder()
+
+          await resetStreamBuffer(streamId)
+          await setStreamMeta(streamId, { status: 'active', userId: authenticatedUserId })
+          eventWriter = createStreamEventWriter(streamId)
+
+          const shouldFlushEvent = (event: Record<string, any>) =>
+            event.type === 'tool_call' ||
+            event.type === 'tool_result' ||
+            event.type === 'tool_error' ||
+            event.type === 'subagent_end' ||
+            event.type === 'structured_result' ||
+            event.type === 'subagent_result' ||
+            event.type === 'done' ||
+            event.type === 'error'
+
+          const pushEvent = async (event: Record<string, any>) => {
+            if (!eventWriter) return
+            const entry = await eventWriter.write(event)
+            if (shouldFlushEvent(event)) {
+              await eventWriter.flush()
+            }
+            const payload = {
+              ...event,
+              eventId: entry.eventId,
+              streamId,
+            }
+            try {
+              if (!clientDisconnected) {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
+              }
+            } catch {
+              clientDisconnected = true
+              await eventWriter.flush()
+            }
+          }
+
+          if (actualChatId) {
+            await pushEvent({ type: 'chat_id', chatId: actualChatId })
+          }
+
+          if (actualChatId && !currentChat?.title && conversationHistory.length === 0) {
+            requestChatTitleFromCopilot({ message, model: selectedModel, provider })
+              .then(async (title) => {
+                if (title) {
+                  await db
+                    .update(copilotChats)
+                    .set({
+                      title,
+                      updatedAt: new Date(),
+                    })
+                    .where(eq(copilotChats.id, actualChatId!))
+                  await pushEvent({ type: 'title_updated', title })
+                }
+              })
+              .catch((error) => {
+                logger.error(`[${tracker.requestId}] Title generation failed:`, error)
+              })
+          }
+
+          try {
+            const result = await orchestrateCopilotStream(requestPayload, {
+              userId: authenticatedUserId,
+              workflowId,
+              chatId: actualChatId,
+              autoExecuteTools: true,
+              interactive: true,
+              onEvent: async (event) => {
+                await pushEvent(event)
+              },
+            })
+
+            if (currentChat && result.conversationId) {
+              await db
+                .update(copilotChats)
+                .set({
+                  updatedAt: new Date(),
+                  conversationId: result.conversationId,
+                })
+                .where(eq(copilotChats.id, actualChatId!))
+            }
+            await eventWriter.close()
+            await setStreamMeta(streamId, { status: 'complete', userId: authenticatedUserId })
+          } catch (error) {
+            logger.error(`[${tracker.requestId}] Orchestration error:`, error)
+            await eventWriter.close()
+            await setStreamMeta(streamId, {
+              status: 'error',
+              userId: authenticatedUserId,
+              error: error instanceof Error ? error.message : 'Stream error',
+            })
+            await pushEvent({
+              type: 'error',
+              data: {
+                displayMessage: 'An unexpected error occurred while processing the response.',
+              },
+            })
+          } finally {
+            try {
+              controller.close()
+            } catch {
+              // controller may already be closed by cancel()
+            }
+          }
+        },
+        async cancel() {
+          clientDisconnected = true
+          if (eventWriter) {
+            await eventWriter.close().catch(() => {})
+          }
+>>>>>>> staging
         },
       })
 

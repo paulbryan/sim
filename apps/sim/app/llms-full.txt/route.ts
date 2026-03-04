@@ -5,7 +5,11 @@ export async function GET() {
 
   const llmsFullContent = `# Sim — Build AI Agents & Run Your Agentic Workforce
 
+<<<<<<< HEAD
 > Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.
+=======
+> Sim is an open-source AI agent workflow builder used by 70,000+ developers at startups to Fortune 500 companies. Build and deploy agentic workflows with a visual drag-and-drop canvas. SOC2 and HIPAA compliant.
+>>>>>>> staging
 
 ## Overview
 

@@ -480,12 +480,16 @@ export const auth = betterAuth({
         'spotify',
         'google-email',
         'google-calendar',
+        'google-contacts',
         'google-drive',
         'google-docs',
         'google-sheets',
         'google-forms',
+        'google-bigquery',
         'google-vault',
         'google-groups',
+        'google-meet',
+        'google-tasks',
         'vertex-ai',
         'github-repo',
         'microsoft-dataverse',
@@ -770,6 +774,7 @@ export const auth = betterAuth({
               })
 
               if (!profileResponse.ok) {
+                await profileResponse.text().catch(() => {})
                 logger.error('Failed to fetch GitHub profile', {
                   status: profileResponse.status,
                   statusText: profileResponse.statusText,
@@ -847,6 +852,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -886,6 +892,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -926,6 +933,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -966,6 +974,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -1006,6 +1015,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -1028,7 +1038,7 @@ export const auth = betterAuth({
         },
 
         {
-          providerId: 'google-forms',
+          providerId: 'google-contacts',
           clientId: env.GOOGLE_CLIENT_ID as string,
           clientSecret: env.GOOGLE_CLIENT_SECRET as string,
           discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
@@ -1036,18 +1046,17 @@ export const auth = betterAuth({
           scopes: [
             'https://www.googleapis.com/auth/userinfo.email',
             'https://www.googleapis.com/auth/userinfo.profile',
-            'https://www.googleapis.com/auth/drive',
-            'https://www.googleapis.com/auth/forms.body',
-            'https://www.googleapis.com/auth/forms.responses.readonly',
+            'https://www.googleapis.com/auth/contacts',
           ],
           prompt: 'consent',
-          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-forms`,
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-contacts`,
           getUserInfo: async (tokens) => {
             try {
               const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -1069,6 +1078,89 @@ export const auth = betterAuth({
           },
         },
         {
+          providerId: 'google-forms',
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          accessType: 'offline',
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/drive',
+            'https://www.googleapis.com/auth/forms.body',
+            'https://www.googleapis.com/auth/forms.responses.readonly',
+          ],
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-forms`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+                headers: { Authorization: `Bearer ${tokens.accessToken}` },
+              })
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Failed to fetch Google user info', { status: response.status })
+                throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
+              }
+              const profile = await response.json()
+              const now = new Date()
+              return {
+                id: `${profile.sub}-${crypto.randomUUID()}`,
+                name: profile.name || 'Google User',
+                email: profile.email,
+                image: profile.picture || undefined,
+                emailVerified: profile.email_verified || false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Google getUserInfo', { error })
+              throw error
+            }
+          },
+        },
+        {
+          providerId: 'google-bigquery',
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          accessType: 'offline',
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/bigquery',
+          ],
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-bigquery`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+                headers: { Authorization: `Bearer ${tokens.accessToken}` },
+              })
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Failed to fetch Google user info', { status: response.status })
+                throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
+              }
+              const profile = await response.json()
+              const now = new Date()
+              return {
+                id: `${profile.sub}-${crypto.randomUUID()}`,
+                name: profile.name || 'Google User',
+                email: profile.email,
+                image: profile.picture || undefined,
+                emailVerified: profile.email_verified || false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Google getUserInfo', { error })
+              throw error
+            }
+          },
+        },
+
+        {
           providerId: 'google-vault',
           clientId: env.GOOGLE_CLIENT_ID as string,
           clientSecret: env.GOOGLE_CLIENT_SECRET as string,
@@ -1088,6 +1180,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -1129,6 +1222,89 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Failed to fetch Google user info', { status: response.status })
+                throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
+              }
+              const profile = await response.json()
+              const now = new Date()
+              return {
+                id: `${profile.sub}-${crypto.randomUUID()}`,
+                name: profile.name || 'Google User',
+                email: profile.email,
+                image: profile.picture || undefined,
+                emailVerified: profile.email_verified || false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Google getUserInfo', { error })
+              throw error
+            }
+          },
+        },
+
+        {
+          providerId: 'google-meet',
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          accessType: 'offline',
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/meetings.space.created',
+            'https://www.googleapis.com/auth/meetings.space.readonly',
+          ],
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-meet`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+                headers: { Authorization: `Bearer ${tokens.accessToken}` },
+              })
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Failed to fetch Google user info', { status: response.status })
+                throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
+              }
+              const profile = await response.json()
+              const now = new Date()
+              return {
+                id: `${profile.sub}-${crypto.randomUUID()}`,
+                name: profile.name || 'Google User',
+                email: profile.email,
+                image: profile.picture || undefined,
+                emailVerified: profile.email_verified || false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Google getUserInfo', { error })
+              throw error
+            }
+          },
+        },
+        {
+          providerId: 'google-tasks',
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          accessType: 'offline',
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/tasks',
+          ],
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/google-tasks`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+                headers: { Authorization: `Bearer ${tokens.accessToken}` },
+              })
+              if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -1169,6 +1345,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Google user info', { status: response.status })
                 throw new Error(`Failed to fetch Google user info: ${response.statusText}`)
               }
@@ -1230,6 +1407,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Microsoft user info', { status: response.status })
                 throw new Error(`Failed to fetch Microsoft user info: ${response.statusText}`)
               }
@@ -1269,6 +1447,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Microsoft user info', { status: response.status })
                 throw new Error(`Failed to fetch Microsoft user info: ${response.statusText}`)
               }
@@ -1363,6 +1542,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Microsoft user info', { status: response.status })
                 throw new Error(`Failed to fetch Microsoft user info: ${response.statusText}`)
               }
@@ -1411,6 +1591,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Microsoft user info', { status: response.status })
                 throw new Error(`Failed to fetch Microsoft user info: ${response.statusText}`)
               }
@@ -1450,6 +1631,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Microsoft user info', { status: response.status })
                 throw new Error(`Failed to fetch Microsoft user info: ${response.statusText}`)
               }
@@ -1497,6 +1679,7 @@ export const auth = betterAuth({
                 headers: { Authorization: `Bearer ${tokens.accessToken}` },
               })
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Microsoft user info', { status: response.status })
                 throw new Error(`Failed to fetch Microsoft user info: ${response.statusText}`)
               }
@@ -1579,6 +1762,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Pipedrive user info', {
                   status: response.status,
                 })
@@ -1726,6 +1910,7 @@ export const auth = betterAuth({
               )
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Salesforce user info', {
                   status: response.status,
                 })
@@ -1759,7 +1944,23 @@ export const auth = betterAuth({
           tokenUrl: 'https://api.x.com/2/oauth2/token',
           userInfoUrl: 'https://api.x.com/2/users/me',
           accessType: 'offline',
-          scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
+          scopes: [
+            'tweet.read',
+            'tweet.write',
+            'tweet.moderate.write',
+            'users.read',
+            'follows.read',
+            'follows.write',
+            'bookmark.read',
+            'bookmark.write',
+            'like.read',
+            'like.write',
+            'block.read',
+            'block.write',
+            'mute.read',
+            'mute.write',
+            'offline.access',
+          ],
           pkce: true,
           responseType: 'code',
           prompt: 'consent',
@@ -1777,6 +1978,7 @@ export const auth = betterAuth({
               )
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching X user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -1846,6 +2048,15 @@ export const auth = betterAuth({
             'write:content.property:confluence',
             'read:hierarchical-content:confluence',
             'read:content.metadata:confluence',
+            'read:user:confluence',
+            'read:task:confluence',
+            'write:task:confluence',
+            'delete:blogpost:confluence',
+            'write:space:confluence',
+            'delete:space:confluence',
+            'read:space.property:confluence',
+            'write:space.property:confluence',
+            'read:space.permission:confluence',
           ],
           responseType: 'code',
           pkce: true,
@@ -1862,6 +2073,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching Confluence user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -1973,6 +2185,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching Jira user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2008,7 +2221,13 @@ export const auth = betterAuth({
           authorizationUrl: 'https://airtable.com/oauth2/v1/authorize',
           tokenUrl: 'https://airtable.com/oauth2/v1/token',
           userInfoUrl: 'https://api.airtable.com/v0/meta/whoami',
-          scopes: ['data.records:read', 'data.records:write', 'user.email:read', 'webhook:manage'],
+          scopes: [
+            'data.records:read',
+            'data.records:write',
+            'schema.bases:read',
+            'user.email:read',
+            'webhook:manage',
+          ],
           responseType: 'code',
           pkce: true,
           accessType: 'offline',
@@ -2024,6 +2243,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching Airtable user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2073,6 +2293,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching Notion user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2140,6 +2361,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching Reddit user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2387,6 +2609,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching Asana user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2453,6 +2676,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Slack auth.test failed', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2512,6 +2736,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Error fetching Webflow user info:', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2563,6 +2788,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch LinkedIn user info', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2625,6 +2851,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Zoom user info', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2692,6 +2919,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Spotify user info', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2740,6 +2968,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch WordPress.com user info', {
                   status: response.status,
                   statusText: response.statusText,
@@ -2789,6 +3018,7 @@ export const auth = betterAuth({
               })
 
               if (!response.ok) {
+                await response.text().catch(() => {})
                 logger.error('Failed to fetch Cal.com user info', {
                   status: response.status,
                   statusText: response.statusText,
