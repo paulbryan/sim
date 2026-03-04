@@ -148,7 +148,10 @@ export function UserInput({
       />
       <div className='flex items-center justify-between'>
         <div className='flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-full border border-[#F0F0F0] transition-colors hover:bg-[#F7F7F7] dark:border-[#3d3d3d] dark:hover:bg-[#303030]'>
-          <Paperclip className='h-[14px] w-[14px] text-[var(--text-muted)]' strokeWidth={2} />
+          <Paperclip
+            className='h-[14px] w-[14px] text-[var(--text-muted)] dark:text-[var(--text-secondary)]'
+            strokeWidth={2}
+          />
         </div>
         <div className='flex items-center gap-[6px]'>
           <button
@@ -158,7 +161,7 @@ export function UserInput({
               'flex h-[28px] w-[28px] items-center justify-center rounded-full transition-colors',
               isListening
                 ? 'bg-red-500 text-white hover:bg-red-600'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                : 'text-[var(--text-muted)] hover:bg-[#F7F7F7] dark:text-[var(--text-secondary)] dark:hover:bg-[#303030]'
             )}
             title={isListening ? 'Stop listening' : 'Voice input'}
           >

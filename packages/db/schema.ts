@@ -445,7 +445,7 @@ export const settings = pgTable('settings', {
     .unique(), // One settings record per user
 
   // General settings
-  theme: text('theme').notNull().default('dark'),
+  theme: text('theme').notNull().default('system'),
   autoConnect: boolean('auto_connect').notNull().default(true),
 
   // Privacy settings
