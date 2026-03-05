@@ -67,7 +67,7 @@ export const executeCommandRunTool: ToolConfig<ExecuteCommandInput, ExecuteComma
   },
 
   request: {
-    url: '/api/execute-command/run',
+    url: '/api/tools/execute-command/run',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

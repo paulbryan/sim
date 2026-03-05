@@ -98,16 +98,16 @@ function resolveTagVariables(
   blockNameMapping: Record<string, string>,
   blockOutputSchemas: Record<string, OutputSchema>
 ): string {
-  let resolved = command
-
   const tagPattern = new RegExp(
     `${REFERENCE.START}([a-zA-Z_](?:[a-zA-Z0-9_${REFERENCE.PATH_DELIMITER}]*[a-zA-Z0-9_])?)${REFERENCE.END}`,
     'g'
   )
-  const tagMatches = resolved.match(tagPattern) || []
 
-  for (const match of tagMatches) {
-    const tagName = match.slice(REFERENCE.START.length, -REFERENCE.END.length).trim()
+  const replacements: Array<{ match: string; index: number; value: string }> = []
+  let match: RegExpExecArray | null
+
+  while ((match = tagPattern.exec(command)) !== null) {
+    const tagName = match[1].trim()
     const pathParts = tagName.split(REFERENCE.PATH_DELIMITER)
     const blockName = pathParts[0]
     const fieldPath = pathParts.slice(1)
@@ -131,7 +131,13 @@ function resolveTagVariables(
       stringValue = String(result.value)
     }
 
-    resolved = resolved.replace(new RegExp(escapeRegExp(match), 'g'), () => stringValue)
+    replacements.push({ match: match[0], index: match.index, value: stringValue })
+  }
+
+  let resolved = command
+  for (let i = replacements.length - 1; i >= 0; i--) {
+    const { match: matchStr, index, value } = replacements[i]
+    resolved = resolved.slice(0, index) + value + resolved.slice(index + matchStr.length)
   }
 
   return resolved
@@ -243,7 +249,6 @@ export async function POST(req: NextRequest) {
 
     const {
       command,
-      timeout = DEFAULT_EXECUTION_TIMEOUT_MS,
       workingDirectory,
       envVars = {},
       blockData = {},
@@ -252,6 +257,9 @@ export async function POST(req: NextRequest) {
       workflowVariables = {},
       workflowId,
     } = body
+
+    const parsedTimeout = Number(body.timeout)
+    const timeout = parsedTimeout > 0 ? parsedTimeout : DEFAULT_EXECUTION_TIMEOUT_MS
 
     if (!command || typeof command !== 'string') {
       return NextResponse.json(
