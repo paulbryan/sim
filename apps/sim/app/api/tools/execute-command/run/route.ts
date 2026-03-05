@@ -51,7 +51,9 @@ const BLOCKED_ENV_KEYS = new Set([
   'NODE_PATH',
   'PYTHONPATH',
   'PERL5LIB',
+  'PERL5OPT',
   'RUBYLIB',
+  'JAVA_TOOL_OPTIONS',
 ])
 
 /**
