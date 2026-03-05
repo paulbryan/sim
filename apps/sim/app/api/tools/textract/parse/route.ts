@@ -135,7 +135,7 @@ async function fetchDocumentBytes(url: string): Promise<{ bytes: string; content
     method: 'GET',
   })
   if (!response.ok) {
-    await response.body?.cancel().catch(() => {})
+    await response.text().catch(() => {})
     throw new Error(`Failed to fetch document: ${response.statusText}`)
   }
 
