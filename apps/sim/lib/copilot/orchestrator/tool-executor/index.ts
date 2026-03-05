@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { mcpServers } from '@sim/db/schema'
+import { mcpServers, pendingCredentialDraft } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, lt } from 'drizzle-orm'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import type {
   ExecutionContext,
@@ -12,6 +12,7 @@ import { routeExecution } from '@/lib/copilot/tools/server/router'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { getAllOAuthServices } from '@/lib/oauth/utils'
 import { validateMcpDomain } from '@/lib/mcp/domain-check'
 import { mcpService } from '@/lib/mcp/service'
 import { generateMcpServerId } from '@/lib/mcp/utils'
@@ -693,6 +694,112 @@ const SERVER_TOOLS = new Set<string>([
   'get_execution_summary',
 ])
 
+/**
+ * Resolves a human-friendly provider name to a providerId and generates the
+ * actual OAuth authorization URL via Better Auth's server-side API.
+ *
+ * Steps: resolve provider → create credential draft → look up user session →
+ * call auth.api.oAuth2LinkAccount → return the real authorization URL.
+ */
+async function generateOAuthLink(
+  userId: string,
+  workspaceId: string | undefined,
+  workflowId: string | undefined,
+  providerName: string,
+  baseUrl: string
+): Promise<{ url: string; providerId: string; serviceName: string }> {
+  if (!workspaceId) {
+    throw new Error('workspaceId is required to generate an OAuth link')
+  }
+
+  const allServices = getAllOAuthServices()
+  const normalizedInput = providerName.toLowerCase().trim()
+
+  const matched =
+    allServices.find((s) => s.providerId === normalizedInput) ||
+    allServices.find((s) => s.name.toLowerCase() === normalizedInput) ||
+    allServices.find(
+      (s) =>
+        s.name.toLowerCase().includes(normalizedInput) ||
+        normalizedInput.includes(s.name.toLowerCase())
+    ) ||
+    allServices.find(
+      (s) =>
+        s.providerId.includes(normalizedInput) || normalizedInput.includes(s.providerId)
+    )
+
+  if (!matched) {
+    const available = allServices.map((s) => s.name).join(', ')
+    throw new Error(
+      `Provider "${providerName}" not found. Available providers: ${available}`
+    )
+  }
+
+  const { providerId, name: serviceName } = matched
+  const callbackURL =
+    workflowId && workspaceId
+      ? `${baseUrl}/workspace/${workspaceId}/w/${workflowId}`
+      : `${baseUrl}/workspace/${workspaceId}`
+
+  // Trello and Shopify use custom auth routes, not genericOAuth
+  if (providerId === 'trello') {
+    return { url: `${baseUrl}/api/auth/trello/authorize`, providerId, serviceName }
+  }
+  if (providerId === 'shopify') {
+    const returnUrl = encodeURIComponent(callbackURL)
+    return {
+      url: `${baseUrl}/api/auth/shopify/authorize?returnUrl=${returnUrl}`,
+      providerId,
+      serviceName,
+    }
+  }
+
+  // Create credential draft so the callback hook creates the credential
+  const now = new Date()
+  await db
+    .delete(pendingCredentialDraft)
+    .where(and(eq(pendingCredentialDraft.userId, userId), lt(pendingCredentialDraft.expiresAt, now)))
+  await db
+    .insert(pendingCredentialDraft)
+    .values({
+      id: crypto.randomUUID(),
+      userId,
+      workspaceId,
+      providerId,
+      displayName: serviceName,
+      expiresAt: new Date(now.getTime() + 15 * 60 * 1000),
+      createdAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [
+        pendingCredentialDraft.userId,
+        pendingCredentialDraft.providerId,
+        pendingCredentialDraft.workspaceId,
+      ],
+      set: {
+        displayName: serviceName,
+        expiresAt: new Date(now.getTime() + 15 * 60 * 1000),
+        createdAt: now,
+      },
+    })
+
+  // Use Better Auth's server-side API with the real request headers (session cookie).
+  const { auth } = await import('@/lib/auth/auth')
+  const { headers: getHeaders } = await import('next/headers')
+  const reqHeaders = await getHeaders()
+
+  const data = (await auth.api.oAuth2LinkAccount({
+    body: { providerId, callbackURL },
+    headers: reqHeaders,
+  })) as { url?: string; redirect?: boolean }
+
+  if (!data?.url) {
+    throw new Error('oAuth2LinkAccount did not return an authorization URL')
+  }
+
+  return { url: data.url, providerId, serviceName }
+}
+
 const SIM_WORKFLOW_TOOL_HANDLERS: Record<
   string,
   (params: Record<string, unknown>, context: ExecutionContext) => Promise<ToolCallResult>
@@ -741,28 +848,38 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
     executeUpdateWorkspaceMcpServer(p as unknown as UpdateWorkspaceMcpServerParams, c),
   delete_workspace_mcp_server: (p, c) =>
     executeDeleteWorkspaceMcpServer(p as unknown as DeleteWorkspaceMcpServerParams, c),
-  oauth_get_auth_link: async (p, _c) => {
+  oauth_get_auth_link: async (p, c) => {
     const providerName = (p.providerName || p.provider_name || 'the provider') as string
+    const baseUrl = getBaseUrl()
+
     try {
-      const baseUrl = getBaseUrl()
-      const settingsUrl = `${baseUrl}/workspace`
+      const result = await generateOAuthLink(c.userId, c.workspaceId, c.workflowId, providerName, baseUrl)
       return {
         success: true,
         output: {
-          message: `To connect ${providerName}, the user must authorize via their browser.`,
-          oauth_url: settingsUrl,
-          instructions: `Open ${settingsUrl} in a browser and go to the workflow editor to connect ${providerName} credentials.`,
-          provider: providerName,
-          baseUrl,
+          message: `Authorization URL generated for ${result.serviceName}. The user must open this URL in a browser to authorize.`,
+          oauth_url: result.url,
+          instructions: `Open this URL in your browser to connect ${result.serviceName}: ${result.url}`,
+          provider: result.serviceName,
+          providerId: result.providerId,
         },
       }
-    } catch {
+    } catch (err) {
+      logger.warn('Failed to generate OAuth link, falling back to generic URL', {
+        providerName,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      const workspaceUrl = c.workspaceId
+        ? `${baseUrl}/workspace/${c.workspaceId}`
+        : `${baseUrl}/workspace`
       return {
-        success: true,
+        success: false,
         output: {
-          message: `To connect ${providerName}, the user must authorize via their browser.`,
-          instructions: `Open the Sim workspace in a browser and go to the workflow editor to connect ${providerName} credentials.`,
+          message: `Could not generate a direct OAuth link for ${providerName}. The user can connect manually from the workspace.`,
+          oauth_url: workspaceUrl,
+          instructions: `Open ${workspaceUrl} in a browser, go to Settings → Credentials, and connect ${providerName} from there.`,
           provider: providerName,
+          error: err instanceof Error ? err.message : String(err),
         },
       }
     }
