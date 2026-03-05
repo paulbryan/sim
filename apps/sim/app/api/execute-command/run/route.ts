@@ -131,7 +131,7 @@ function resolveTagVariables(
       stringValue = String(result.value)
     }
 
-    resolved = resolved.replace(new RegExp(escapeRegExp(match), 'g'), stringValue)
+    resolved = resolved.replace(new RegExp(escapeRegExp(match), 'g'), () => stringValue)
   }
 
   return resolved
@@ -160,6 +160,7 @@ interface CommandResult {
   stderr: string
   exitCode: number
   timedOut: boolean
+  maxBufferExceeded: boolean
 }
 
 /**
@@ -182,12 +183,14 @@ function executeCommand(
       (error, stdout, stderr) => {
         if (error) {
           const killed = error.killed ?? false
+          const isMaxBuffer = killed && /maxBuffer/.test(error.message ?? '')
           const exitCode = typeof error.code === 'number' ? error.code : 1
           resolve({
             stdout: stdout.trimEnd(),
             stderr: stderr.trimEnd(),
             exitCode,
-            timedOut: killed,
+            timedOut: killed && !isMaxBuffer,
+            maxBufferExceeded: isMaxBuffer,
           })
           return
         }
@@ -196,6 +199,7 @@ function executeCommand(
           stderr: stderr.trimEnd(),
           exitCode: 0,
           timedOut: false,
+          maxBufferExceeded: false,
         })
       }
     )
@@ -206,6 +210,7 @@ function executeCommand(
         stderr: err.message,
         exitCode: 1,
         timedOut: false,
+        maxBufferExceeded: false,
       })
     })
   })
@@ -294,6 +299,18 @@ export async function POST(req: NextRequest) {
           exitCode: result.exitCode,
         },
         error: `Command timed out after ${timeout}ms`,
+      })
+    }
+
+    if (result.maxBufferExceeded) {
+      return NextResponse.json({
+        success: false,
+        output: {
+          stdout: result.stdout,
+          stderr: result.stderr,
+          exitCode: result.exitCode,
+        },
+        error: `Command output exceeded maximum buffer size of ${MAX_BUFFER / 1024 / 1024}MB`,
       })
     }
 

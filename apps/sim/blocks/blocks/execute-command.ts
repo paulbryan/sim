@@ -16,7 +16,7 @@ export const ExecuteCommandBlock: BlockConfig<ExecuteCommandOutput> = {
   - Use <blockName.output> syntax to reference outputs from other blocks.
   - Use {{ENV_VAR}} syntax to reference environment variables.
   - The working directory defaults to the server process directory if not specified.
-  - A non-zero exit code is treated as an error. Use || true to suppress errors if needed.
+  - A non-zero exit code is returned as data (exitCode > 0), not treated as a workflow error. Use a Condition block to branch on exitCode if needed.
   `,
   docsLink: 'https://docs.sim.ai/blocks/execute-command',
   category: 'blocks',
