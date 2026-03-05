@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { isExecuteCommandEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
+import { normalizeName, REFERENCE } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
 import {
   createEnvVarPattern,
