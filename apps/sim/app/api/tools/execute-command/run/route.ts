@@ -38,11 +38,20 @@ function getSafeBaseEnv(): NodeJS.ProcessEnv {
 const BLOCKED_ENV_KEYS = new Set([
   ...SAFE_ENV_KEYS,
   'NODE_ENV',
+  'NODE_OPTIONS',
   'LD_PRELOAD',
   'LD_LIBRARY_PATH',
+  'LD_AUDIT',
   'DYLD_INSERT_LIBRARIES',
+  'DYLD_LIBRARY_PATH',
+  'DYLD_FRAMEWORK_PATH',
   'BASH_ENV',
   'ENV',
+  'GLIBC_TUNABLES',
+  'NODE_PATH',
+  'PYTHONPATH',
+  'PERL5LIB',
+  'RUBYLIB',
 ])
 
 /**
@@ -140,7 +149,7 @@ function collectTagReplacements(
   blockOutputSchemas: Record<string, OutputSchema>
 ): Replacement[] {
   const tagPattern = new RegExp(
-    `${REFERENCE.START}([a-zA-Z_](?:[a-zA-Z0-9_${REFERENCE.PATH_DELIMITER}]*[a-zA-Z0-9_])?)${REFERENCE.END}`,
+    `${REFERENCE.START}([^${REFERENCE.START}${REFERENCE.END}]+)${REFERENCE.END}`,
     'g'
   )
 

@@ -114,5 +114,9 @@ export const executeCommandRunTool: ToolConfig<ExecuteCommandInput, ExecuteComma
     stdout: { type: 'string', description: 'Standard output from the command' },
     stderr: { type: 'string', description: 'Standard error output from the command' },
     exitCode: { type: 'number', description: 'Exit code of the command (0 = success)' },
+    error: {
+      type: 'string',
+      description: 'Error message if the command timed out or exceeded buffer limits',
+    },
   },
 }

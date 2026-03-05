@@ -53,6 +53,6 @@ export class ExecuteCommandBlockHandler implements BlockHandler {
       throw new Error(result.error || 'Command execution failed')
     }
 
-    return result.output
+    return { ...result.output, error: null }
   }
 }
