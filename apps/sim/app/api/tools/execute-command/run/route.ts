@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { isExecuteCommandEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { normalizeName, REFERENCE } from '@/executor/constants'
+import { normalizeName, REFERENCE, SPECIAL_REFERENCE_PREFIXES } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
 import {
   createEnvVarPattern,
@@ -33,6 +33,31 @@ function getSafeBaseEnv(): NodeJS.ProcessEnv {
     }
   }
   return env
+}
+
+const BLOCKED_ENV_KEYS = new Set([
+  ...SAFE_ENV_KEYS,
+  'NODE_ENV',
+  'LD_PRELOAD',
+  'LD_LIBRARY_PATH',
+  'DYLD_INSERT_LIBRARIES',
+  'BASH_ENV',
+  'ENV',
+])
+
+/**
+ * Filters user-supplied env vars to prevent overriding safe base env
+ * and injecting process-influencing variables.
+ */
+function filterUserEnv(env?: Record<string, string>): Record<string, string> {
+  if (!env) return {}
+  const filtered: Record<string, string> = {}
+  for (const [key, value] of Object.entries(env)) {
+    if (!BLOCKED_ENV_KEYS.has(key)) {
+      filtered[key] = value
+    }
+  }
+  return filtered
 }
 
 interface Replacement {
@@ -135,6 +160,12 @@ function collectTagReplacements(
     })
 
     if (!result) {
+      const isSpecialPrefix = SPECIAL_REFERENCE_PREFIXES.some((prefix) => blockName === prefix)
+      if (!isSpecialPrefix) {
+        throw new Error(
+          `Block reference "<${tagName}>" could not be resolved. Check that the block name and field path are correct.`
+        )
+      }
       continue
     }
 
@@ -207,7 +238,7 @@ function executeCommand(
         timeout: options.timeout,
         cwd: options.cwd || undefined,
         maxBuffer: MAX_BUFFER,
-        env: { ...getSafeBaseEnv(), ...options.env },
+        env: { ...getSafeBaseEnv(), ...filterUserEnv(options.env) },
       },
       (error, stdout, stderr) => {
         if (error) {
