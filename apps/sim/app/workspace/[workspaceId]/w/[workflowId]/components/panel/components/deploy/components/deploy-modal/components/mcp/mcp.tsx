@@ -26,7 +26,7 @@ import {
   type WorkflowMcpServer,
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
-import { useSettingsModalStore } from '@/stores/modals/settings/store'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -100,7 +100,7 @@ export function McpDeploy({
 }: McpDeployProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const openSettingsModal = useSettingsModalStore((state) => state.openModal)
+  const { navigateToSettings } = useSettingsNavigation()
 
   const { data: servers = [], isLoading: isLoadingServers } = useWorkflowMcpServers(workspaceId)
   const addToolMutation = useAddWorkflowMcpTool()
@@ -470,7 +470,7 @@ export function McpDeploy({
         </p>
         <Button
           variant='tertiary'
-          onClick={() => openSettingsModal({ section: 'workflow-mcp-servers' })}
+          onClick={() => navigateToSettings({ section: 'workflow-mcp-servers' })}
         >
           Create MCP Server
         </Button>
@@ -547,7 +547,7 @@ export function McpDeploy({
                     </Badge>
                   </div>
                 </div>
-                <div className='border-[var(--border-1)] border-t px-[10px] pt-[6px] pb-[10px]'>
+                <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[10px] pt-[6px] pb-[10px]'>
                   <div className='flex flex-col gap-[6px]'>
                     <Label className='text-[13px]'>Description</Label>
                     <Input

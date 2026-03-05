@@ -4,20 +4,6 @@ import { createFileContent } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('CopilotChatContext')
 
-/**
- * Build conversation history from stored chat messages.
- */
-export function buildConversationHistory(
-  messages: unknown[],
-  conversationId?: string
-): { history: unknown[]; conversationId?: string } {
-  const history = Array.isArray(messages) ? messages : []
-  return {
-    history,
-    ...(conversationId ? { conversationId } : {}),
-  }
-}
-
 export interface FileAttachmentInput {
   id: string
   key: string

@@ -2,21 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Command } from 'cmdk'
-import { Database, HelpCircle, Layout, Settings } from 'lucide-react'
+import { Database, Files, HelpCircle, Layout, Settings } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
-import { Library } from '@/components/emcn'
+import { Blimp, Library } from '@/components/emcn'
+import { Table } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import type {
   SearchBlockItem,
   SearchDocItem,
   SearchToolOperationItem,
 } from '@/stores/modals/search/types'
-import { useSettingsModalStore } from '@/stores/modals/settings/store'
 
 function customFilter(value: string, search: string): number {
   const searchLower = search.toLowerCase()
@@ -35,11 +36,18 @@ function customFilter(value: string, search: string): number {
   return 0
 }
 
+interface TaskItem {
+  id: string
+  name: string
+  href: string
+}
+
 interface SearchModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workflows?: WorkflowItem[]
   workspaces?: WorkspaceItem[]
+  tasks?: TaskItem[]
   isOnWorkflowPage?: boolean
 }
 
@@ -73,6 +81,7 @@ export function SearchModal({
   onOpenChange,
   workflows = [],
   workspaces = [],
+  tasks = [],
   isOnWorkflowPage = false,
 }: SearchModalProps) {
   const params = useParams()
@@ -80,7 +89,7 @@ export function SearchModal({
   const workspaceId = params.workspaceId as string
   const inputRef = useRef<HTMLInputElement>(null)
   const [mounted, setMounted] = useState(false)
-  const openSettingsModal = useSettingsModalStore((state) => state.openModal)
+  const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
 
   useEffect(() => {
@@ -120,6 +129,20 @@ export function SearchModal({
           hidden: permissionConfig.hideKnowledgeBaseTab,
         },
         {
+          id: 'tables',
+          name: 'Tables',
+          icon: Table,
+          href: `/workspace/${workspaceId}/tables`,
+          hidden: permissionConfig.hideTablesTab,
+        },
+        {
+          id: 'files',
+          name: 'Files',
+          icon: Files,
+          href: `/workspace/${workspaceId}/files`,
+          hidden: permissionConfig.hideFilesTab,
+        },
+        {
           id: 'help',
           name: 'Help',
           icon: HelpCircle,
@@ -129,15 +152,16 @@ export function SearchModal({
           id: 'settings',
           name: 'Settings',
           icon: Settings,
-          onClick: openSettingsModal,
+          onClick: navigateToSettings,
         },
       ].filter((page) => !page.hidden),
     [
       workspaceId,
       openHelpModal,
-      openSettingsModal,
+      navigateToSettings,
       permissionConfig.hideTemplates,
       permissionConfig.hideKnowledgeBaseTab,
+      permissionConfig.hideFilesTab,
     ]
   )
 
@@ -278,9 +302,10 @@ export function SearchModal({
         aria-hidden={!open}
         aria-label='Search'
         className={cn(
-          '-translate-x-1/2 fixed top-[15%] left-1/2 z-50 w-[500px] overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--surface-4)] shadow-lg',
+          '-translate-x-1/2 fixed top-[15%] z-50 w-[500px] overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--surface-4)] shadow-lg',
           open ? 'visible opacity-100' : 'invisible opacity-0'
         )}
+        style={{ left: 'calc(50% + var(--sidebar-width, 0px) / 2)' }}
       >
         <Command label='Search' filter={customFilter}>
           <Command.Input
@@ -356,12 +381,39 @@ export function SearchModal({
                     className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
                   >
                     <div
-                      className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px]'
-                      style={{ backgroundColor: workflow.color }}
+                      className='h-[14px] w-[14px] flex-shrink-0 rounded-[4px] border-[2px]'
+                      style={{
+                        backgroundColor: workflow.color,
+                        borderColor: `${workflow.color}60`,
+                        backgroundClip: 'padding-box',
+                      }}
                     />
-                    <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                    <span className='truncate font-base text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
                       {workflow.name}
                       {workflow.isCurrent && ' (current)'}
+                    </span>
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            )}
+
+            {tasks.length > 0 && (
+              <Command.Group heading='Tasks' className={groupHeadingClassName}>
+                {tasks.map((task) => (
+                  <Command.Item
+                    key={task.id}
+                    value={`${task.name} task-${task.id}`}
+                    onSelect={() => {
+                      router.push(task.href)
+                      onOpenChange(false)
+                    }}
+                    className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
+                  >
+                    <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+                      <Blimp className='h-[14px] w-[14px] text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]' />
+                    </div>
+                    <span className='truncate font-base text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                      {task.name}
                     </span>
                   </Command.Item>
                 ))}
@@ -394,7 +446,7 @@ export function SearchModal({
                     onSelect={() => handleWorkspaceSelect(workspace)}
                     className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
                   >
-                    <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                    <span className='truncate font-base text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
                       {workspace.name}
                       {workspace.isCurrent && ' (current)'}
                     </span>
@@ -434,11 +486,11 @@ export function SearchModal({
                       <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
                         <Icon className='h-[14px] w-[14px] text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]' />
                       </div>
-                      <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+                      <span className='truncate font-base text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
                         {page.name}
                       </span>
                       {page.shortcut && (
-                        <span className='ml-auto flex-shrink-0 font-medium text-[13px] text-[var(--text-subtle)]'>
+                        <span className='ml-auto flex-shrink-0 font-base text-[13px] text-[var(--text-subtle)]'>
                           {page.shortcut}
                         </span>
                       )}
@@ -456,7 +508,7 @@ export function SearchModal({
 }
 
 const groupHeadingClassName =
-  '[&_[cmdk-group-heading]]:pt-[2px] [&_[cmdk-group-heading]]:pb-[4px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-[13px] [&_[cmdk-group-heading]]:text-[var(--text-subtle)] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide'
+  '[&_[cmdk-group-heading]]:pt-[2px] [&_[cmdk-group-heading]]:pb-[4px] [&_[cmdk-group-heading]]:font-base [&_[cmdk-group-heading]]:text-[13px] [&_[cmdk-group-heading]]:text-[var(--text-subtle)] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide'
 
 interface CommandItemProps {
   value: string
@@ -494,7 +546,7 @@ function CommandItem({
           )}
         />
       </div>
-      <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
+      <span className='truncate font-base text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
         {children}
       </span>
     </Command.Item>

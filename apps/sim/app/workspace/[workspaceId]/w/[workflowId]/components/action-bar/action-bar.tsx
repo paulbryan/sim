@@ -164,7 +164,7 @@ export const ActionBar = memo(
     return (
       <div
         className={cn(
-          '-top-[46px] absolute right-0',
+          '-top-[46px] pointer-events-auto absolute right-0',
           'flex flex-row items-center',
           'opacity-0 transition-opacity duration-200 group-hover:opacity-100',
           'gap-[5px] rounded-[10px] p-[5px]',
@@ -194,7 +194,7 @@ export const ActionBar = memo(
             <Tooltip.Content side='top'>
               {(() => {
                 if (disabled) return getTooltipMessage('Run from block')
-                if (isExecuting) return 'Execution in progress'
+                if (isExecuting) return 'Running...'
                 if (!dependenciesSatisfied) return 'Run previous blocks first'
                 return 'Run from block'
               })()}

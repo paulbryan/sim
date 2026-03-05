@@ -1083,8 +1083,50 @@
     {
       "idx": 155,
       "version": "7",
-      "when": 1771314071508,
-      "tag": "0155_bitter_maginty",
+      "when": 1771401034633,
+      "tag": "0155_strong_spyke",
+      "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1771528429740,
+      "tag": "0156_easy_odin",
+      "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1771621587420,
+      "tag": "0157_exotic_dormammu",
+      "breakpoints": true
+    },
+    {
+      "idx": 158,
+      "version": "7",
+      "when": 1771830035621,
+      "tag": "0158_amazing_hulk",
+      "breakpoints": true
+    },
+    {
+      "idx": 159,
+      "version": "7",
+      "when": 1771897746619,
+      "tag": "0159_magical_marten_broadcloak",
+      "breakpoints": true
+    },
+    {
+      "idx": 160,
+      "version": "7",
+      "when": 1772138479896,
+      "tag": "0160_classy_tyger_tiger",
+      "breakpoints": true
+    },
+    {
+      "idx": 161,
+      "version": "7",
+      "when": 1772651559844,
+      "tag": "0161_nostalgic_nightmare",
       "breakpoints": true
     }
   ]

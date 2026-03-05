@@ -55,15 +55,18 @@ type LayoutProps = {
   params: Promise<{ lang: string }>
 }
 
+const SUPPORTED_LANGUAGES: Set<string> = new Set(i18n.languages)
+
 export default async function Layout({ children, params }: LayoutProps) {
-  const { lang } = await params
+  const { lang: rawLang } = await params
+  const lang = SUPPORTED_LANGUAGES.has(rawLang) ? rawLang : 'en'
 
   const structuredData = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: 'Sim Documentation',
     description:
-      'Comprehensive documentation for Sim - the visual workflow builder for AI Agent Workflows.',
+      'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.',
     url: 'https://docs.sim.ai',
     publisher: {
       '@type': 'Organization',
@@ -107,6 +110,7 @@ export default async function Layout({ children, params }: LayoutProps) {
               title: <SimLogoFull className='h-7 w-auto' />,
             }}
             sidebar={{
+              tabs: false,
               defaultOpenLevel: 0,
               collapsible: false,
               footer: null,

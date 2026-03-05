@@ -1,11 +1,13 @@
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import type { KnowledgeBaseArgs, KnowledgeBaseResult } from '@/lib/copilot/tools/shared/schemas'
+import { createSingleDocument, processDocumentAsync } from '@/lib/knowledge/documents/service'
 import { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
 import {
   createKnowledgeBase,
+  deleteKnowledgeBase,
   getKnowledgeBaseById,
-  getKnowledgeBases,
+  updateKnowledgeBase,
 } from '@/lib/knowledge/service'
 import {
   createTagDefinition,
@@ -15,6 +17,8 @@ import {
   getTagUsageStats,
   updateTagDefinition,
 } from '@/lib/knowledge/tags/service'
+import { StorageService } from '@/lib/uploads'
+import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/search/utils'
 
 const logger = createLogger('KnowledgeBaseServerTool')
@@ -87,31 +91,6 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               docCount: newKnowledgeBase.docCount,
               createdAt: newKnowledgeBase.createdAt,
             },
-          }
-        }
-
-        case 'list': {
-          const knowledgeBases = await getKnowledgeBases(context.userId, args.workspaceId)
-
-          logger.info('Knowledge bases listed via copilot', {
-            count: knowledgeBases.length,
-            userId: context.userId,
-            workspaceId: args.workspaceId,
-          })
-
-          return {
-            success: true,
-            message: `Found ${knowledgeBases.length} knowledge base(s)`,
-            data: knowledgeBases.map((kb) => ({
-              id: kb.id,
-              name: kb.name,
-              description: kb.description,
-              workspaceId: kb.workspaceId,
-              docCount: kb.docCount,
-              tokenCount: kb.tokenCount,
-              createdAt: kb.createdAt,
-              updatedAt: kb.updatedAt,
-            })),
           }
         }
 
@@ -217,6 +196,182 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
                 chunkIndex: result.chunkIndex,
                 similarity: 1 - result.distance,
               })),
+            },
+          }
+        }
+
+        case 'add_file': {
+          if (!args.knowledgeBaseId) {
+            return {
+              success: false,
+              message: 'Knowledge base ID is required for add_file operation',
+            }
+          }
+
+          if (!args.filePath) {
+            return {
+              success: false,
+              message: 'filePath is required (e.g. "files/report.pdf")',
+            }
+          }
+
+          const targetKb = await getKnowledgeBaseById(args.knowledgeBaseId)
+          if (!targetKb || !targetKb.workspaceId) {
+            return {
+              success: false,
+              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
+            }
+          }
+
+          const match = args.filePath.match(/^files\/(.+)$/)
+          const fileName = match ? match[1] : args.filePath
+          const kbWorkspaceId: string = targetKb.workspaceId
+          const files = await listWorkspaceFiles(kbWorkspaceId)
+          const fileRecord = files.find(
+            (f) => f.name === fileName || f.name.normalize('NFC') === fileName.normalize('NFC')
+          )
+
+          if (!fileRecord) {
+            return {
+              success: false,
+              message: `Workspace file not found: "${args.filePath}"`,
+            }
+          }
+
+          const presignedUrl = await StorageService.generatePresignedDownloadUrl(
+            fileRecord.key,
+            'workspace',
+            5 * 60
+          )
+
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const doc = await createSingleDocument(
+            {
+              filename: fileRecord.name,
+              fileUrl: presignedUrl,
+              fileSize: fileRecord.size,
+              mimeType: fileRecord.type,
+            },
+            args.knowledgeBaseId,
+            requestId
+          )
+
+          processDocumentAsync(
+            args.knowledgeBaseId,
+            doc.id,
+            {
+              filename: fileRecord.name,
+              fileUrl: presignedUrl,
+              fileSize: fileRecord.size,
+              mimeType: fileRecord.type,
+            },
+            {}
+          ).catch((err) => {
+            logger.error('Background document processing failed', {
+              documentId: doc.id,
+              error: err instanceof Error ? err.message : String(err),
+            })
+          })
+
+          logger.info('Workspace file added to knowledge base via copilot', {
+            knowledgeBaseId: args.knowledgeBaseId,
+            documentId: doc.id,
+            fileName: fileRecord.name,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: `File "${fileRecord.name}" added to knowledge base "${targetKb.name}". Processing started (chunking + embedding).`,
+            data: {
+              documentId: doc.id,
+              knowledgeBaseId: args.knowledgeBaseId,
+              knowledgeBaseName: targetKb.name,
+              filename: fileRecord.name,
+              fileSize: fileRecord.size,
+              mimeType: fileRecord.type,
+            },
+          }
+        }
+
+        case 'update': {
+          if (!args.knowledgeBaseId) {
+            return {
+              success: false,
+              message: 'Knowledge base ID is required for update operation',
+            }
+          }
+
+          const updates: {
+            name?: string
+            description?: string
+            chunkingConfig?: { maxSize: number; minSize: number; overlap: number }
+          } = {}
+          if (args.name) updates.name = args.name
+          if (args.description !== undefined) updates.description = args.description
+          if (args.chunkingConfig) updates.chunkingConfig = args.chunkingConfig
+
+          if (!updates.name && updates.description === undefined && !updates.chunkingConfig) {
+            return {
+              success: false,
+              message:
+                'At least one of name, description, or chunkingConfig is required for update',
+            }
+          }
+
+          const requestId = crypto.randomUUID().slice(0, 8)
+          const updatedKb = await updateKnowledgeBase(args.knowledgeBaseId, updates, requestId)
+
+          logger.info('Knowledge base updated via copilot', {
+            knowledgeBaseId: args.knowledgeBaseId,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: `Knowledge base "${updatedKb.name}" updated successfully`,
+            data: {
+              id: updatedKb.id,
+              name: updatedKb.name,
+              description: updatedKb.description,
+              workspaceId: updatedKb.workspaceId,
+              docCount: updatedKb.docCount,
+              updatedAt: updatedKb.updatedAt,
+            },
+          }
+        }
+
+        case 'delete': {
+          if (!args.knowledgeBaseId) {
+            return {
+              success: false,
+              message: 'Knowledge base ID is required for delete operation',
+            }
+          }
+
+          const kbToDelete = await getKnowledgeBaseById(args.knowledgeBaseId)
+          if (!kbToDelete) {
+            return {
+              success: false,
+              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
+            }
+          }
+
+          const requestId = crypto.randomUUID().slice(0, 8)
+          await deleteKnowledgeBase(args.knowledgeBaseId, requestId)
+
+          logger.info('Knowledge base deleted via copilot', {
+            knowledgeBaseId: args.knowledgeBaseId,
+            name: kbToDelete.name,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: `Knowledge base "${kbToDelete.name}" deleted successfully`,
+            data: {
+              id: args.knowledgeBaseId,
+              name: kbToDelete.name,
             },
           }
         }
@@ -391,7 +546,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
         default:
           return {
             success: false,
-            message: `Unknown operation: ${operation}. Supported operations: create, list, get, query, list_tags, create_tag, update_tag, delete_tag, get_tag_usage`,
+            message: `Unknown operation: ${operation}. Supported operations: create, get, query, add_file, update, delete, list_tags, create_tag, update_tag, delete_tag, get_tag_usage`,
           }
       }
     } catch (error) {

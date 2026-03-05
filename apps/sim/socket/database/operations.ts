@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { env } from '@/lib/core/config/env'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -207,6 +208,17 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
       }
     })
 
+    // Audit workflow-level lock/unlock operations
+    if (
+      target === OPERATION_TARGETS.BLOCKS &&
+      op === BLOCKS_OPERATIONS.BATCH_TOGGLE_LOCKED &&
+      userId
+    ) {
+      auditWorkflowLockToggle(workflowId, userId).catch((error) => {
+        logger.error('Failed to audit workflow lock toggle', { error, workflowId })
+      })
+    }
+
     const duration = Date.now() - startTime
     if (duration > 100) {
       logger.warn('Slow socket DB operation:', {
@@ -224,6 +236,43 @@ export async function persistWorkflowOperation(workflowId: string, operation: an
     )
     throw error
   }
+}
+
+/**
+ * Records an audit log entry when all blocks in a workflow are locked or unlocked.
+ * Only audits workflow-level transitions (all locked or all unlocked), not partial toggles.
+ */
+async function auditWorkflowLockToggle(workflowId: string, actorId: string): Promise<void> {
+  const [wf] = await db
+    .select({ name: workflow.name, workspaceId: workflow.workspaceId })
+    .from(workflow)
+    .where(eq(workflow.id, workflowId))
+
+  if (!wf) return
+
+  const blocks = await db
+    .select({ locked: workflowBlocks.locked })
+    .from(workflowBlocks)
+    .where(eq(workflowBlocks.workflowId, workflowId))
+
+  if (blocks.length === 0) return
+
+  const allLocked = blocks.every((b) => b.locked)
+  const allUnlocked = blocks.every((b) => !b.locked)
+
+  // Only audit workflow-level transitions, not partial toggles
+  if (!allLocked && !allUnlocked) return
+
+  recordAudit({
+    workspaceId: wf.workspaceId,
+    actorId,
+    action: allLocked ? AuditAction.WORKFLOW_LOCKED : AuditAction.WORKFLOW_UNLOCKED,
+    resourceType: AuditResourceType.WORKFLOW,
+    resourceId: workflowId,
+    resourceName: wf.name,
+    description: allLocked ? `Locked workflow "${wf.name}"` : `Unlocked workflow "${wf.name}"`,
+    metadata: { blockCount: blocks.length },
+  })
 }
 
 async function handleBlockOperationTx(
@@ -1197,8 +1246,8 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         return false
       }
 
-      if (isBlockProtected(payload.source) || isBlockProtected(payload.target)) {
-        logger.info(`Skipping edge add - source or target block is protected`)
+      if (isBlockProtected(payload.target)) {
+        logger.info(`Skipping edge add - target block is protected`)
         break
       }
 
@@ -1220,7 +1269,7 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         throw new Error('Missing edge ID for remove operation')
       }
 
-      // Get the edge to check if connected blocks are protected
+      // Get the edge to check if target block is protected
       const [edgeToRemove] = await tx
         .select({
           sourceBlockId: workflowEdges.sourceBlockId,
@@ -1234,7 +1283,7 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         throw new Error(`Edge ${payload.id} not found in workflow ${workflowId}`)
       }
 
-      // Check if source or target blocks are protected
+      // Check if target block is protected
       const connectedBlocks = await tx
         .select({
           id: workflowBlocks.id,
@@ -1296,11 +1345,8 @@ async function handleEdgeOperationTx(tx: any, workflowId: string, operation: str
         return false
       }
 
-      if (
-        isBlockProtected(edgeToRemove.sourceBlockId) ||
-        isBlockProtected(edgeToRemove.targetBlockId)
-      ) {
-        logger.info(`Skipping edge remove - source or target block is protected`)
+      if (isBlockProtected(edgeToRemove.targetBlockId)) {
+        logger.info(`Skipping edge remove - target block is protected`)
         break
       }
 
@@ -1421,14 +1467,11 @@ async function handleEdgesOperationTx(
       }
 
       const safeEdgeIds = edgesToRemove
-        .filter(
-          (e: EdgeToRemove) =>
-            !isBlockProtected(e.sourceBlockId) && !isBlockProtected(e.targetBlockId)
-        )
+        .filter((e: EdgeToRemove) => !isBlockProtected(e.targetBlockId))
         .map((e: EdgeToRemove) => e.id)
 
       if (safeEdgeIds.length === 0) {
-        logger.info('All edges are connected to protected blocks, skipping removal')
+        logger.info('All edges target protected blocks, skipping removal')
         return
       }
 
@@ -1520,13 +1563,13 @@ async function handleEdgesOperationTx(
         return false
       }
 
-      // Filter edges - only add edges where neither block is protected
+      // Filter edges - only add edges where target block is not protected
       const safeEdges = (edges as Array<Record<string, unknown>>).filter(
-        (e) => !isBlockProtected(e.source as string) && !isBlockProtected(e.target as string)
+        (e) => !isBlockProtected(e.target as string)
       )
 
       if (safeEdges.length === 0) {
-        logger.info('All edges connect to protected blocks, skipping add')
+        logger.info('All edges target protected blocks, skipping add')
         return
       }
 

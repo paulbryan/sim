@@ -34,8 +34,7 @@ export const KnowledgeBlock: BlockConfig = {
       ],
       value: () => 'search',
     },
-
-    // Knowledge Base selector — basic mode (visual selector)
+    // Knowledge base selector - basic mode
     {
       id: 'knowledgeBaseSelector',
       title: 'Knowledge Base',
@@ -46,18 +45,16 @@ export const KnowledgeBlock: BlockConfig = {
       required: true,
       mode: 'basic',
     },
-    // Knowledge Base selector — advanced mode (manual ID input)
+    // Knowledge base ID - advanced mode
     {
       id: 'manualKnowledgeBaseId',
       title: 'Knowledge Base ID',
       type: 'short-input',
       canonicalParamId: 'knowledgeBaseId',
+      mode: 'advanced',
       placeholder: 'Enter knowledge base ID',
       required: true,
-      mode: 'advanced',
     },
-
-    // --- Search ---
     {
       id: 'query',
       title: 'Search Query',
@@ -78,6 +75,7 @@ export const KnowledgeBlock: BlockConfig = {
       title: 'Tag Filters',
       type: 'knowledge-tag-filters',
       placeholder: 'Add tag filters',
+      dependsOn: ['knowledgeBaseSelector'],
       condition: { field: 'operation', value: 'search' },
     },
 
@@ -178,6 +176,7 @@ export const KnowledgeBlock: BlockConfig = {
       id: 'documentTags',
       title: 'Document Tags',
       type: 'document-tag-entry',
+      dependsOn: ['knowledgeBaseSelector'],
       condition: { field: 'operation', value: 'create_document' },
     },
 

@@ -73,6 +73,7 @@ async function fetchWorkflowMetadata(
 
     const response = await fetch(url.toString(), { headers })
     if (!response.ok) {
+      await response.text().catch(() => {})
       logger.warn(`Failed to fetch workflow metadata for ${workflowId}`)
       return null
     }
@@ -500,11 +501,14 @@ export async function transformBlockTool(
 
   const userProvidedParams = block.params || {}
 
-  const llmSchema = await createLLMToolSchema(toolConfig, userProvidedParams)
+  const { schema: llmSchema, enrichedDescription } = await createLLMToolSchema(
+    toolConfig,
+    userProvidedParams
+  )
 
   let uniqueToolId = toolConfig.id
   let toolName = toolConfig.name
-  let toolDescription = toolConfig.description
+  let toolDescription = enrichedDescription || toolConfig.description
 
   if (toolId === 'workflow_executor' && userProvidedParams.workflowId) {
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.workflowId}`
@@ -521,6 +525,8 @@ export async function transformBlockTool(
     }
   } else if (toolId.startsWith('knowledge_') && userProvidedParams.knowledgeBaseId) {
     uniqueToolId = `${toolConfig.id}_${userProvidedParams.knowledgeBaseId}`
+  } else if (toolId.startsWith('table_') && userProvidedParams.tableId) {
+    uniqueToolId = `${toolConfig.id}_${userProvidedParams.tableId}`
   }
 
   const blockParamsFn = blockDef?.tools?.config?.params as
@@ -1105,6 +1111,7 @@ export function prepareToolExecution(
     blockData?: Record<string, any>
     blockNameMapping?: Record<string, string>
     isDeployedContext?: boolean
+    callChain?: string[]
   }
 ): {
   toolParams: Record<string, any>
@@ -1132,6 +1139,7 @@ export function prepareToolExecution(
             ...(request.isDeployedContext !== undefined
               ? { isDeployedContext: request.isDeployedContext }
               : {}),
+            ...(request.callChain ? { callChain: request.callChain } : {}),
           },
         }
       : {}),

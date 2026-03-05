@@ -18,17 +18,17 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
     pathname.startsWith('/privacy') ||
     pathname.startsWith('/invite') ||
     pathname.startsWith('/verify') ||
-    pathname.startsWith('/careers') ||
     pathname.startsWith('/changelog') ||
     pathname.startsWith('/chat') ||
     pathname.startsWith('/studio') ||
     pathname.startsWith('/resume') ||
-    pathname.startsWith('/form')
+    pathname.startsWith('/form') ||
+    pathname.startsWith('/oauth')
 
   return (
     <NextThemesProvider
       attribute='class'
-      defaultTheme='dark'
+      defaultTheme='system'
       enableSystem
       disableTransitionOnChange
       storageKey='sim-theme'

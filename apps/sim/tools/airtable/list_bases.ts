@@ -1,21 +1,5 @@
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-export interface AirtableListBasesParams {
-  accessToken: string
-}
-
-export interface AirtableListBasesResponse extends ToolResponse {
-  output: {
-    bases: Array<{
-      id: string
-      name: string
-      permissionLevel: string
-    }>
-    metadata: {
-      totalBases: number
-    }
-  }
-}
+import type { AirtableListBasesParams, AirtableListBasesResponse } from '@/tools/airtable/types'
+import type { ToolConfig } from '@/tools/types'
 
 export const airtableListBasesTool: ToolConfig<AirtableListBasesParams, AirtableListBasesResponse> =
   {
@@ -36,29 +20,44 @@ export const airtableListBasesTool: ToolConfig<AirtableListBasesParams, Airtable
         visibility: 'hidden',
         description: 'OAuth access token',
       },
+      offset: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Pagination offset for retrieving additional bases',
+      },
     },
 
     request: {
-      url: 'https://api.airtable.com/v0/meta/bases',
+      url: (params) => {
+        const url = 'https://api.airtable.com/v0/meta/bases'
+        if (params.offset) {
+          return `${url}?offset=${encodeURIComponent(params.offset)}`
+        }
+        return url
+      },
       method: 'GET',
       headers: (params) => ({
         Authorization: `Bearer ${params.accessToken}`,
+        'Content-Type': 'application/json',
       }),
     },
 
     transformResponse: async (response) => {
       const data = await response.json()
-      const bases = (data.bases || []).map((base: Record<string, unknown>) => ({
-        id: base.id,
-        name: base.name,
-        permissionLevel: base.permissionLevel,
-      }))
       return {
         success: true,
         output: {
-          bases,
+          bases: (data.bases ?? []).map(
+            (base: { id: string; name: string; permissionLevel: string }) => ({
+              id: base.id,
+              name: base.name,
+              permissionLevel: base.permissionLevel,
+            })
+          ),
           metadata: {
-            totalBases: bases.length,
+            offset: data.offset ?? null,
+            totalBases: (data.bases ?? []).length,
           },
         },
       }
@@ -66,20 +65,27 @@ export const airtableListBasesTool: ToolConfig<AirtableListBasesParams, Airtable
 
     outputs: {
       bases: {
-        type: 'json',
+        type: 'array',
         description: 'Array of Airtable bases with id, name, and permissionLevel',
         items: {
           type: 'object',
           properties: {
-            id: { type: 'string' },
-            name: { type: 'string' },
-            permissionLevel: { type: 'string' },
+            id: { type: 'string', description: 'Base ID (starts with "app")' },
+            name: { type: 'string', description: 'Base name' },
+            permissionLevel: {
+              type: 'string',
+              description: 'Permission level (none, read, comment, edit, create)',
+            },
           },
         },
       },
       metadata: {
         type: 'json',
-        description: 'Operation metadata including total bases count',
+        description: 'Pagination and count metadata',
+        properties: {
+          offset: { type: 'string', description: 'Offset for next page of results' },
+          totalBases: { type: 'number', description: 'Number of bases returned' },
+        },
       },
     },
   }

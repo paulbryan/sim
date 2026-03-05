@@ -6,10 +6,7 @@ import clsx from 'clsx'
 import { ChevronUp, LayoutList } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
 import { Button, Code, getCodeEditorProps, highlight, languages } from '@/components/emcn'
-import {
-  CLIENT_EXECUTABLE_RUN_TOOLS,
-  executeRunToolOnClient,
-} from '@/lib/copilot/client-sse/run-tool-execution'
+import { executeRunToolOnClient } from '@/lib/copilot/client-sse/run-tool-execution'
 import {
   ClientToolCallState,
   TOOL_DISPLAY_REGISTRY,
@@ -23,7 +20,7 @@ import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/compo
 import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { getBlock } from '@/blocks/registry'
 import type { CopilotToolCall } from '@/stores/panel'
-import { useCopilotStore } from '@/stores/panel'
+import { useCopilotStore, usePanelStore } from '@/stores/panel'
 import type { SubAgentContentBlock } from '@/stores/panel/copilot/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -341,15 +338,19 @@ export function OptionsSelector({
   const [hoveredIndex, setHoveredIndex] = useState(-1)
   const [chosenKey, setChosenKey] = useState<string | null>(selectedOptionKey)
   const containerRef = useRef<HTMLDivElement>(null)
+  const activeTab = usePanelStore((s) => s.activeTab)
 
   const isLocked = chosenKey !== null
 
-  // Handle keyboard navigation - only for the active options selector
+  // Handle keyboard navigation - only for the active options selector when copilot is active
   useEffect(() => {
     if (isInteractionDisabled || !enableKeyboardNav || isLocked) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return
+
+      // Only handle keyboard shortcuts when the copilot panel is active
+      if (activeTab !== 'copilot') return
 
       const activeElement = document.activeElement
       const isInputFocused =
@@ -387,7 +388,15 @@ export function OptionsSelector({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isInteractionDisabled, enableKeyboardNav, isLocked, sortedOptions, hoveredIndex, onSelect])
+  }, [
+    isInteractionDisabled,
+    enableKeyboardNav,
+    isLocked,
+    sortedOptions,
+    hoveredIndex,
+    onSelect,
+    activeTab,
+  ])
 
   if (sortedOptions.length === 0) return null
 
@@ -1219,36 +1228,17 @@ const WorkflowEditSummary = memo(function WorkflowEditSummary({
   )
 })
 
-/** Checks if a tool is server-side executed (not a client tool) */
-function isIntegrationTool(toolName: string): boolean {
-  return !TOOL_DISPLAY_REGISTRY[toolName]
-}
-
+/**
+ * Show approval buttons when the tool is in pending state.
+ * The Go backend already decided whether confirmation is needed via
+ * `requiresConfirmation` — if set, the SSE handler puts the tool in
+ * `pending`; otherwise it goes straight to `executing`.
+ */
 function shouldShowRunSkipButtons(toolCall: CopilotToolCall): boolean {
   if (!toolCall.name || toolCall.name === 'unknown_tool') {
     return false
   }
-
-  if (toolCall.state !== ClientToolCallState.pending) {
-    return false
-  }
-
-  // Never show buttons for tools the user has marked as always-allowed
-  if (useCopilotStore.getState().isToolAutoAllowed(toolCall.name)) {
-    return false
-  }
-
-  const hasInterrupt = !!TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig?.interrupt
-  if (hasInterrupt) {
-    return true
-  }
-
-  // Integration tools (user-installed) always require approval
-  if (isIntegrationTool(toolCall.name)) {
-    return true
-  }
-
-  return false
+  return toolCall.state === ClientToolCallState.pending
 }
 
 const toolCallLogger = createLogger('CopilotToolCall')
@@ -1282,10 +1272,7 @@ async function handleRun(
   onStateChange?.('executing')
   await sendToolDecision(toolCall.id, 'accepted')
 
-  // Client-executable run tools: execute on the client for real-time feedback
-  // (block pulsing, console logs, stop button). The server defers execution
-  // for these tools; the client reports back via mark-complete.
-  if (CLIENT_EXECUTABLE_RUN_TOOLS.has(toolCall.name)) {
+  if (toolCall.clientExecutable) {
     const params = editedParams || toolCall.params || {}
     executeRunToolOnClient(toolCall.id, toolCall.name, params)
   }
@@ -1449,9 +1436,7 @@ export function ToolCall({
 
   // Check if this integration tool is auto-allowed
   const { removeAutoAllowedTool, setToolCallState } = useCopilotStore()
-  const isAutoAllowed = useCopilotStore(
-    (s) => isIntegrationTool(toolCall.name) && s.isToolAutoAllowed(toolCall.name)
-  )
+  const isAutoAllowed = useCopilotStore((s) => s.isToolAutoAllowed(toolCall.name))
 
   // Update edited params when toolCall params change (deep comparison to avoid resetting user edits on ref change)
   useEffect(() => {
@@ -1516,9 +1501,9 @@ export function ToolCall({
   // 2. We're in build mode (integration tools are executed server-side), OR
   // 3. Tool call is already completed (historical - should always render)
   const isClientTool = !!TOOL_DISPLAY_REGISTRY[toolCall.name]
-  const isIntegrationToolInBuildMode = mode === 'build' && !isClientTool
+  const isServerToolInBuildMode = mode === 'build' && !isClientTool
 
-  if (!isClientTool && !isIntegrationToolInBuildMode && !isCompletedToolCall) {
+  if (!isClientTool && !isServerToolInBuildMode && !isCompletedToolCall) {
     return null
   }
   const toolUIConfig = TOOL_DISPLAY_REGISTRY[toolCall.name]?.uiConfig

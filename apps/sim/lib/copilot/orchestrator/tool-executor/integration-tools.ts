@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { account, workflow } from '@sim/db/schema'
+import { account } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import type {
   ExecutionContext,
@@ -8,6 +8,7 @@ import type {
 } from '@/lib/copilot/orchestrator/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { getWorkflowById } from '@/lib/workflows/utils'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { executeTool } from '@/tools'
@@ -27,12 +28,8 @@ export async function executeIntegrationToolDirect(
 
   let workspaceId = context.workspaceId
   if (!workspaceId && workflowId) {
-    const workflowResult = await db
-      .select({ workspaceId: workflow.workspaceId })
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
-    workspaceId = workflowResult[0]?.workspaceId ?? undefined
+    const wf = await getWorkflowById(workflowId)
+    workspaceId = wf?.workspaceId ?? undefined
   }
 
   const decryptedEnvVars =

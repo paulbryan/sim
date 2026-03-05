@@ -64,9 +64,10 @@ export interface MessageFileAttachment {
  */
 export interface SendMessageRequest {
   message: string
-  userMessageId?: string // ID from frontend for the user message
+  userMessageId?: string
   chatId?: string
   workflowId?: string
+  workspaceId?: string
   mode?: CopilotMode | CopilotTransportMode
   model?: CopilotModelId
   provider?: string

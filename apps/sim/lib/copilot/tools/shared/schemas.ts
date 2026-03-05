@@ -7,22 +7,6 @@ export const ExecuteResponseSuccessSchema = z.object({
 })
 export type ExecuteResponseSuccess = z.infer<typeof ExecuteResponseSuccessSchema>
 
-// get_blocks_and_tools
-export const GetBlocksAndToolsInput = z.object({})
-export const GetBlocksAndToolsResult = z.object({
-  blocks: z.array(
-    z
-      .object({
-        type: z.string(),
-        name: z.string(),
-        triggerAllowed: z.boolean().optional(),
-        longDescription: z.string().optional(),
-      })
-      .passthrough()
-  ),
-})
-export type GetBlocksAndToolsResultType = z.infer<typeof GetBlocksAndToolsResult>
-
 // get_blocks_metadata
 export const GetBlocksMetadataInput = z.object({ blockIds: z.array(z.string()).min(1) })
 export const GetBlocksMetadataResult = z.object({ metadata: z.record(z.any()) })
@@ -35,48 +19,15 @@ export const GetTriggerBlocksResult = z.object({
 })
 export type GetTriggerBlocksResultType = z.infer<typeof GetTriggerBlocksResult>
 
-// get_block_options
-export const GetBlockOptionsInput = z.object({
-  blockId: z.string(),
-})
-export const GetBlockOptionsResult = z.object({
-  blockId: z.string(),
-  blockName: z.string(),
-  operations: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      description: z.string().optional(),
-    })
-  ),
-})
-export type GetBlockOptionsInputType = z.infer<typeof GetBlockOptionsInput>
-export type GetBlockOptionsResultType = z.infer<typeof GetBlockOptionsResult>
-
-// get_block_config
-export const GetBlockConfigInput = z.object({
-  blockType: z.string(),
-  operation: z.string().optional(),
-  trigger: z.boolean().optional(),
-})
-export const GetBlockConfigResult = z.object({
-  blockType: z.string(),
-  blockName: z.string(),
-  operation: z.string().optional(),
-  trigger: z.boolean().optional(),
-  inputs: z.record(z.any()),
-  outputs: z.record(z.any()),
-})
-export type GetBlockConfigInputType = z.infer<typeof GetBlockConfigInput>
-export type GetBlockConfigResultType = z.infer<typeof GetBlockConfigResult>
-
 // knowledge_base - shared schema used by client tool, server tool, and registry
 export const KnowledgeBaseArgsSchema = z.object({
   operation: z.enum([
     'create',
-    'list',
     'get',
     'query',
+    'update',
+    'delete',
+    'add_file',
     'list_tags',
     'create_tag',
     'update_tag',
@@ -91,8 +42,10 @@ export const KnowledgeBaseArgsSchema = z.object({
       description: z.string().optional(),
       /** Workspace ID to associate with (required for create, optional for list) */
       workspaceId: z.string().optional(),
-      /** Knowledge base ID (required for get, query, list_tags, create_tag, get_tag_usage) */
+      /** Knowledge base ID (required for get, query, add_file, list_tags, create_tag, get_tag_usage) */
       knowledgeBaseId: z.string().optional(),
+      /** Workspace file path to add as a document (required for add_file). Example: "files/report.pdf" */
+      filePath: z.string().optional(),
       /** Search query text (required for query) */
       query: z.string().optional(),
       /** Number of results to return (optional for query, defaults to 5) */
@@ -122,6 +75,72 @@ export const KnowledgeBaseResultSchema = z.object({
   data: z.any().optional(),
 })
 export type KnowledgeBaseResult = z.infer<typeof KnowledgeBaseResultSchema>
+
+// user_table - shared schema used by server tool and registry
+export const UserTableArgsSchema = z.object({
+  operation: z.enum([
+    'create',
+    'create_from_file',
+    'import_file',
+    'get',
+    'get_schema',
+    'delete',
+    'insert_row',
+    'batch_insert_rows',
+    'get_row',
+    'query_rows',
+    'update_row',
+    'delete_row',
+    'update_rows_by_filter',
+    'delete_rows_by_filter',
+  ]),
+  args: z
+    .object({
+      name: z.string().optional(),
+      description: z.string().optional(),
+      schema: z.any().optional(),
+      tableId: z.string().optional(),
+      rowId: z.string().optional(),
+      data: z.record(z.any()).optional(),
+      rows: z.array(z.record(z.any())).optional(),
+      filter: z.any().optional(),
+      sort: z.record(z.enum(['asc', 'desc'])).optional(),
+      limit: z.number().optional(),
+      offset: z.number().optional(),
+      filePath: z.string().optional(),
+    })
+    .optional(),
+})
+export type UserTableArgs = z.infer<typeof UserTableArgsSchema>
+
+export const UserTableResultSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  data: z.any().optional(),
+})
+export type UserTableResult = z.infer<typeof UserTableResultSchema>
+
+// workspace_file - shared schema used by server tool and Go catalog
+export const WorkspaceFileArgsSchema = z.object({
+  operation: z.enum(['write', 'delete']),
+  args: z
+    .object({
+      fileId: z.string().optional(),
+      fileName: z.string().optional(),
+      content: z.string().optional(),
+      contentType: z.string().optional(),
+      workspaceId: z.string().optional(),
+    })
+    .optional(),
+})
+export type WorkspaceFileArgs = z.infer<typeof WorkspaceFileArgsSchema>
+
+export const WorkspaceFileResultSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  data: z.any().optional(),
+})
+export type WorkspaceFileResult = z.infer<typeof WorkspaceFileResultSchema>
 
 export const GetBlockOutputsInput = z.object({
   blockIds: z.array(z.string()).optional(),

@@ -9,6 +9,7 @@ export interface WorkspaceBasic {
 
 export interface WorkspaceWithOwner {
   id: string
+  name: string
   ownerId: string
 }
 
@@ -56,7 +57,7 @@ export async function getWorkspaceWithOwner(
   workspaceId: string
 ): Promise<WorkspaceWithOwner | null> {
   const [ws] = await db
-    .select({ id: workspace.id, ownerId: workspace.ownerId })
+    .select({ id: workspace.id, name: workspace.name, ownerId: workspace.ownerId })
     .from(workspace)
     .where(eq(workspace.id, workspaceId))
     .limit(1)

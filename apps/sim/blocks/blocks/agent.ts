@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { AgentIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
-import { getApiKeyCondition, getModelOptions } from '@/blocks/utils'
+import { getApiKeyCondition, getModelOptions, RESPONSE_FORMAT_WAND_CONFIG } from '@/blocks/utils'
 import {
   getBaseModelProviders,
   getMaxTemperature,
@@ -126,8 +126,23 @@ Return ONLY the JSON array.`,
       title: 'Google Cloud Account',
       type: 'oauth-input',
       serviceId: 'vertex-ai',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
       requiredScopes: ['https://www.googleapis.com/auth/cloud-platform'],
       placeholder: 'Select Google Cloud account',
+      required: true,
+      condition: {
+        field: 'model',
+        value: providers.vertex.models,
+      },
+    },
+    {
+      id: 'manualCredential',
+      title: 'Google Cloud Account',
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
       required: true,
       condition: {
         field: 'model',
@@ -537,97 +552,7 @@ Return ONLY the JSON array.`,
         value: MODELS_WITH_DEEP_RESEARCH,
         not: true,
       },
-      wandConfig: {
-        enabled: true,
-        maintainHistory: true,
-        prompt: `You are an expert programmer specializing in creating JSON schemas according to a specific format.
-Generate ONLY the JSON schema based on the user's request.
-The output MUST be a single, valid JSON object, starting with { and ending with }.
-The JSON object MUST have the following top-level properties: 'name' (string), 'description' (string), 'strict' (boolean, usually true), and 'schema' (object).
-The 'schema' object must define the structure and MUST contain 'type': 'object', 'properties': {...}, 'additionalProperties': false, and 'required': [...].
-Inside 'properties', use standard JSON Schema properties (type, description, enum, items for arrays, etc.).
-
-Current schema: {context}
-
-Do not include any explanations, markdown formatting, or other text outside the JSON object.
-
-Valid Schema Examples:
-
-Example 1:
-{
-    "name": "reddit_post",
-    "description": "Fetches the reddit posts in the given subreddit",
-    "strict": true,
-    "schema": {
-        "type": "object",
-        "properties": {
-            "title": {
-                "type": "string",
-                "description": "The title of the post"
-            },
-            "content": {
-                "type": "string",
-                "description": "The content of the post"
-            }
-        },
-        "additionalProperties": false,
-        "required": [ "title", "content" ]
-    }
-}
-
-Example 2:
-{
-    "name": "get_weather",
-    "description": "Fetches the current weather for a specific location.",
-    "strict": true,
-    "schema": {
-        "type": "object",
-        "properties": {
-            "location": {
-                "type": "string",
-                "description": "The city and state, e.g., San Francisco, CA"
-            },
-            "unit": {
-                "type": "string",
-                "description": "Temperature unit",
-                "enum": ["celsius", "fahrenheit"]
-            }
-        },
-        "additionalProperties": false,
-        "required": ["location", "unit"]
-    }
-}
-
-Example 3 (Array Input):
-{
-    "name": "process_items",
-    "description": "Processes a list of items with specific IDs.",
-    "strict": true,
-    "schema": {
-        "type": "object",
-        "properties": {
-            "item_ids": {
-                "type": "array",
-                "description": "A list of unique item identifiers to process.",
-                "items": {
-                    "type": "string",
-                    "description": "An item ID"
-                }
-            },
-            "processing_mode": {
-                "type": "string",
-                "description": "The mode for processing",
-                "enum": ["fast", "thorough"]
-            }
-        },
-        "additionalProperties": false,
-        "required": ["item_ids", "processing_mode"]
-    }
-}
-`,
-        placeholder: 'Describe the JSON schema structure you need...',
-        generationType: 'json-schema',
-      },
+      wandConfig: RESPONSE_FORMAT_WAND_CONFIG,
     },
     {
       id: 'previousInteractionId',
@@ -732,6 +657,7 @@ Example 3 (Array Input):
     apiKey: { type: 'string', description: 'Provider API key' },
     azureEndpoint: { type: 'string', description: 'Azure endpoint URL' },
     azureApiVersion: { type: 'string', description: 'Azure API version' },
+    oauthCredential: { type: 'string', description: 'OAuth credential for Vertex AI' },
     vertexProject: { type: 'string', description: 'Google Cloud project ID for Vertex AI' },
     vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },
     bedrockAccessKeyId: { type: 'string', description: 'AWS Access Key ID for Bedrock' },

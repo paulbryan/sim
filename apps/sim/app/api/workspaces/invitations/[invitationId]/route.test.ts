@@ -1,4 +1,4 @@
-import { createSession, createWorkspaceRecord, loggerMock } from '@sim/testing'
+import { auditMock, createSession, createWorkspaceRecord, loggerMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,15 +8,27 @@ const mockHasWorkspaceAdminAccess = vi.fn()
 let dbSelectResults: any[] = []
 let dbSelectCallIndex = 0
 
-const mockDbSelect = vi.fn().mockImplementation(() => ({
-  from: vi.fn().mockReturnThis(),
-  where: vi.fn().mockReturnThis(),
-  then: vi.fn().mockImplementation((callback: (rows: any[]) => any) => {
-    const result = dbSelectResults[dbSelectCallIndex] || []
-    dbSelectCallIndex++
-    return Promise.resolve(callback ? callback(result) : result)
-  }),
-}))
+const mockDbSelect = vi.fn().mockImplementation(() => {
+  const makeThen = () =>
+    vi.fn().mockImplementation((callback: (rows: any[]) => any) => {
+      const result = dbSelectResults[dbSelectCallIndex] || []
+      dbSelectCallIndex++
+      return Promise.resolve(callback ? callback(result) : result)
+    })
+  const makeLimit = () =>
+    vi.fn().mockImplementation(() => {
+      const result = dbSelectResults[dbSelectCallIndex] || []
+      dbSelectCallIndex++
+      return Promise.resolve(result)
+    })
+
+  const chain: any = {}
+  chain.from = vi.fn().mockReturnValue(chain)
+  chain.where = vi.fn().mockReturnValue(chain)
+  chain.limit = makeLimit()
+  chain.then = makeThen()
+  return chain
+})
 
 const mockDbInsert = vi.fn().mockImplementation(() => ({
   values: vi.fn().mockResolvedValue(undefined),
@@ -53,7 +65,13 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
     mockHasWorkspaceAdminAccess(userId, workspaceId),
 }))
 
+vi.mock('@/lib/credentials/environment', () => ({
+  syncWorkspaceEnvCredentials: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('@sim/logger', () => loggerMock)
+
+vi.mock('@/lib/audit/log', () => auditMock)
 
 vi.mock('@/lib/core/utils/urls', () => ({
   getBaseUrl: vi.fn().mockReturnValue('https://test.sim.ai'),
@@ -94,6 +112,10 @@ vi.mock('@sim/db/schema', () => ({
     entityId: 'entityId',
     userId: 'userId',
     permissionType: 'permissionType',
+  },
+  workspaceEnvironment: {
+    workspaceId: 'workspaceId',
+    variables: 'variables',
   },
 }))
 
@@ -207,6 +229,7 @@ describe('Workspace Invitation [invitationId] API Route', () => {
         [mockWorkspace],
         [{ ...mockUser, email: 'invited@example.com' }],
         [],
+        [],
       ]
 
       const request = new NextRequest(
@@ -217,7 +240,9 @@ describe('Workspace Invitation [invitationId] API Route', () => {
       const response = await GET(request, { params })
 
       expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('https://test.sim.ai/workspace/workspace-456/w')
+      expect(response.headers.get('location')).toBe(
+        'https://test.sim.ai/workspace/workspace-456/home'
+      )
     })
 
     it('should redirect to error page with token preserved when invitation expired', async () => {
@@ -460,6 +485,7 @@ describe('Workspace Invitation [invitationId] API Route', () => {
         [mockWorkspace],
         [{ ...mockUser, email: 'invited@example.com' }],
         [],
+        [],
       ]
 
       const request2 = new NextRequest(
@@ -471,7 +497,7 @@ describe('Workspace Invitation [invitationId] API Route', () => {
 
       expect(response2.status).toBe(307)
       expect(response2.headers.get('location')).toBe(
-        'https://test.sim.ai/workspace/workspace-456/w'
+        'https://test.sim.ai/workspace/workspace-456/home'
       )
     })
   })

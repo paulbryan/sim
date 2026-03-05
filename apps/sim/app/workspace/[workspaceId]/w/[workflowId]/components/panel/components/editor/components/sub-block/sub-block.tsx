@@ -1,21 +1,28 @@
-import { type JSX, type MouseEvent, memo, useCallback, useRef, useState } from 'react'
-import { isEqual } from 'lodash'
-import { AlertTriangle, ArrowLeftRight, ArrowUp, Check, Clipboard } from 'lucide-react'
+import { type JSX, type MouseEvent, memo, useCallback, useMemo, useRef, useState } from 'react'
+import isEqual from 'lodash/isEqual'
+import {
+  AlertTriangle,
+  ArrowLeftRight,
+  ArrowUp,
+  Check,
+  Clipboard,
+  ExternalLink,
+} from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
 import { cn } from '@/lib/core/utils/cn'
+import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
 import {
   CheckboxList,
   Code,
   ComboBox,
   ConditionInput,
   CredentialSelector,
-  DocumentSelector,
   DocumentTagEntry,
   Dropdown,
   EvalInput,
-  FileSelectorInput,
   FileUpload,
-  FolderSelectorInput,
+  FilterBuilder,
   GroupedCheckboxList,
   InputFormat,
   InputMapping,
@@ -26,16 +33,17 @@ import {
   McpServerSelector,
   McpToolSelector,
   MessagesInput,
-  ProjectSelectorInput,
   ResponseFormat,
   ScheduleInfo,
-  SheetSelectorInput,
+  SelectorInput,
+  type SelectorOverrides,
   ShortInput,
   SkillInput,
-  SlackSelectorInput,
   SliderInput,
+  SortBuilder,
   Switch,
   Table,
+  TableSelector,
   Text,
   TimeInput,
   ToolInput,
@@ -45,6 +53,23 @@ import {
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
+
+const SLACK_OVERRIDES: SelectorOverrides = {
+  transformContext: (context, deps) => {
+    const authMethod = deps.authMethod as string
+    const credentialId =
+      authMethod === 'bot_token' ? String(deps.botToken ?? '') : String(deps.credential ?? '')
+    return { ...context, credentialId }
+  },
+}
+
+const FOLDER_OVERRIDES: SelectorOverrides = {
+  getDefaultValue: (subBlock) => {
+    const isGmail = subBlock.serviceId === 'gmail'
+    const isCopyDest = subBlock.canonicalParamId === 'copyDestinationId'
+    return isGmail && !isCopyDest ? 'INBOX' : null
+  },
+}
 
 /**
  * Interface for wand control handlers exposed by sub-block inputs
@@ -202,7 +227,12 @@ const renderLabel = (
     copied: boolean
     onCopy: () => void
   },
-  labelSuffix?: React.ReactNode
+  labelSuffix?: React.ReactNode,
+  externalLink?: {
+    show: boolean
+    onClick: () => void
+    tooltip: string
+  }
 ): JSX.Element | null => {
   if (config.type === 'switch') return null
   if (!config.title) return null
@@ -211,6 +241,7 @@ const renderLabel = (
   const showWand = wandState?.isWandEnabled && !wandState.isPreview && !wandState.disabled
   const showCanonicalToggle = !!canonicalToggle && !wandState?.isPreview
   const showCopy = copyState?.showCopyButton && !wandState?.isPreview
+  const showExternalLink = externalLink?.show && !wandState?.isPreview
   const canonicalToggleDisabledResolved = canonicalToggleIsDisabled ?? canonicalToggle?.disabled
 
   return (
@@ -318,6 +349,23 @@ const renderLabel = (
             )}
           </>
         )}
+        {showExternalLink && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button
+                type='button'
+                className='flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0'
+                onClick={externalLink?.onClick}
+                aria-label={externalLink?.tooltip}
+              >
+                <ExternalLink className='!h-[12px] !w-[12px] text-[var(--text-secondary)]' />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              <p>{externalLink?.tooltip}</p>
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
         {showCanonicalToggle && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
@@ -415,6 +463,9 @@ function SubBlockComponent({
   labelSuffix,
   dependencyContext,
 }: SubBlockProps): JSX.Element {
+  const params = useParams()
+  const workspaceId = params.workspaceId as string
+
   const [isValidJson, setIsValidJson] = useState(true)
   const [isSearchActive, setIsSearchActive] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -450,6 +501,54 @@ function SubBlockComponent({
       setTimeout(() => setCopied(false), 2000)
     }
   }, [webhookManagement?.webhookUrl])
+
+  const tableId =
+    config.type === 'table-selector' && subBlockValues
+      ? (subBlockValues[config.id]?.value as string | null)
+      : null
+  const hasSelectedTable = tableId && !tableId.startsWith('<')
+
+  const knowledgeBaseId =
+    config.type === 'knowledge-base-selector' && subBlockValues
+      ? (subBlockValues[config.id]?.value as string | null)
+      : null
+  const hasSelectedKnowledgeBase = knowledgeBaseId && !knowledgeBaseId.startsWith('<')
+
+  const handleNavigateToTable = useCallback(() => {
+    if (tableId && workspaceId) {
+      window.open(`/workspace/${workspaceId}/tables/${tableId}`, '_blank')
+    }
+  }, [workspaceId, tableId])
+
+  const handleNavigateToKnowledgeBase = useCallback(() => {
+    if (knowledgeBaseId && workspaceId) {
+      window.open(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`, '_blank')
+    }
+  }, [workspaceId, knowledgeBaseId])
+
+  const externalLink = useMemo(() => {
+    if (config.type === 'table-selector' && hasSelectedTable) {
+      return {
+        show: true,
+        onClick: handleNavigateToTable,
+        tooltip: 'View table',
+      }
+    }
+    if (config.type === 'knowledge-base-selector' && hasSelectedKnowledgeBase) {
+      return {
+        show: true,
+        onClick: handleNavigateToKnowledgeBase,
+        tooltip: 'View knowledge base',
+      }
+    }
+    return undefined
+  }, [
+    config.type,
+    hasSelectedTable,
+    handleNavigateToTable,
+    hasSelectedKnowledgeBase,
+    handleNavigateToKnowledgeBase,
+  ])
 
   /**
    * Handles wand icon click to activate inline prompt mode.
@@ -580,6 +679,19 @@ function SubBlockComponent({
               fetchOptionById={config.fetchOptionById}
               dependsOn={config.dependsOn}
               searchable={config.searchable}
+            />
+          </div>
+        )
+
+      case 'table-selector':
+        return (
+          <div onMouseDown={handleMouseDown}>
+            <TableSelector
+              blockId={blockId}
+              subBlock={config}
+              disabled={isDisabled}
+              isPreview={isPreview}
+              previewValue={previewValue as string | null}
             />
           </div>
         )
@@ -802,32 +914,10 @@ function SubBlockComponent({
         )
 
       case 'file-selector':
-        return (
-          <FileSelectorInput
-            blockId={blockId}
-            subBlock={config}
-            disabled={isDisabled}
-            isPreview={isPreview}
-            previewValue={previewValue}
-            previewContextValues={contextValues}
-          />
-        )
-
       case 'sheet-selector':
-        return (
-          <SheetSelectorInput
-            blockId={blockId}
-            subBlock={config}
-            disabled={isDisabled}
-            isPreview={isPreview}
-            previewValue={previewValue}
-            previewContextValues={contextValues}
-          />
-        )
-
       case 'project-selector':
         return (
-          <ProjectSelectorInput
+          <SelectorInput
             blockId={blockId}
             subBlock={config}
             disabled={isDisabled}
@@ -839,13 +929,14 @@ function SubBlockComponent({
 
       case 'folder-selector':
         return (
-          <FolderSelectorInput
+          <SelectorInput
             blockId={blockId}
             subBlock={config}
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
             previewContextValues={contextValues}
+            overrides={FOLDER_OVERRIDES}
           />
         )
 
@@ -886,12 +977,12 @@ function SubBlockComponent({
 
       case 'document-selector':
         return (
-          <DocumentSelector
+          <SelectorInput
             blockId={blockId}
             subBlock={config}
             disabled={isDisabled}
             isPreview={isPreview}
-            previewValue={previewValue as any}
+            previewValue={previewValue}
             previewContextValues={contextValues}
           />
         )
@@ -944,16 +1035,39 @@ function SubBlockComponent({
           />
         )
 
+      case 'filter-builder':
+        return (
+          <FilterBuilder
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue as FilterRule[] | null | undefined}
+            disabled={isDisabled}
+          />
+        )
+
+      case 'sort-builder':
+        return (
+          <SortBuilder
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue as SortRule[] | null | undefined}
+            disabled={isDisabled}
+          />
+        )
+
       case 'channel-selector':
       case 'user-selector':
         return (
-          <SlackSelectorInput
+          <SelectorInput
             blockId={blockId}
             subBlock={config}
             disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
             previewContextValues={contextValues}
+            overrides={SLACK_OVERRIDES}
           />
         )
 
@@ -1060,7 +1174,8 @@ function SubBlockComponent({
           copied,
           onCopy: handleCopy,
         },
-        labelSuffix
+        labelSuffix,
+        externalLink
       )}
       {renderInput()}
     </div>
