@@ -1,5 +1,6 @@
 import { TerminalIcon } from '@/components/icons'
 import { isTruthy } from '@/lib/core/config/env'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import type { BlockConfig } from '@/blocks/types'
 import type { ExecuteCommandOutput } from '@/tools/execute-command/types'
 
@@ -59,6 +60,13 @@ IMPORTANT FORMATTING RULES:
       required: false,
       placeholder: '/path/to/directory',
     },
+    {
+      id: 'timeout',
+      title: 'Timeout (ms)',
+      type: 'short-input',
+      required: false,
+      placeholder: String(DEFAULT_EXECUTION_TIMEOUT_MS),
+    },
   ],
   tools: {
     access: ['execute_command_run'],
@@ -66,6 +74,7 @@ IMPORTANT FORMATTING RULES:
   inputs: {
     command: { type: 'string', description: 'Shell command to execute' },
     workingDirectory: { type: 'string', description: 'Working directory for the command' },
+    timeout: { type: 'number', description: 'Execution timeout in milliseconds' },
   },
   outputs: {
     stdout: { type: 'string', description: 'Standard output from the command' },

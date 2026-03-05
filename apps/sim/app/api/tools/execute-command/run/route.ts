@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { isExecuteCommandEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { normalizeName, REFERENCE, SPECIAL_REFERENCE_PREFIXES } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
 import {
@@ -151,7 +152,7 @@ function collectTagReplacements(
   blockOutputSchemas: Record<string, OutputSchema>
 ): Replacement[] {
   const tagPattern = new RegExp(
-    `${REFERENCE.START}([^${REFERENCE.START}${REFERENCE.END}]+)${REFERENCE.END}`,
+    `${REFERENCE.START}(\\S[^${REFERENCE.START}${REFERENCE.END}]*)${REFERENCE.END}`,
     'g'
   )
 
@@ -216,6 +217,16 @@ function resolveCommandVariables(
   ]
 
   allReplacements.sort((a, b) => a.index - b.index)
+
+  for (let i = 1; i < allReplacements.length; i++) {
+    const prev = allReplacements[i - 1]
+    const curr = allReplacements[i]
+    if (curr.index < prev.index + prev.length) {
+      throw new Error(
+        `Overlapping variable references detected at positions ${prev.index} and ${curr.index}`
+      )
+    }
+  }
 
   let resolved = command
   for (let i = allReplacements.length - 1; i >= 0; i--) {
@@ -310,7 +321,6 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { DEFAULT_EXECUTION_TIMEOUT_MS } = await import('@/lib/execution/constants')
 
     const {
       command,

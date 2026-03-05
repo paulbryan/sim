@@ -19,7 +19,7 @@ export const executeCommandRunTool: ToolConfig<ExecuteCommandInput, ExecuteComma
     timeout: {
       type: 'number',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-or-llm',
       description: 'Execution timeout in milliseconds',
       default: DEFAULT_EXECUTION_TIMEOUT_MS,
     },
