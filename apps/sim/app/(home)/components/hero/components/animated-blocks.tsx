@@ -528,7 +528,10 @@ interface AnimatedBlockProps {
 }
 
 /** Two-row horizontal strip at the top-right of the hero. */
-export function BlocksTopRightAnimated({ animState = 'entering', reverseExit }: AnimatedBlockProps) {
+export function BlocksTopRightAnimated({
+  animState = 'entering',
+  reverseExit,
+}: AnimatedBlockProps) {
   return (
     <AnimatedBlocksSvg
       width={295}
@@ -570,7 +573,10 @@ export function BlocksLeftAnimated({ animState = 'entering', reverseExit }: Anim
 }
 
 /** Two-column vertical strip on the right edge of the screenshot. */
-export function BlocksRightSideAnimated({ animState = 'entering', reverseExit }: AnimatedBlockProps) {
+export function BlocksRightSideAnimated({
+  animState = 'entering',
+  reverseExit,
+}: AnimatedBlockProps) {
   return (
     <AnimatedBlocksSvg
       width={34}

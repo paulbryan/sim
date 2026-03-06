@@ -1,7 +1,7 @@
-import Navbar from '@/app/(home)/components/navbar/navbar'
-import { Footer } from '@/app/(landing)/components'
 import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import { season } from '@/app/_styles/fonts/season/season'
+import Navbar from '@/app/(home)/components/navbar/navbar'
+import { Footer } from '@/app/(landing)/components'
 
 export default function StudioLayout({ children }: { children: React.ReactNode }) {
   const orgJsonLd = {

@@ -50,11 +50,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const related = await getRelatedPosts(slug, 3)
 
   return (
-    <article
-      className='w-full'
-      itemScope
-      itemType='https://schema.org/BlogPosting'
-    >
+    <article className='w-full' itemScope itemType='https://schema.org/BlogPosting'>
       <script
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -69,18 +65,18 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         </div>
         <div className='flex flex-col'>
           <h1
-            className='font-season font-[430] text-[36px] text-white leading-tight tracking-[-0.02em] sm:text-[48px] md:text-[56px] lg:text-[64px]'
+            className='font-[430] font-season text-[36px] text-white leading-tight tracking-[-0.02em] sm:text-[48px] md:text-[56px] lg:text-[64px]'
             itemProp='headline'
           >
             {post.title}
           </h1>
-          <p className='mt-4 font-season font-[430] text-[16px] text-[#F6F6F0]/80 leading-[1.5] sm:text-[18px] md:text-[22px]'>
+          <p className='mt-4 font-[430] font-season text-[#F6F6F0]/80 text-[16px] leading-[1.5] sm:text-[18px] md:text-[22px]'>
             {post.description}
           </p>
           <div className='mt-6 flex items-center justify-between'>
             <div className='flex items-center gap-3'>
               <time
-                className='font-season font-[430] text-[14px] text-[#F6F6F0]/50 leading-[1.5] sm:text-[16px]'
+                className='font-[430] font-season text-[#F6F6F0]/50 text-[14px] leading-[1.5] sm:text-[16px]'
                 dateTime={post.date}
                 itemProp='datePublished'
               >
@@ -104,7 +100,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                     href={a?.url || '#'}
                     target='_blank'
                     rel='noopener noreferrer author'
-                    className='font-season font-[430] text-[14px] text-[#F6F6F0]/50 leading-[1.5] hover:text-[#F6F6F0]/80 sm:text-[16px]'
+                    className='font-[430] font-season text-[#F6F6F0]/50 text-[14px] leading-[1.5] hover:text-[#F6F6F0]/80 sm:text-[16px]'
                     itemProp='author'
                     itemScope
                     itemType='https://schema.org/Person'
@@ -120,7 +116,10 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         <hr className='mt-8 border-[#2A2A2A] border-t sm:mt-12' />
       </header>
 
-      <div className='mx-auto max-w-[900px] px-6 py-10 pb-20 sm:px-8 md:px-12' itemProp='articleBody'>
+      <div
+        className='mx-auto max-w-[900px] px-6 py-10 pb-20 sm:px-8 md:px-12'
+        itemProp='articleBody'
+      >
         <div className={PROSE_CLASSES}>
           <Article />
           {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
@@ -128,7 +127,9 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       </div>
       {related.length > 0 && (
         <div className='mx-auto max-w-[900px] px-6 pb-24 sm:px-8 md:px-12'>
-          <h2 className='mb-4 font-season font-[430] text-[24px] text-white tracking-[-0.02em]'>Related posts</h2>
+          <h2 className='mb-4 font-[430] font-season text-[24px] text-white tracking-[-0.02em]'>
+            Related posts
+          </h2>
           <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3'>
             {related.map((p) => (
               <Link key={p.slug} href={`/studio/${p.slug}`} className='group'>
@@ -144,14 +145,16 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                     unoptimized
                   />
                   <div className='p-3'>
-                    <div className='mb-1 font-season font-[430] text-[#F6F6F0]/50 text-xs'>
+                    <div className='mb-1 font-[430] font-season text-[#F6F6F0]/50 text-xs'>
                       {new Date(p.date).toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric',
                       })}
                     </div>
-                    <div className='font-season font-[430] text-white text-sm leading-tight'>{p.title}</div>
+                    <div className='font-[430] font-season text-sm text-white leading-tight'>
+                      {p.title}
+                    </div>
                   </div>
                 </div>
               </Link>

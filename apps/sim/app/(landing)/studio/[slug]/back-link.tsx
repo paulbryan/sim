@@ -10,7 +10,7 @@ export function BackLink() {
   return (
     <Link
       href='/studio'
-      className='group flex items-center gap-1 font-season font-[430] text-[#F6F6F0]/50 text-sm hover:text-[#F6F6F0]/80'
+      className='group flex items-center gap-1 font-[430] font-season text-[#F6F6F0]/50 text-sm hover:text-[#F6F6F0]/80'
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >

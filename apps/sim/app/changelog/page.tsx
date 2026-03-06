@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
-import ChangelogContent from '@/app/changelog/components/changelog-content'
 import type { ChangelogVariant } from '@/app/changelog/components/changelog-content'
+import ChangelogContent from '@/app/changelog/components/changelog-content'
 
 export const metadata: Metadata = {
   title: 'Changelog',

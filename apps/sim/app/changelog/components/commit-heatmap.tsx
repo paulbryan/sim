@@ -6,8 +6,18 @@ import type { ChangelogEntry } from '@/app/changelog/components/changelog-conten
 const HEATMAP_COLORS = ['#2ABBF8', '#00F701', '#FFCC02', '#FA4EDF'] as const
 const GREEN_BASE = '#39d353'
 const MONTH_NAMES = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ] as const
 
 const CELL_SIZE = 10
@@ -16,11 +26,13 @@ const CELL_RADIUS = 2
 const DAY_LABEL_WIDTH = 28
 const MONTH_ROW_HEIGHT = 16
 const MAX_HEATMAP_WEEKS = 26
-const SNAKE_LENGTH = 12
 
-const EASING_K = 8
+/** Cells (days) from the active date to the edge of the colored glow. */
+const GLOW_RADIUS = 7
+
+const EASING_K = 5
 const SNAP_CELLS = 10
-const SETTLE_THRESHOLD = 0.0001
+const SETTLE_THRESHOLD = 0.05
 
 interface CellData {
   date: string
@@ -33,6 +45,7 @@ interface CellData {
 interface GridData {
   cells: CellData[]
   dates: Date[]
+  dateToSeqIndex: Map<string, number>
   monthLabels: Array<{ label: string; weekIndex: number }>
   dayLabels: Array<{ label: string; dayIndex: number }>
   numWeeks: number
@@ -66,13 +79,10 @@ function cellPixel(cell: CellData): [number, number] {
 
 function computeGrid(entries: ChangelogEntry[]): GridData | null {
   if (!entries.length) return null
-  const earliestEntry = entries.reduce(
-    (earliest, entry) => {
-      const d = entry.date.split('T')[0]
-      return d < earliest ? d : earliest
-    },
-    entries[0].date.split('T')[0]
-  )
+  const earliestEntry = entries.reduce((earliest, entry) => {
+    const d = entry.date.split('T')[0]
+    return d < earliest ? d : earliest
+  }, entries[0].date.split('T')[0])
   const earliestDate = new Date(`${earliestEntry}T00:00:00`)
   earliestDate.setDate(earliestDate.getDate() - earliestDate.getDay())
 
@@ -153,6 +163,11 @@ function computeGrid(entries: ChangelogEntry[]): GridData | null {
     monthLabels.pop()
   }
 
+  const dateToSeqIndex = new Map<string, number>()
+  for (const cell of cells) {
+    dateToSeqIndex.set(cell.date, cell.seqIndex)
+  }
+
   const gridWidth = numWeeks * (CELL_SIZE + CELL_GAP) - CELL_GAP
   const gridHeight = 7 * (CELL_SIZE + CELL_GAP) - CELL_GAP
   const svgWidth = DAY_LABEL_WIDTH + gridWidth + 16
@@ -161,6 +176,7 @@ function computeGrid(entries: ChangelogEntry[]): GridData | null {
   return {
     cells,
     dates,
+    dateToSeqIndex,
     monthLabels,
     dayLabels: [
       { label: 'Mon', dayIndex: 1 },
@@ -174,29 +190,38 @@ function computeGrid(entries: ChangelogEntry[]): GridData | null {
 }
 
 export interface CommitHeatmapHandle {
-  setProgress: (progress: number) => void
+  setActiveDate: (date: string) => void
 }
 
 interface CommitHeatmapProps {
   entries: ChangelogEntry[]
   activeDate?: string
-  progress?: number
 }
 
 export const CommitHeatmap = forwardRef<CommitHeatmapHandle, CommitHeatmapProps>(
-  function CommitHeatmap({ entries, progress }, ref) {
+  function CommitHeatmap({ entries, activeDate: activeDateProp }, ref) {
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const gridRef = useRef<GridData | null>(null)
-    const targetRef = useRef(0)
-    const currentRef = useRef(0)
-    const prevPosRef = useRef(-1)
-    const directionRef = useRef<1 | -1>(1)
+    const targetRef = useRef(-1)
+    const currentRef = useRef(-1)
     const rafRef = useRef(0)
     const lastTsRef = useRef(0)
     const runningRef = useRef(false)
 
     const grid = useMemo(() => computeGrid(entries), [entries])
     gridRef.current = grid
+
+    const resolveSeqIndex = useCallback((date: string): number => {
+      const g = gridRef.current
+      if (!g || g.cells.length === 0) return -1
+      const idx = g.dateToSeqIndex.get(date)
+      if (idx !== undefined) return idx
+      const first = g.cells[0].date
+      const last = g.cells[g.cells.length - 1].date
+      if (date < first) return 0
+      if (date > last) return g.cells.length - 1
+      return -1
+    }, [])
 
     const draw = useCallback(() => {
       const canvas = canvasRef.current
@@ -207,21 +232,7 @@ export const CommitHeatmap = forwardRef<CommitHeatmapHandle, CommitHeatmapProps>
       if (!ctx) return
 
       const { cells, monthLabels, dayLabels, svgWidth, svgHeight } = g
-      const p = currentRef.current
-      const totalCells = Math.max(0, cells.length - 1)
-      const effectivePos = p * totalCells
-
-      if (prevPosRef.current >= 0) {
-        if (effectivePos > prevPosRef.current) directionRef.current = 1
-        else if (effectivePos < prevPosRef.current) directionRef.current = -1
-      }
-      prevPosRef.current = effectivePos
-
-      const goingBack = directionRef.current === 1
-      const maxTail = goingBack ? effectivePos : totalCells - effectivePos
-      const snakeLen = Math.min(SNAKE_LENGTH, maxTail)
-      const snakeStart = goingBack ? effectivePos - snakeLen : effectivePos
-      const snakeEnd = goingBack ? effectivePos : effectivePos + snakeLen
+      const activeSeq = currentRef.current
 
       const dpr = window.devicePixelRatio || 1
       const rect = canvas.getBoundingClientRect()
@@ -273,86 +284,73 @@ export const CommitHeatmap = forwardRef<CommitHeatmapHandle, CommitHeatmapProps>
 
       for (const cell of cells) {
         const [x, y] = cellPixel(cell)
-        const greenOp = greenOpacity(cell.seqIndex)
-        const isInSnake =
-          effectivePos > 0 &&
-          cell.traversalIndex >= snakeStart &&
-          cell.traversalIndex <= snakeEnd
 
         ctx.fillStyle = GREEN_BASE
-        ctx.globalAlpha = greenOp
+        ctx.globalAlpha = greenOpacity(cell.seqIndex)
         fillRR(x, y, CELL_SIZE, CELL_SIZE, CELL_RADIUS)
 
-        if (isInSnake) {
-          const distFromHead = Math.abs(cell.traversalIndex - effectivePos)
-          const t = snakeLen > 0 ? distFromHead / snakeLen : 0
-          const colorOp = 0.9 - t * 0.75
-          const colorIdx = Math.floor(pseudoRandom(cell.seqIndex + 1) * HEATMAP_COLORS.length)
-          ctx.fillStyle = HEATMAP_COLORS[colorIdx]
-          ctx.globalAlpha = colorOp
-          fillRR(x, y, CELL_SIZE, CELL_SIZE, CELL_RADIUS)
-        }
-        ctx.globalAlpha = 1
-      }
-
-      if (effectivePos > 0 && cells.length > 1) {
-        const floorT = Math.floor(effectivePos)
-        const ceilT = Math.min(floorT + 1, totalCells)
-        const frac = effectivePos - floorT
-        const cellA = cells[cells.length - 1 - floorT]
-        const cellB = cells[cells.length - 1 - ceilT]
-
-        if (cellA && cellB) {
-          const [ax, ay] = cellPixel(cellA)
-          const [bx, by] = cellPixel(cellB)
-          const hx = ax + (bx - ax) * frac
-          const hy = ay + (by - ay) * frac
-
-          ctx.save()
-          ctx.shadowColor = '#ffffff'
-          ctx.shadowBlur = 6
-          ctx.fillStyle = '#ffffff'
-          ctx.globalAlpha = 0.7
-          fillRR(hx, hy, CELL_SIZE, CELL_SIZE, CELL_RADIUS)
-          ctx.restore()
+        if (activeSeq >= 0) {
+          const dist = Math.abs(cell.seqIndex - activeSeq)
+          if (dist < GLOW_RADIUS) {
+            const t = 1 - dist / GLOW_RADIUS
+            const smooth = t * t * (3 - 2 * t)
+            const colorIdx = Math.floor(pseudoRandom(cell.seqIndex) * HEATMAP_COLORS.length)
+            const baseOpacity = 0.6 + pseudoRandom(cell.seqIndex + 100) * 0.4
+            const overlay = smooth * baseOpacity
+            if (overlay > 0.01) {
+              ctx.fillStyle = HEATMAP_COLORS[colorIdx]
+              ctx.globalAlpha = overlay
+              fillRR(x, y, CELL_SIZE, CELL_SIZE, CELL_RADIUS)
+            }
+          }
         }
       }
+      ctx.globalAlpha = 1
     }, [])
 
-    const animate = useCallback((timestamp: number) => {
-      const g = gridRef.current
-      if (!g) {
-        runningRef.current = false
-        return
-      }
+    const animate = useCallback(
+      (timestamp: number) => {
+        const g = gridRef.current
+        if (!g) {
+          runningRef.current = false
+          return
+        }
 
-      const target = targetRef.current
-      const current = currentRef.current
-      const delta = target - current
-      const totalCells = Math.max(1, g.cells.length - 1)
-      const cellDelta = Math.abs(delta) * totalCells
+        const target = targetRef.current
+        const current = currentRef.current
 
-      if (cellDelta < SETTLE_THRESHOLD) {
-        currentRef.current = target
+        if (target < 0) {
+          currentRef.current = target
+          draw()
+          runningRef.current = false
+          lastTsRef.current = 0
+          return
+        }
+
+        const delta = target - current
+        const cellDelta = Math.abs(delta)
+
+        if (cellDelta < SETTLE_THRESHOLD) {
+          currentRef.current = target
+          draw()
+          runningRef.current = false
+          lastTsRef.current = 0
+          return
+        }
+
+        const dt =
+          lastTsRef.current > 0 ? Math.min((timestamp - lastTsRef.current) / 1000, 0.1) : 1 / 60
+        lastTsRef.current = timestamp
+
+        const k = cellDelta > SNAP_CELLS ? 20 : EASING_K
+        const factor = 1 - Math.exp(-k * dt)
+        currentRef.current = current + delta * factor
+
         draw()
-        runningRef.current = false
-        lastTsRef.current = 0
-        return
-      }
-
-      const dt =
-        lastTsRef.current > 0
-          ? Math.min((timestamp - lastTsRef.current) / 1000, 0.1)
-          : 1 / 60
-      lastTsRef.current = timestamp
-
-      const k = cellDelta > SNAP_CELLS ? 20 : EASING_K
-      const factor = 1 - Math.exp(-k * dt)
-      currentRef.current = current + delta * factor
-
-      draw()
-      rafRef.current = requestAnimationFrame(animate)
-    }, [draw])
+        rafRef.current = requestAnimationFrame(animate)
+      },
+      [draw]
+    )
 
     const startLoop = useCallback(() => {
       if (runningRef.current) return
@@ -361,23 +359,22 @@ export const CommitHeatmap = forwardRef<CommitHeatmapHandle, CommitHeatmapProps>
       rafRef.current = requestAnimationFrame(animate)
     }, [animate])
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        setProgress(p: number) {
-          targetRef.current = Math.max(0, Math.min(1, p))
-          startLoop()
-        },
-      }),
-      [startLoop]
+    const setActiveDate = useCallback(
+      (date: string) => {
+        const seqIdx = resolveSeqIndex(date)
+        if (seqIdx < 0) return
+        targetRef.current = seqIdx
+        if (currentRef.current < 0) currentRef.current = seqIdx
+        startLoop()
+      },
+      [resolveSeqIndex, startLoop]
     )
 
+    useImperativeHandle(ref, () => ({ setActiveDate }), [setActiveDate])
+
     useEffect(() => {
-      if (progress !== undefined) {
-        targetRef.current = progress
-        startLoop()
-      }
-    }, [progress, startLoop])
+      if (activeDateProp) setActiveDate(activeDateProp)
+    }, [activeDateProp, setActiveDate])
 
     useEffect(() => {
       if (grid) draw()

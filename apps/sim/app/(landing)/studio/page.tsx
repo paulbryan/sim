@@ -45,10 +45,10 @@ export default async function StudioIndex({
       />
 
       <main className='relative z-10 mx-auto max-w-[1400px] px-4 py-16 sm:px-6 md:px-8 md:py-24'>
-        <h1 className='mt-6 font-season font-[430] text-4xl text-white tracking-[-0.02em] sm:text-5xl'>
+        <h1 className='mt-6 font-[430] font-season text-4xl text-white tracking-[-0.02em] sm:text-5xl'>
           Sim Studio
         </h1>
-        <p className='mt-3 font-season font-[430] text-[#F6F6F0]/50 text-[14px] leading-[125%] tracking-[0.02em] sm:text-[16px]'>
+        <p className='mt-3 font-[430] font-season text-[#F6F6F0]/50 text-[14px] leading-[125%] tracking-[0.02em] sm:text-[16px]'>
           Announcements, insights, and guides for building AI agent workflows.
         </p>
 
@@ -61,18 +61,18 @@ export default async function StudioIndex({
             {pageNum > 1 && (
               <Link
                 href={`/studio?page=${pageNum - 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
-                className='rounded-[5px] border border-[#2A2A2A] bg-[rgba(246,246,240,0.06)] px-3 py-1 font-season font-[430] text-[14px] text-[#F6F6F6] transition-all hover:bg-[rgba(246,246,240,0.1)]'
+                className='rounded-[5px] border border-[#2A2A2A] bg-[rgba(246,246,240,0.06)] px-3 py-1 font-[430] font-season text-[#F6F6F6] text-[14px] transition-all hover:bg-[rgba(246,246,240,0.1)]'
               >
                 Previous
               </Link>
             )}
-            <span className='font-season font-[430] text-[#F6F6F0]/50 text-[14px]'>
+            <span className='font-[430] font-season text-[#F6F6F0]/50 text-[14px]'>
               Page {pageNum} of {totalPages}
             </span>
             {pageNum < totalPages && (
               <Link
                 href={`/studio?page=${pageNum + 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
-                className='rounded-[5px] border border-[#2A2A2A] bg-[rgba(246,246,240,0.06)] px-3 py-1 font-season font-[430] text-[14px] text-[#F6F6F6] transition-all hover:bg-[rgba(246,246,240,0.1)]'
+                className='rounded-[5px] border border-[#2A2A2A] bg-[rgba(246,246,240,0.06)] px-3 py-1 font-[430] font-season text-[#F6F6F6] text-[14px] transition-all hover:bg-[rgba(246,246,240,0.1)]'
               >
                 Next
               </Link>

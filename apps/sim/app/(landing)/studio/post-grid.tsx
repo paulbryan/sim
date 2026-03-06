@@ -66,10 +66,10 @@ export function PostGrid({ posts }: { posts: Post[] }) {
                 />
               </div>
               <div className='flex flex-1 flex-col gap-2 p-4'>
-                <h3 className='font-season font-[430] text-[17px] text-white leading-snug'>
+                <h3 className='font-[430] font-season text-[17px] text-white leading-snug'>
                   {p.title}
                 </h3>
-                <span className='font-season font-[430] text-[12px] text-[#F6F6F0]/50'>
+                <span className='font-[430] font-season text-[#F6F6F0]/50 text-[12px]'>
                   {new Date(p.date).toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric',
@@ -89,7 +89,7 @@ export function PostGrid({ posts }: { posts: Post[] }) {
           <button
             type='button'
             onClick={() => setShowAll(true)}
-            className='rounded-[5px] border border-[#2A2A2A] bg-[rgba(246,246,240,0.06)] px-4 py-2 font-season font-[430] text-[14px] text-[#F6F6F6] transition-all hover:bg-[rgba(246,246,240,0.1)]'
+            className='rounded-[5px] border border-[#2A2A2A] bg-[rgba(246,246,240,0.06)] px-4 py-2 font-[430] font-season text-[#F6F6F6] text-[14px] transition-all hover:bg-[rgba(246,246,240,0.1)]'
           >
             Show more
           </button>

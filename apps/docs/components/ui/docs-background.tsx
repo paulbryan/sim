@@ -1,8 +1,8 @@
 'use client'
 
-import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
+import { useTheme } from 'next-themes'
 
 /**
  * Static block pattern SVG rects matching the hero page's color palette.
@@ -60,11 +60,27 @@ export function DocsBackground() {
           <rect opacity='1' width='16.8626' height='16.8626' rx={RX} fill='#2ABBF8' />
           <rect opacity='0.6' x='34.2403' width='34.2403' height='33.7252' rx={RX} fill='#2ABBF8' />
           <rect opacity='1' x='34.2403' width='16.8626' height='16.8626' rx={RX} fill='#2ABBF8' />
-          <rect opacity='1' x='51.6188' y='16.8626' width='16.8626' height='16.8626' rx={RX} fill='#2ABBF8' />
+          <rect
+            opacity='1'
+            x='51.6188'
+            y='16.8626'
+            width='16.8626'
+            height='16.8626'
+            rx={RX}
+            fill='#2ABBF8'
+          />
           <rect opacity='1' x='68.4812' width='54.6502' height='16.8626' rx={RX} fill='#00F701' />
           <rect opacity='0.6' x='106.268' width='34.2403' height='33.7252' rx={RX} fill='#00F701' />
           <rect opacity='0.6' x='106.268' width='51.103' height='16.8626' rx={RX} fill='#00F701' />
-          <rect opacity='1' x='123.6484' y='16.8626' width='16.8626' height='16.8626' rx={RX} fill='#00F701' />
+          <rect
+            opacity='1'
+            x='123.6484'
+            y='16.8626'
+            width='16.8626'
+            height='16.8626'
+            rx={RX}
+            fill='#00F701'
+          />
           <rect opacity='0.6' x='157.371' width='34.2403' height='16.8626' rx={RX} fill='#FFCC02' />
           <rect opacity='1' x='157.371' width='16.8626' height='16.8626' rx={RX} fill='#FFCC02' />
           <rect opacity='0.6' x='208.993' width='68.4805' height='16.8626' rx={RX} fill='#FA4EDF' />
@@ -72,7 +88,15 @@ export function DocsBackground() {
           <rect opacity='0.6' x='243.233' width='34.2403' height='33.7252' rx={RX} fill='#FA4EDF' />
           <rect opacity='1' x='243.233' width='16.8626' height='16.8626' rx={RX} fill='#FA4EDF' />
           <rect opacity='0.6' x='260.096' width='34.04' height='16.8626' rx={RX} fill='#FA4EDF' />
-          <rect opacity='1' x='260.611' y='16.8626' width='16.8626' height='16.8626' rx={RX} fill='#FA4EDF' />
+          <rect
+            opacity='1'
+            x='260.611'
+            y='16.8626'
+            width='16.8626'
+            height='16.8626'
+            rx={RX}
+            fill='#FA4EDF'
+          />
         </svg>
       </div>
 
@@ -90,11 +114,27 @@ export function DocsBackground() {
           <rect opacity='1' width='16.8626' height='16.8626' rx={RX} fill='#00F701' />
           <rect opacity='0.6' x='34.2403' width='34.2403' height='33.7252' rx={RX} fill='#00F701' />
           <rect opacity='1' x='34.2403' width='16.8626' height='16.8626' rx={RX} fill='#00F701' />
-          <rect opacity='1' x='51.6188' y='16.8626' width='16.8626' height='16.8626' rx={RX} fill='#00F701' />
+          <rect
+            opacity='1'
+            x='51.6188'
+            y='16.8626'
+            width='16.8626'
+            height='16.8626'
+            rx={RX}
+            fill='#00F701'
+          />
           <rect opacity='1' x='68.4812' width='54.6502' height='16.8626' rx={RX} fill='#FFCC02' />
           <rect opacity='0.6' x='106.268' width='34.2403' height='33.7252' rx={RX} fill='#FFCC02' />
           <rect opacity='0.6' x='106.268' width='51.103' height='16.8626' rx={RX} fill='#FFCC02' />
-          <rect opacity='1' x='123.6484' y='16.8626' width='16.8626' height='16.8626' rx={RX} fill='#FFCC02' />
+          <rect
+            opacity='1'
+            x='123.6484'
+            y='16.8626'
+            width='16.8626'
+            height='16.8626'
+            rx={RX}
+            fill='#FFCC02'
+          />
           <rect opacity='0.6' x='157.371' width='34.2403' height='16.8626' rx={RX} fill='#FA4EDF' />
           <rect opacity='1' x='157.371' width='16.8626' height='16.8626' rx={RX} fill='#FA4EDF' />
           <rect opacity='0.6' x='208.993' width='68.4805' height='16.8626' rx={RX} fill='#2ABBF8' />
@@ -102,12 +142,20 @@ export function DocsBackground() {
           <rect opacity='0.6' x='243.233' width='34.2403' height='33.7252' rx={RX} fill='#2ABBF8' />
           <rect opacity='1' x='243.233' width='16.8626' height='16.8626' rx={RX} fill='#2ABBF8' />
           <rect opacity='0.6' x='260.096' width='34.04' height='16.8626' rx={RX} fill='#2ABBF8' />
-          <rect opacity='1' x='260.611' y='16.8626' width='16.8626' height='16.8626' rx={RX} fill='#2ABBF8' />
+          <rect
+            opacity='1'
+            x='260.611'
+            y='16.8626'
+            width='16.8626'
+            height='16.8626'
+            rx={RX}
+            fill='#2ABBF8'
+          />
         </svg>
       </div>
 
       {/* Vertical block strip — left edge */}
-      <div className='absolute top-[50%] left-0 w-[calc(16px_+_1.25vw)] max-w-[34px] -translate-y-1/2 opacity-60'>
+      <div className='-translate-y-1/2 absolute top-[50%] left-0 w-[calc(16px_+_1.25vw)] max-w-[34px] opacity-60'>
         <svg
           width={34}
           height={226}
@@ -116,20 +164,87 @@ export function DocsBackground() {
           xmlns='http://www.w3.org/2000/svg'
           className='h-auto w-full'
         >
-          <rect opacity='0.6' width='34.240' height='33.725' rx={RX} fill='#FA4EDF' transform='matrix(0 1 1 0 0 0)' />
-          <rect opacity='0.6' width='16.8626' height='68.480' rx={RX} fill='#FA4EDF' transform='matrix(-1 0 0 1 33.727 0)' />
-          <rect opacity='1' width='16.8626' height='16.8626' rx={RX} fill='#FA4EDF' transform='matrix(-1 0 0 1 33.727 17.378)' />
-          <rect opacity='0.6' width='16.8626' height='33.986' rx={RX} fill='#FA4EDF' transform='matrix(0 1 1 0 0 51.616)' />
-          <rect opacity='0.6' width='16.8626' height='140.507' rx={RX} fill='#00F701' transform='matrix(-1 0 0 1 33.986 85.335)' />
-          <rect opacity='0.4' x='17.119' y='136.962' width='34.240' height='16.8626' rx={RX} fill='#FFCC02' transform='rotate(-90 17.119 136.962)' />
-          <rect opacity='1' x='17.119' y='136.962' width='16.8626' height='16.8626' rx={RX} fill='#FFCC02' transform='rotate(-90 17.119 136.962)' />
-          <rect opacity='0.5' width='34.240' height='33.725' rx={RX} fill='#00F701' transform='matrix(0 1 1 0 0.257 153.825)' />
-          <rect opacity='1' width='16.8626' height='16.8626' rx={RX} fill='#00F701' transform='matrix(0 1 1 0 0.257 153.825)' />
+          <rect
+            opacity='0.6'
+            width='34.240'
+            height='33.725'
+            rx={RX}
+            fill='#FA4EDF'
+            transform='matrix(0 1 1 0 0 0)'
+          />
+          <rect
+            opacity='0.6'
+            width='16.8626'
+            height='68.480'
+            rx={RX}
+            fill='#FA4EDF'
+            transform='matrix(-1 0 0 1 33.727 0)'
+          />
+          <rect
+            opacity='1'
+            width='16.8626'
+            height='16.8626'
+            rx={RX}
+            fill='#FA4EDF'
+            transform='matrix(-1 0 0 1 33.727 17.378)'
+          />
+          <rect
+            opacity='0.6'
+            width='16.8626'
+            height='33.986'
+            rx={RX}
+            fill='#FA4EDF'
+            transform='matrix(0 1 1 0 0 51.616)'
+          />
+          <rect
+            opacity='0.6'
+            width='16.8626'
+            height='140.507'
+            rx={RX}
+            fill='#00F701'
+            transform='matrix(-1 0 0 1 33.986 85.335)'
+          />
+          <rect
+            opacity='0.4'
+            x='17.119'
+            y='136.962'
+            width='34.240'
+            height='16.8626'
+            rx={RX}
+            fill='#FFCC02'
+            transform='rotate(-90 17.119 136.962)'
+          />
+          <rect
+            opacity='1'
+            x='17.119'
+            y='136.962'
+            width='16.8626'
+            height='16.8626'
+            rx={RX}
+            fill='#FFCC02'
+            transform='rotate(-90 17.119 136.962)'
+          />
+          <rect
+            opacity='0.5'
+            width='34.240'
+            height='33.725'
+            rx={RX}
+            fill='#00F701'
+            transform='matrix(0 1 1 0 0.257 153.825)'
+          />
+          <rect
+            opacity='1'
+            width='16.8626'
+            height='16.8626'
+            rx={RX}
+            fill='#00F701'
+            transform='matrix(0 1 1 0 0.257 153.825)'
+          />
         </svg>
       </div>
 
       {/* Vertical block strip — right edge */}
-      <div className='absolute top-[50%] right-0 w-[calc(16px_+_1.25vw)] max-w-[34px] -translate-y-1/2 opacity-60'>
+      <div className='-translate-y-1/2 absolute top-[50%] right-0 w-[calc(16px_+_1.25vw)] max-w-[34px] opacity-60'>
         <svg
           width={34}
           height={205}
@@ -138,15 +253,82 @@ export function DocsBackground() {
           xmlns='http://www.w3.org/2000/svg'
           className='h-auto w-full'
         >
-          <rect opacity='0.6' width='16.8626' height='33.726' rx={RX} fill='#FA4EDF' transform='matrix(0 1 1 0 0 0)' />
-          <rect opacity='0.6' width='34.241' height='16.8626' rx={RX} fill='#FA4EDF' transform='matrix(0 1 1 0 16.891 0)' />
-          <rect opacity='0.6' width='16.8626' height='68.482' rx={RX} fill='#FA4EDF' transform='matrix(-1 0 0 1 33.739 16.888)' />
-          <rect opacity='0.6' width='16.8626' height='33.726' rx={RX} fill='#FA4EDF' transform='matrix(0 1 1 0 0 33.776)' />
-          <rect opacity='1' width='16.8626' height='16.8626' rx={RX} fill='#FA4EDF' transform='matrix(-1 0 0 1 33.739 34.272)' />
-          <rect opacity='0.6' width='16.8626' height='33.726' rx={RX} fill='#FA4EDF' transform='matrix(0 1 1 0 0.012 68.510)' />
-          <rect opacity='0.6' width='16.8626' height='102.384' rx={RX} fill='#2ABBF8' transform='matrix(-1 0 0 1 33.787 102.384)' />
-          <rect opacity='0.4' x='17.131' y='153.859' width='34.241' height='16.8626' rx={RX} fill='#00F701' transform='rotate(-90 17.131 153.859)' />
-          <rect opacity='1' x='17.131' y='153.859' width='16.8626' height='16.8626' rx={RX} fill='#00F701' transform='rotate(-90 17.131 153.859)' />
+          <rect
+            opacity='0.6'
+            width='16.8626'
+            height='33.726'
+            rx={RX}
+            fill='#FA4EDF'
+            transform='matrix(0 1 1 0 0 0)'
+          />
+          <rect
+            opacity='0.6'
+            width='34.241'
+            height='16.8626'
+            rx={RX}
+            fill='#FA4EDF'
+            transform='matrix(0 1 1 0 16.891 0)'
+          />
+          <rect
+            opacity='0.6'
+            width='16.8626'
+            height='68.482'
+            rx={RX}
+            fill='#FA4EDF'
+            transform='matrix(-1 0 0 1 33.739 16.888)'
+          />
+          <rect
+            opacity='0.6'
+            width='16.8626'
+            height='33.726'
+            rx={RX}
+            fill='#FA4EDF'
+            transform='matrix(0 1 1 0 0 33.776)'
+          />
+          <rect
+            opacity='1'
+            width='16.8626'
+            height='16.8626'
+            rx={RX}
+            fill='#FA4EDF'
+            transform='matrix(-1 0 0 1 33.739 34.272)'
+          />
+          <rect
+            opacity='0.6'
+            width='16.8626'
+            height='33.726'
+            rx={RX}
+            fill='#FA4EDF'
+            transform='matrix(0 1 1 0 0.012 68.510)'
+          />
+          <rect
+            opacity='0.6'
+            width='16.8626'
+            height='102.384'
+            rx={RX}
+            fill='#2ABBF8'
+            transform='matrix(-1 0 0 1 33.787 102.384)'
+          />
+          <rect
+            opacity='0.4'
+            x='17.131'
+            y='153.859'
+            width='34.241'
+            height='16.8626'
+            rx={RX}
+            fill='#00F701'
+            transform='rotate(-90 17.131 153.859)'
+          />
+          <rect
+            opacity='1'
+            x='17.131'
+            y='153.859'
+            width='16.8626'
+            height='16.8626'
+            rx={RX}
+            fill='#00F701'
+            transform='rotate(-90 17.131 153.859)'
+          />
         </svg>
       </div>
     </div>

@@ -115,9 +115,7 @@ export default function ChangelogList({
   const [page, setPage] = React.useState<number>(1)
   const [loading, setLoading] = React.useState<boolean>(false)
   const [done, setDone] = React.useState<boolean>(!!pageSize)
-  const [visibleCount, setVisibleCount] = React.useState<number>(
-    pageSize ?? initialEntries.length
-  )
+  const [visibleCount, setVisibleCount] = React.useState<number>(pageSize ?? initialEntries.length)
   const [activeTag, setActiveTag] = React.useState<string | null>(initialEntries[0]?.tag ?? null)
   const shouldTrackActiveEntry = Boolean(onActiveEntryChange)
   const cardRefs = React.useRef<Array<HTMLDivElement | null>>([])
@@ -233,7 +231,7 @@ export default function ChangelogList({
     h2: ({ children, ...props }: any) =>
       isContributorsLabel(children) ? null : (
         <h3
-          className='mt-5 mb-2 font-season font-[430] text-[13px] text-[#F6F6F6] tracking-[-0.02em] [&:first-child]:mt-0'
+          className='mt-5 mb-2 font-[430] font-season text-[#F6F6F6] text-[13px] tracking-[-0.02em] [&:first-child]:mt-0'
           {...props}
         >
           {children}
@@ -242,7 +240,7 @@ export default function ChangelogList({
     h3: ({ children, ...props }: any) =>
       isContributorsLabel(children) ? null : (
         <h4
-          className='mt-4 mb-1 font-season font-[430] text-[13px] text-[#F6F6F6] tracking-[-0.02em] [&:first-child]:mt-0'
+          className='mt-4 mb-1 font-[430] font-season text-[#F6F6F6] text-[13px] tracking-[-0.02em] [&:first-child]:mt-0'
           {...props}
         >
           {children}
@@ -258,7 +256,7 @@ export default function ChangelogList({
       if (/^\s*contributors\s*:?\s*$/i.test(text)) return null
       return (
         <li
-          className='font-season font-normal text-[13px] text-[#F6F6F0]/50 leading-[125%] tracking-[0.02em]'
+          className='font-normal font-season text-[#F6F6F0]/50 text-[13px] leading-[125%] tracking-[0.02em]'
           {...props}
         >
           {children}
@@ -268,7 +266,7 @@ export default function ChangelogList({
     p: ({ children, ...props }: any) =>
       /^\s*contributors\s*:?\s*$/i.test(String(children)) ? null : (
         <p
-          className='mb-3 font-season font-normal text-[13px] text-[#F6F6F0]/50 leading-[125%] tracking-[0.02em]'
+          className='mb-3 font-normal font-season text-[#F6F6F0]/50 text-[13px] leading-[125%] tracking-[0.02em]'
           {...props}
         >
           {children}
@@ -294,12 +292,7 @@ export default function ChangelogList({
     ),
     img: () => null,
     a: ({ className, ...props }: any) => (
-      <a
-        {...props}
-        className={`underline ${className ?? ''}`}
-        target='_blank'
-        rel='noreferrer'
-      />
+      <a {...props} className={`underline ${className ?? ''}`} target='_blank' rel='noreferrer' />
     ),
   }
 
@@ -323,83 +316,10 @@ export default function ChangelogList({
           return (
             <React.Fragment key={entry.tag}>
               {index > 0 && (
-                <div className='relative left-1/2 w-[100vw] -translate-x-1/2 md:w-[50vw]'>
+                <div className='-translate-x-1/2 relative left-1/2 w-[100vw] md:w-[50vw]'>
                   <DotSeparator />
                 </div>
               )}
-              <div
-                ref={setRef}
-                data-entry-index={index}
-                data-tag={entry.tag}
-                className='py-8'
-              >
-              <div className='mb-5 flex items-center justify-between gap-4'>
-                <div className='flex items-center gap-3'>
-                  <a
-                    href={entry.url}
-                    target='_blank'
-                    rel='noreferrer noopener'
-                    className='group/tag font-season font-[600] text-[#fdfdf8] text-xl tracking-[-0.02em]'
-                  >
-                    <span className='relative'>
-                      {entry.tag}
-                      <span className='absolute bottom-0 left-0 h-[1px] w-0 bg-[#fdfdf8] transition-[width] duration-200 group-hover/tag:w-full' />
-                    </span>
-                  </a>
-                  {entry.contributors && entry.contributors.length > 0 && (
-                    <div className='-space-x-2 flex'>
-                      {entry.contributors.slice(0, 5).map((contributor) => (
-                        <a
-                          key={contributor}
-                          href={`https://github.com/${contributor}`}
-                          target='_blank'
-                          rel='noreferrer noopener'
-                          aria-label={`View @${contributor} on GitHub`}
-                          title={`@${contributor}`}
-                          className='block'
-                        >
-                          <Avatar className='size-6 ring-2 ring-[#1C1C1C]'>
-                            <AvatarImage
-                              src={`https://avatars.githubusercontent.com/${contributor}`}
-                              alt={`@${contributor}`}
-                              className='hover:z-10'
-                            />
-                            <AvatarFallback className='bg-[#2a2a2a] text-[#F6F6F6] text-[10px]'>
-                              {contributor.slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        </a>
-                      ))}
-                      {entry.contributors.length > 5 && (
-                        <div className='relative flex size-6 items-center justify-center rounded-full bg-[#2A2A2A] text-[10px] text-[#F6F6F6] ring-2 ring-[#1C1C1C] hover:z-10'>
-                          +{entry.contributors.length - 5}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className={`${inter.className} shrink-0 text-[#F6F6F6]/50 text-xs`}>
-                  {new Date(entry.date).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </div>
-              </div>
-              <div className='prose prose-sm prose-invert max-w-none prose-a:text-brand-primary prose-a:no-underline hover:prose-a:underline'>
-                <ReactMarkdown components={markdownComponents}>
-                  {cleanMarkdown(entry.content)}
-                </ReactMarkdown>
-              </div>
-              </div>
-            </React.Fragment>
-          )
-        }
-
-        if (variant === 'flat') {
-          return (
-            <React.Fragment key={entry.tag}>
-              {index > 0 && <DotSeparator />}
               <div ref={setRef} data-entry-index={index} data-tag={entry.tag} className='py-8'>
                 <div className='mb-5 flex items-center justify-between gap-4'>
                   <div className='flex items-center gap-3'>
@@ -407,7 +327,7 @@ export default function ChangelogList({
                       href={entry.url}
                       target='_blank'
                       rel='noreferrer noopener'
-                      className='group/tag font-season font-[600] text-[#fdfdf8] text-xl tracking-[-0.02em]'
+                      className='group/tag font-[600] font-season text-[#fdfdf8] text-xl tracking-[-0.02em]'
                     >
                       <span className='relative'>
                         {entry.tag}
@@ -439,7 +359,75 @@ export default function ChangelogList({
                           </a>
                         ))}
                         {entry.contributors.length > 5 && (
-                          <div className='relative flex size-6 items-center justify-center rounded-full bg-[#2A2A2A] text-[10px] text-[#F6F6F6] ring-2 ring-[#1C1C1C] hover:z-10'>
+                          <div className='relative flex size-6 items-center justify-center rounded-full bg-[#2A2A2A] text-[#F6F6F6] text-[10px] ring-2 ring-[#1C1C1C] hover:z-10'>
+                            +{entry.contributors.length - 5}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className={`${inter.className} shrink-0 text-[#F6F6F6]/50 text-xs`}>
+                    {new Date(entry.date).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </div>
+                </div>
+                <div className='prose prose-sm prose-invert max-w-none prose-a:text-brand-primary prose-a:no-underline hover:prose-a:underline'>
+                  <ReactMarkdown components={markdownComponents}>
+                    {cleanMarkdown(entry.content)}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            </React.Fragment>
+          )
+        }
+
+        if (variant === 'flat') {
+          return (
+            <React.Fragment key={entry.tag}>
+              {index > 0 && <DotSeparator />}
+              <div ref={setRef} data-entry-index={index} data-tag={entry.tag} className='py-8'>
+                <div className='mb-5 flex items-center justify-between gap-4'>
+                  <div className='flex items-center gap-3'>
+                    <a
+                      href={entry.url}
+                      target='_blank'
+                      rel='noreferrer noopener'
+                      className='group/tag font-[600] font-season text-[#fdfdf8] text-xl tracking-[-0.02em]'
+                    >
+                      <span className='relative'>
+                        {entry.tag}
+                        <span className='absolute bottom-0 left-0 h-[1px] w-0 bg-[#fdfdf8] transition-[width] duration-200 group-hover/tag:w-full' />
+                      </span>
+                    </a>
+                    {entry.contributors && entry.contributors.length > 0 && (
+                      <div className='-space-x-2 flex'>
+                        {entry.contributors.slice(0, 5).map((contributor) => (
+                          <a
+                            key={contributor}
+                            href={`https://github.com/${contributor}`}
+                            target='_blank'
+                            rel='noreferrer noopener'
+                            aria-label={`View @${contributor} on GitHub`}
+                            title={`@${contributor}`}
+                            className='block'
+                          >
+                            <Avatar className='size-6 ring-2 ring-[#1C1C1C]'>
+                              <AvatarImage
+                                src={`https://avatars.githubusercontent.com/${contributor}`}
+                                alt={`@${contributor}`}
+                                className='hover:z-10'
+                              />
+                              <AvatarFallback className='bg-[#2a2a2a] text-[#F6F6F6] text-[10px]'>
+                                {contributor.slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                          </a>
+                        ))}
+                        {entry.contributors.length > 5 && (
+                          <div className='relative flex size-6 items-center justify-center rounded-full bg-[#2A2A2A] text-[#F6F6F6] text-[10px] ring-2 ring-[#1C1C1C] hover:z-10'>
                             +{entry.contributors.length - 5}
                           </div>
                         )}
@@ -474,7 +462,7 @@ export default function ChangelogList({
           >
             {/* Card header with dot grid pattern */}
             <div
-              className='relative flex items-center justify-between gap-4 border-b border-[#2a2a2a] px-5 py-4'
+              className='relative flex items-center justify-between gap-4 border-[#2a2a2a] border-b px-5 py-4'
               style={dotGridStyle}
             >
               <div className='flex items-center gap-3'>
@@ -482,7 +470,7 @@ export default function ChangelogList({
                   href={entry.url}
                   target='_blank'
                   rel='noreferrer noopener'
-                  className='group/tag font-season font-[600] text-[#fdfdf8] text-xl tracking-[-0.02em]'
+                  className='group/tag font-[600] font-season text-[#fdfdf8] text-xl tracking-[-0.02em]'
                 >
                   <span className='relative'>
                     {entry.tag}
@@ -514,7 +502,7 @@ export default function ChangelogList({
                       </a>
                     ))}
                     {entry.contributors.length > 5 && (
-                      <div className='relative flex size-6 items-center justify-center rounded-full bg-[#2A2A2A] text-[10px] text-[#F6F6F6] ring-2 ring-[#1C1C1C] hover:z-10'>
+                      <div className='relative flex size-6 items-center justify-center rounded-full bg-[#2A2A2A] text-[#F6F6F6] text-[10px] ring-2 ring-[#1C1C1C] hover:z-10'>
                         +{entry.contributors.length - 5}
                       </div>
                     )}
@@ -548,7 +536,7 @@ export default function ChangelogList({
             type='button'
             onClick={handleShowMore}
             disabled={loading}
-            className='rounded-[5px] border border-[#2A2A2A] bg-[rgba(246,246,240,0.06)] px-3 py-1.5 text-[13px] text-[#F6F6F6] hover:bg-[rgba(246,246,240,0.1)] disabled:opacity-60'
+            className='rounded-[5px] border border-[#2A2A2A] bg-[rgba(246,246,240,0.06)] px-3 py-1.5 text-[#F6F6F6] text-[13px] hover:bg-[rgba(246,246,240,0.1)] disabled:opacity-60'
           >
             {loading ? 'Loading…' : 'Show more'}
           </button>

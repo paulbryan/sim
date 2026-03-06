@@ -63,7 +63,9 @@ export default function StatusIndicator() {
       aria-label={`System status: ${message}`}
     >
       <StatusDotIcon status={status} className='h-[6px] w-[6px]' aria-hidden='true' />
-      <span className='font-[family-name:var(--font-martian-mono)] font-medium uppercase tracking-[-0.24px]'>{message}</span>
+      <span className='font-[family-name:var(--font-martian-mono)] font-medium uppercase tracking-[-0.24px]'>
+        {message}
+      </span>
     </Link>
   )
 }

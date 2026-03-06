@@ -16,17 +16,21 @@ export function Breaks({ entries }: BreaksProps) {
   const [loadedEntries, setLoadedEntries] = useState<ChangelogEntry[]>(entries)
   const [activeTag, setActiveTag] = useState<string | null>(entries[0]?.tag ?? null)
   const heatmapRef = useRef<CommitHeatmapHandle>(null)
+  const entriesRef = useRef(loadedEntries)
+  entriesRef.current = loadedEntries
 
   const handleActiveEntryChange = useCallback((tag: string | null) => {
     setActiveTag(tag)
+    if (tag) {
+      const entry = entriesRef.current.find((e) => e.tag === tag)
+      if (entry) {
+        heatmapRef.current?.setActiveDate(entry.date.split('T')[0])
+      }
+    }
   }, [])
 
   const handleEntriesChange = useCallback((nextEntries: ChangelogEntry[]) => {
     setLoadedEntries(nextEntries)
-  }, [])
-
-  const handleProgressChange = useCallback((p: number) => {
-    heatmapRef.current?.setProgress(p)
   }, [])
 
   return (
@@ -57,10 +61,10 @@ export function Breaks({ entries }: BreaksProps) {
           </div>
 
           <div className='relative z-10 mx-auto h-full max-w-xl md:flex md:flex-col md:justify-center'>
-            <h1 className='mt-6 font-season font-[430] text-4xl text-white tracking-[-0.02em] sm:text-5xl'>
+            <h1 className='mt-6 font-[430] font-season text-4xl text-white tracking-[-0.02em] sm:text-5xl'>
               Changelog
             </h1>
-            <p className='mt-3 font-season font-[430] text-[#F6F6F0]/50 text-[14px] leading-[125%] tracking-[0.02em] sm:text-[16px]'>
+            <p className='mt-3 font-[430] font-season text-[#F6F6F0]/50 text-[14px] leading-[125%] tracking-[0.02em] sm:text-[16px]'>
               Stay up-to-date with the latest features, improvements, and bug fixes in Sim. All
               changes are documented here with detailed release notes.
             </p>
@@ -70,28 +74,32 @@ export function Breaks({ entries }: BreaksProps) {
                 href='https://github.com/simstudioai/sim/releases'
                 target='_blank'
                 rel='noopener noreferrer'
-                className='inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-[#33C482] bg-[#33C482] px-[10px] font-season font-[430] text-[14px] text-black transition-[filter] hover:brightness-110'
+                className='inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-[#33C482] bg-[#33C482] px-[10px] font-[430] font-season text-[14px] text-black transition-[filter] hover:brightness-110'
               >
                 <Github className='h-4 w-4' />
                 View on GitHub
               </Link>
               <Link
                 href='https://docs.sim.ai'
-                className='inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-[#2A2A2A] bg-[rgba(246,246,240,0.06)] px-[10px] font-season font-[430] text-[14px] text-[#F6F6F6] transition-all hover:bg-[rgba(246,246,240,0.1)]'
+                className='inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-[#2A2A2A] bg-[rgba(246,246,240,0.06)] px-[10px] font-[430] font-season text-[#F6F6F6] text-[14px] transition-all hover:bg-[rgba(246,246,240,0.1)]'
               >
                 <BookOpen className='h-4 w-4' />
                 Documentation
               </Link>
               <Link
                 href='/changelog.xml'
-                className='inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-[#2A2A2A] bg-[rgba(246,246,240,0.06)] px-[10px] font-season font-[430] text-[14px] text-[#F6F6F6] transition-all hover:bg-[rgba(246,246,240,0.1)]'
+                className='inline-flex h-[32px] items-center gap-[6px] rounded-[5px] border border-[#2A2A2A] bg-[rgba(246,246,240,0.06)] px-[10px] font-[430] font-season text-[#F6F6F6] text-[14px] transition-all hover:bg-[rgba(246,246,240,0.1)]'
               >
                 <Rss className='h-4 w-4' />
                 RSS Feed
               </Link>
             </div>
 
-            <CommitHeatmap ref={heatmapRef} entries={loadedEntries} />
+            <CommitHeatmap
+              ref={heatmapRef}
+              entries={loadedEntries}
+              activeDate={entries[0]?.date.split('T')[0]}
+            />
           </div>
         </div>
 
@@ -104,7 +112,6 @@ export function Breaks({ entries }: BreaksProps) {
               pageSize={10}
               onEntriesChange={handleEntriesChange}
               onActiveEntryChange={handleActiveEntryChange}
-              onProgressChange={handleProgressChange}
             />
           </div>
         </div>
