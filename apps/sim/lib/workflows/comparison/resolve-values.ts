@@ -192,7 +192,7 @@ function extractSelectorContext(
   workflowId: string
 ): SelectorContext {
   const block = currentState.blocks?.[blockId]
-  if (!block?.subBlocks) return {}
+  if (!block?.subBlocks) return { workflowId }
   return buildSelectorContextFromBlock(block.type, block.subBlocks, { workflowId })
 }
 
