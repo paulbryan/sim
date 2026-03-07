@@ -223,7 +223,7 @@ export async function resolveValueForDisplay(
 
   const selectorCtx = context.blockId
     ? extractSelectorContext(context.blockId, context.currentState, context.workflowId)
-    : {}
+    : { workflowId: context.workflowId }
 
   // Credential fields (oauth-input or credential subBlockId)
   const isCredentialField =
