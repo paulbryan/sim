@@ -11,10 +11,7 @@ export interface MetaAdsBaseParams {
   accountId: string
 }
 
-export interface MetaAdsGetAccountParams {
-  accessToken: string
-  accountId: string
-}
+export interface MetaAdsGetAccountParams extends MetaAdsBaseParams {}
 
 export interface MetaAdsListCampaignsParams extends MetaAdsBaseParams {
   status?: string
