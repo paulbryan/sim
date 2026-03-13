@@ -2436,7 +2436,10 @@ export const auth = betterAuth({
               logger.info('Fetching Meta user profile')
 
               const response = await fetch(
-                `https://graph.facebook.com/v24.0/me?fields=id,name,email&access_token=${tokens.accessToken}`
+                'https://graph.facebook.com/v24.0/me?fields=id,name,email',
+                {
+                  headers: { Authorization: `Bearer ${tokens.accessToken}` },
+                }
               )
 
               if (!response.ok) {

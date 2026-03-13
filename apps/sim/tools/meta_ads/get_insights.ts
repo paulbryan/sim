@@ -52,7 +52,7 @@ export const metaAdsGetInsightsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Predefined date range (today, yesterday, last_7d, last_14d, last_28d, last_30d, last_90d, this_month, last_month)',
+        'Predefined date range (today, yesterday, last_7d, last_14d, last_28d, last_30d, last_90d, maximum, this_month, last_month)',
     },
     startDate: {
       type: 'string',
