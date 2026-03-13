@@ -31,6 +31,8 @@ export type SelectorKey =
   | 'jira.projects'
   | 'linear.projects'
   | 'linear.teams'
+  | 'meta-ads.accounts'
+  | 'meta-ads.campaigns'
   | 'confluence.pages'
   | 'microsoft.teams'
   | 'microsoft.chats'
@@ -77,6 +79,7 @@ export interface SelectorContext {
   baseId?: string
   datasetId?: string
   serviceDeskId?: string
+  accountId?: string
 }
 
 export interface SelectorQueryArgs {

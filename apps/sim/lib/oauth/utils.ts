@@ -333,6 +333,9 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'webhooks:read': 'Read Pipedrive webhooks',
   'webhooks:full': 'Full access to manage Pipedrive webhooks',
 
+  // Meta Ads scopes
+  ads_read: 'Read ad account data and insights',
+
   // LinkedIn scopes
   w_member_social: 'Access LinkedIn profile',
 

@@ -1,0 +1,169 @@
+---
+title: Meta Ads
+description: Query campaigns, ad sets, ads, and performance insights
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="meta_ads"
+  color="#1877F2"
+/>
+
+## Usage Instructions
+
+Connect to Meta Ads to view account info, list campaigns, ad sets, and ads, and get performance insights and metrics.
+
+
+
+## Tools
+
+### `meta_ads_get_account`
+
+Get information about a Meta Ads account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accountId` | string | Yes | Meta Ads account ID \(numeric, without act_ prefix\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Ad account ID |
+| `name` | string | Ad account name |
+| `accountStatus` | number | Account status code |
+| `currency` | string | Account currency \(e.g., USD\) |
+| `timezone` | string | Account timezone |
+| `amountSpent` | string | Total amount spent |
+| `spendCap` | string | Spending limit for the account |
+| `businessCountryCode` | string | Country code for the business |
+
+### `meta_ads_list_campaigns`
+
+List campaigns in a Meta Ads account with optional status filtering
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accountId` | string | Yes | Meta Ads account ID \(numeric, without act_ prefix\) |
+| `status` | string | No | Filter by campaign status \(ACTIVE, PAUSED, ARCHIVED, DELETED\) |
+| `limit` | number | No | Maximum number of campaigns to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns in the account |
+|   ↳ `id` | string | Campaign ID |
+|   ↳ `name` | string | Campaign name |
+|   ↳ `status` | string | Campaign status \(ACTIVE, PAUSED, etc.\) |
+|   ↳ `objective` | string | Campaign objective |
+|   ↳ `dailyBudget` | string | Daily budget in account currency cents |
+|   ↳ `lifetimeBudget` | string | Lifetime budget in account currency cents |
+|   ↳ `createdTime` | string | Campaign creation time \(ISO 8601\) |
+|   ↳ `updatedTime` | string | Campaign last update time \(ISO 8601\) |
+| `totalCount` | number | Total number of campaigns returned |
+
+### `meta_ads_list_ad_sets`
+
+List ad sets in a Meta Ads account or campaign
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accountId` | string | Yes | Meta Ads account ID \(numeric, without act_ prefix\) |
+| `campaignId` | string | No | Filter ad sets by campaign ID |
+| `status` | string | No | Filter by ad set status \(ACTIVE, PAUSED, ARCHIVED, DELETED\) |
+| `limit` | number | No | Maximum number of ad sets to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `adSets` | array | List of ad sets |
+|   ↳ `id` | string | Ad set ID |
+|   ↳ `name` | string | Ad set name |
+|   ↳ `status` | string | Ad set status |
+|   ↳ `campaignId` | string | Parent campaign ID |
+|   ↳ `dailyBudget` | string | Daily budget in account currency cents |
+|   ↳ `lifetimeBudget` | string | Lifetime budget in account currency cents |
+|   ↳ `startTime` | string | Ad set start time \(ISO 8601\) |
+|   ↳ `endTime` | string | Ad set end time \(ISO 8601\) |
+| `totalCount` | number | Total number of ad sets returned |
+
+### `meta_ads_list_ads`
+
+List ads in a Meta Ads account, campaign, or ad set
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accountId` | string | Yes | Meta Ads account ID \(numeric, without act_ prefix\) |
+| `campaignId` | string | No | Filter ads by campaign ID |
+| `adSetId` | string | No | Filter ads by ad set ID |
+| `status` | string | No | Filter by ad status \(ACTIVE, PAUSED, ARCHIVED, DELETED\) |
+| `limit` | number | No | Maximum number of ads to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ads` | array | List of ads |
+|   ↳ `id` | string | Ad ID |
+|   ↳ `name` | string | Ad name |
+|   ↳ `status` | string | Ad status |
+|   ↳ `adSetId` | string | Parent ad set ID |
+|   ↳ `campaignId` | string | Parent campaign ID |
+|   ↳ `createdTime` | string | Ad creation time \(ISO 8601\) |
+|   ↳ `updatedTime` | string | Ad last update time \(ISO 8601\) |
+| `totalCount` | number | Total number of ads returned |
+
+### `meta_ads_get_insights`
+
+Get performance insights and metrics for Meta Ads campaigns, ad sets, or ads
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accountId` | string | Yes | Meta Ads account ID \(numeric, without act_ prefix\) |
+| `level` | string | Yes | Aggregation level for insights \(account, campaign, adset, ad\) |
+| `campaignId` | string | No | Filter insights by campaign ID |
+| `adSetId` | string | No | Filter insights by ad set ID |
+| `datePreset` | string | No | Predefined date range \(today, yesterday, last_7d, last_14d, last_28d, last_30d, last_90d, this_month, last_month\) |
+| `startDate` | string | No | Custom start date in YYYY-MM-DD format |
+| `endDate` | string | No | Custom end date in YYYY-MM-DD format |
+| `limit` | number | No | Maximum number of insight rows to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `insights` | array | Performance insight rows |
+|   ↳ `accountId` | string | Ad account ID |
+|   ↳ `campaignId` | string | Campaign ID |
+|   ↳ `campaignName` | string | Campaign name |
+|   ↳ `adSetId` | string | Ad set ID |
+|   ↳ `adSetName` | string | Ad set name |
+|   ↳ `adId` | string | Ad ID |
+|   ↳ `adName` | string | Ad name |
+|   ↳ `impressions` | string | Number of impressions |
+|   ↳ `clicks` | string | Number of clicks |
+|   ↳ `spend` | string | Amount spent in account currency |
+|   ↳ `ctr` | string | Click-through rate |
+|   ↳ `cpc` | string | Cost per click |
+|   ↳ `cpm` | string | Cost per 1,000 impressions |
+|   ↳ `reach` | string | Number of unique users reached |
+|   ↳ `frequency` | string | Average number of times each person saw the ad |
+|   ↳ `conversions` | number | Total conversions from actions |
+|   ↳ `dateStart` | string | Start date of the reporting period |
+|   ↳ `dateStop` | string | End date of the reporting period |
+| `totalCount` | number | Total number of insight rows returned |
+
+

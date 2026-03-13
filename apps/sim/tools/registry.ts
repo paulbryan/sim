@@ -1389,6 +1389,13 @@ import {
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from '@/tools/mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from '@/tools/memory'
 import {
+  metaAdsGetAccountTool,
+  metaAdsGetInsightsTool,
+  metaAdsListAdSetsTool,
+  metaAdsListAdsTool,
+  metaAdsListCampaignsTool,
+} from '@/tools/meta_ads'
+import {
   dataverseAssociateTool,
   dataverseCreateMultipleTool,
   dataverseCreateRecordTool,
@@ -3677,6 +3684,11 @@ export const tools: Record<string, ToolConfig> = {
   mem0_add_memories: mem0AddMemoriesTool,
   mem0_search_memories: mem0SearchMemoriesTool,
   mem0_get_memories: mem0GetMemoriesTool,
+  meta_ads_get_account: metaAdsGetAccountTool,
+  meta_ads_get_insights: metaAdsGetInsightsTool,
+  meta_ads_list_ad_sets: metaAdsListAdSetsTool,
+  meta_ads_list_ads: metaAdsListAdsTool,
+  meta_ads_list_campaigns: metaAdsListCampaignsTool,
   zep_create_thread: zepCreateThreadTool,
   zep_get_threads: zepGetThreadsTool,
   zep_delete_thread: zepDeleteThreadTool,

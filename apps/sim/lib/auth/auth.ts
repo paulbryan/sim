@@ -474,6 +474,7 @@ export const auth = betterAuth({
         'shopify',
         'trello',
         'calcom',
+        'meta-ads',
         ...SSO_TRUSTED_PROVIDERS,
       ],
     },
@@ -2413,6 +2414,52 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error in LinkedIn getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
+        // Meta Ads provider
+        {
+          providerId: 'meta-ads',
+          clientId: env.META_ADS_CLIENT_ID as string,
+          clientSecret: env.META_ADS_CLIENT_SECRET as string,
+          authorizationUrl: 'https://www.facebook.com/v24.0/dialog/oauth',
+          tokenUrl: 'https://graph.facebook.com/v24.0/oauth/access_token',
+          userInfoUrl: 'https://graph.facebook.com/v24.0/me',
+          scopes: getCanonicalScopesForProvider('meta-ads'),
+          responseType: 'code',
+          prompt: 'consent',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/meta-ads`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Fetching Meta user profile')
+
+              const response = await fetch(
+                `https://graph.facebook.com/v24.0/me?fields=id,name,email&access_token=${tokens.accessToken}`
+              )
+
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Failed to fetch Meta user info', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                throw new Error('Failed to fetch user info')
+              }
+
+              const profile = await response.json()
+
+              return {
+                id: `${profile.id}-${crypto.randomUUID()}`,
+                name: profile.name || 'Meta User',
+                email: profile.email || `${profile.id}@facebook.user`,
+                emailVerified: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in Meta getUserInfo:', { error })
               return null
             }
           },

@@ -23,6 +23,7 @@ import {
   JiraIcon,
   LinearIcon,
   LinkedInIcon,
+  MetaAdsIcon,
   MicrosoftDataverseIcon,
   MicrosoftExcelIcon,
   MicrosoftIcon,
@@ -841,6 +842,21 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'hubspot',
   },
+  'meta-ads': {
+    name: 'Meta Ads',
+    icon: MetaAdsIcon,
+    services: {
+      'meta-ads': {
+        name: 'Meta Ads',
+        description: 'Query campaigns, ad sets, ads, and performance insights in Meta Ads.',
+        providerId: 'meta-ads',
+        icon: MetaAdsIcon,
+        baseProviderIcon: MetaAdsIcon,
+        scopes: ['ads_read'],
+      },
+    },
+    defaultService: 'meta-ads',
+  },
   linkedin: {
     name: 'LinkedIn',
     icon: LinkedInIcon,
@@ -1281,6 +1297,19 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
+        supportsRefreshTokenRotation: false,
+      }
+    }
+    case 'meta-ads': {
+      const { clientId, clientSecret } = getCredentials(
+        env.META_ADS_CLIENT_ID,
+        env.META_ADS_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://graph.facebook.com/v24.0/oauth/access_token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
         supportsRefreshTokenRotation: false,
       }
     }

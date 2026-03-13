@@ -1254,6 +1254,54 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       }))
     },
   },
+  'meta-ads.accounts': {
+    key: 'meta-ads.accounts',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'meta-ads.accounts',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'meta-ads.accounts')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ accounts: { id: string; name: string }[] }>(
+        '/api/tools/meta_ads/accounts',
+        { method: 'POST', body }
+      )
+      return (data.accounts || []).map((account) => ({
+        id: account.id,
+        label: account.name,
+      }))
+    },
+  },
+  'meta-ads.campaigns': {
+    key: 'meta-ads.campaigns',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'meta-ads.campaigns',
+      context.oauthCredential ?? 'none',
+      context.accountId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.accountId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'meta-ads.campaigns')
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        accountId: context.accountId,
+      })
+      const data = await fetchJson<{
+        campaigns: { id: string; name: string; status: string }[]
+      }>('/api/tools/meta_ads/campaigns', { method: 'POST', body })
+      return (data.campaigns || []).map((campaign) => ({
+        id: campaign.id,
+        label: `${campaign.name} (${campaign.status})`,
+      }))
+    },
+  },
   'linear.projects': {
     key: 'linear.projects',
     staleTime: SELECTOR_STALE,
