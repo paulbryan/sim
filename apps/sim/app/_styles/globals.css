@@ -41,6 +41,19 @@
   opacity: 0;
 }
 
+@keyframes sidebar-collapse-guard {
+  from {
+    pointer-events: none;
+  }
+  to {
+    pointer-events: auto;
+  }
+}
+
+.sidebar-container[data-collapsed] {
+  animation: sidebar-collapse-guard 250ms step-end;
+}
+
 .sidebar-container.is-resizing {
   transition: none;
 }
@@ -145,7 +158,7 @@
     --brand-400: #8e4cfb;
     --brand-secondary: #33b4ff;
     --brand-tertiary: #22c55e;
-    --brand-tertiary-2: #32bd7e;
+    --brand-tertiary-2: #33c482;
     --selection: #1a5cf6;
     --warning: #ea580c;
 
@@ -267,7 +280,7 @@
     --brand-400: #8e4cfb;
     --brand-secondary: #33b4ff;
     --brand-tertiary: #22c55e;
-    --brand-tertiary-2: #32bd7e;
+    --brand-tertiary-2: #33c482;
     --selection: #4b83f7;
     --warning: #ff6600;
 

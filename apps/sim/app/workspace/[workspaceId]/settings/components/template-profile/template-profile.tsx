@@ -505,7 +505,7 @@ export function TemplateProfile() {
         <Button
           onClick={handleSubmit}
           disabled={saveStatus === 'saving' || !isFormValid}
-          variant='tertiary'
+          variant='primary'
         >
           {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Save'}
         </Button>

@@ -72,7 +72,7 @@ export function TeamSeatsOverview({
             </p>
           </div>
           <Button
-            variant='tertiary'
+            variant='primary'
             onClick={() => {
               onConfirmTeamUpgrade(2)
             }}

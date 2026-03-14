@@ -245,7 +245,7 @@ function CreditPlanCard({
             {isCancelledAtPeriodEnd ? 'Restore Subscription' : 'Manage plan'}
           </Button>
         ) : (
-          <Button onClick={onButtonClick} className='w-full' variant='tertiary'>
+          <Button onClick={onButtonClick} className='w-full' variant='primary'>
             {buttonText}
           </Button>
         )}
@@ -1134,7 +1134,7 @@ function TeamPlanModal({ open, onOpenChange, isAnnual, onConfirm }: TeamPlanModa
             Cancel
           </Button>
           <Button
-            variant='tertiary'
+            variant='primary'
             onClick={() => onConfirm(selectedTier, selectedSeats)}
             disabled={selectedSeats < 1}
           >
@@ -1291,7 +1291,7 @@ function ManagePlanModal({
                   </span>
                 </div>
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   className='ml-[12px] shrink-0'
                   onClick={action.onClick}
                   disabled={action.disabled}
@@ -1312,7 +1312,7 @@ function ManagePlanModal({
               <Button variant='default' onClick={() => onOpenChange(false)}>
                 Close
               </Button>
-              <Button variant='tertiary' onClick={onRestore}>
+              <Button variant='primary' onClick={onRestore}>
                 Restore Subscription
               </Button>
             </>

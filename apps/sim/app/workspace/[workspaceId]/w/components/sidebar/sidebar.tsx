@@ -1056,10 +1056,7 @@ export const Sidebar = memo(function Sidebar() {
                   <div className='flex flex-shrink-0 flex-col space-y-[4px] px-[16px]'>
                     <div className='flex items-center justify-between'>
                       <div
-                        className={cn(
-                          'font-base text-[var(--text-icon)] text-small',
-                          isCollapsed && 'opacity-0'
-                        )}
+                        className={`font-base text-[var(--text-icon)] text-small${isCollapsed ? ' opacity-0' : ''}`}
                       >
                         All tasks
                       </div>

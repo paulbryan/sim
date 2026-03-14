@@ -446,7 +446,7 @@ export function SSO() {
 
         {/* Footer */}
         <div className='mt-auto flex items-center justify-end'>
-          <Button onClick={handleEdit} variant='tertiary'>
+          <Button onClick={handleEdit} variant='primary'>
             Edit
           </Button>
         </div>
@@ -879,7 +879,7 @@ export function SSO() {
         {error && <p className='mr-auto text-[13px] text-[var(--text-error)]'>{error}</p>}
         <Button
           type='submit'
-          variant='tertiary'
+          variant='primary'
           disabled={configureSSOMutation.isPending || hasAnyErrors(errors) || !isFormValid()}
         >
           {configureSSOMutation.isPending

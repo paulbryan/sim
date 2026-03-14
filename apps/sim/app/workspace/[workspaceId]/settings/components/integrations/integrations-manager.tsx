@@ -678,7 +678,7 @@ export function IntegrationsManager() {
             Cancel
           </Button>
           <Button
-            variant='tertiary'
+            variant='primary'
             onClick={handleCreateCredential}
             disabled={
               !createOAuthProviderId ||
@@ -1027,7 +1027,7 @@ export function IntegrationsManager() {
               </Button>
               {isSelectedAdmin && (
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   onClick={handleSaveDetails}
                   disabled={!isDetailsDirty || isSavingDetails}
                 >
@@ -1066,7 +1066,7 @@ export function IntegrationsManager() {
           <Button
             onClick={() => setShowCreateModal(true)}
             disabled={credentialsLoading}
-            variant='tertiary'
+            variant='primary'
           >
             <Plus className='mr-[6px] h-[13px] w-[13px]' />
             Connect
