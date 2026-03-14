@@ -71,11 +71,11 @@ export default function Hero() {
 
         <div className='mt-[12px] flex items-center gap-[8px]'>
           <Link
-            href='/enterprise'
+            href='/login'
             className={`${CTA_BASE} border-[#3d3d3d] text-[#ECECEC] transition-colors hover:bg-[#2A2A2A]`}
-            aria-label='Get a demo'
+            aria-label='Log in'
           >
-            Get a demo
+            Log in
           </Link>
           <Link
             href='/signup'
