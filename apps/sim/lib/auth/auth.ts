@@ -323,6 +323,39 @@ export const auth = betterAuth({
             }
           }
 
+          if (account.providerId === 'meta-ads' && account.accessToken) {
+            try {
+              const exchangeUrl = new URL('https://graph.facebook.com/v24.0/oauth/access_token')
+              exchangeUrl.searchParams.set('grant_type', 'fb_exchange_token')
+              exchangeUrl.searchParams.set('client_id', env.META_ADS_CLIENT_ID as string)
+              exchangeUrl.searchParams.set('client_secret', env.META_ADS_CLIENT_SECRET as string)
+              exchangeUrl.searchParams.set('fb_exchange_token', account.accessToken)
+
+              const exchangeResponse = await fetch(exchangeUrl.toString())
+              if (exchangeResponse.ok) {
+                const exchangeData = await exchangeResponse.json()
+                const longLivedToken = exchangeData.access_token
+                const expiresIn = exchangeData.expires_in ?? 5_184_000
+
+                await db
+                  .update(schema.account)
+                  .set({
+                    accessToken: longLivedToken,
+                    accessTokenExpiresAt: new Date(Date.now() + expiresIn * 1000),
+                  })
+                  .where(eq(schema.account.id, account.id))
+
+                logger.info('Exchanged Meta short-lived token for long-lived token', { expiresIn })
+              } else {
+                logger.warn('Failed to exchange Meta token for long-lived token', {
+                  status: exchangeResponse.status,
+                })
+              }
+            } catch (error) {
+              logger.error('Error exchanging Meta token', { error })
+            }
+          }
+
           if (isMicrosoftProvider(account.providerId)) {
             await db
               .update(schema.account)
