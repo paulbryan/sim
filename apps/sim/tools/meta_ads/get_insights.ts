@@ -127,7 +127,17 @@ export const metaAdsGetInsightsTool: ToolConfig<
     const items = data.data ?? []
     const insights = items.map((i: Record<string, unknown>) => {
       const actions = (i.actions as Array<Record<string, unknown>>) ?? []
-      const conversions = actions.reduce((sum, a) => sum + Number(a.value ?? 0), 0)
+      const conversionTypes = new Set([
+        'offsite_conversion',
+        'onsite_conversion',
+        'app_custom_event',
+      ])
+      const conversions = actions
+        .filter((a) => {
+          const actionType = a.action_type as string
+          return conversionTypes.has(actionType) || actionType?.startsWith('offsite_conversion.')
+        })
+        .reduce((sum, a) => sum + Number(a.value ?? 0), 0)
 
       return {
         accountId: (i.account_id as string) ?? null,
