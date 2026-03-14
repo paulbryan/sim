@@ -186,6 +186,7 @@ export const MetaAdsBlock: BlockConfig = {
         { label: 'Active', id: 'ACTIVE' },
         { label: 'Paused', id: 'PAUSED' },
         { label: 'Archived', id: 'ARCHIVED' },
+        { label: 'Deleted', id: 'DELETED' },
       ],
       mode: 'advanced',
       condition: {

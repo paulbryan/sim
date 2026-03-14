@@ -2,7 +2,7 @@ import type {
   MetaAdsListCampaignsParams,
   MetaAdsListCampaignsResponse,
 } from '@/tools/meta_ads/types'
-import { getMetaApiBaseUrl } from '@/tools/meta_ads/types'
+import { getMetaApiBaseUrl, stripActPrefix } from '@/tools/meta_ads/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const metaAdsListCampaignsTool: ToolConfig<
@@ -59,7 +59,7 @@ export const metaAdsListCampaignsTool: ToolConfig<
         searchParams.set('limit', String(params.limit))
       }
 
-      return `${getMetaApiBaseUrl()}/act_${params.accountId.trim()}/campaigns?${searchParams.toString()}`
+      return `${getMetaApiBaseUrl()}/act_${stripActPrefix(params.accountId)}/campaigns?${searchParams.toString()}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -123,7 +123,7 @@ export const metaAdsListCampaignsTool: ToolConfig<
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of campaigns returned',
+      description: 'Number of campaigns returned in this response (may be limited by pagination)',
     },
   },
 }

@@ -67,12 +67,27 @@ export async function POST(request: Request) {
     const data = await response.json()
     const items: MetaAdAccount[] = data.data ?? []
 
-    const accounts = items
-      .filter((account) => account.account_status === 1)
-      .map((account) => ({
+    const META_ACCOUNT_STATUS: Record<number, string> = {
+      1: 'Active',
+      2: 'Disabled',
+      3: 'Unsettled',
+      7: 'Pending Risk Review',
+      8: 'Pending Settlement',
+      9: 'In Grace Period',
+      100: 'Pending Closure',
+      101: 'Closed',
+      201: 'Any Active',
+      202: 'Any Closed',
+    }
+
+    const accounts = items.map((account) => {
+      const statusLabel = META_ACCOUNT_STATUS[account.account_status] ?? 'Unknown'
+      const suffix = account.account_status !== 1 ? ` (${statusLabel})` : ''
+      return {
         id: account.account_id,
-        name: account.name || `Account ${account.account_id}`,
-      }))
+        name: `${account.name || `Account ${account.account_id}`}${suffix}`,
+      }
+    })
 
     logger.info(`Successfully fetched ${accounts.length} Meta ad accounts`, {
       total: items.length,

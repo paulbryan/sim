@@ -1,5 +1,5 @@
 import type { MetaAdsGetAccountParams, MetaAdsGetAccountResponse } from '@/tools/meta_ads/types'
-import { getMetaApiBaseUrl } from '@/tools/meta_ads/types'
+import { getMetaApiBaseUrl, stripActPrefix } from '@/tools/meta_ads/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const metaAdsGetAccountTool: ToolConfig<MetaAdsGetAccountParams, MetaAdsGetAccountResponse> =
@@ -33,7 +33,7 @@ export const metaAdsGetAccountTool: ToolConfig<MetaAdsGetAccountParams, MetaAdsG
       url: (params) => {
         const fields =
           'id,name,account_status,currency,timezone_name,amount_spent,spend_cap,business_country_code'
-        return `${getMetaApiBaseUrl()}/act_${params.accountId.trim()}?fields=${fields}`
+        return `${getMetaApiBaseUrl()}/act_${stripActPrefix(params.accountId)}?fields=${fields}`
       },
       method: 'GET',
       headers: (params) => ({

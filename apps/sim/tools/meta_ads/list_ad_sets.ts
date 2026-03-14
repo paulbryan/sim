@@ -1,5 +1,5 @@
 import type { MetaAdsListAdSetsParams, MetaAdsListAdSetsResponse } from '@/tools/meta_ads/types'
-import { getMetaApiBaseUrl } from '@/tools/meta_ads/types'
+import { getMetaApiBaseUrl, stripActPrefix } from '@/tools/meta_ads/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const metaAdsListAdSetsTool: ToolConfig<MetaAdsListAdSetsParams, MetaAdsListAdSetsResponse> =
@@ -59,7 +59,7 @@ export const metaAdsListAdSetsTool: ToolConfig<MetaAdsListAdSetsParams, MetaAdsL
           searchParams.set('limit', String(params.limit))
         }
 
-        const parentId = params.campaignId?.trim() || `act_${params.accountId.trim()}`
+        const parentId = params.campaignId?.trim() || `act_${stripActPrefix(params.accountId)}`
         return `${getMetaApiBaseUrl()}/${parentId}/adsets?${searchParams.toString()}`
       },
       method: 'GET',
@@ -124,7 +124,7 @@ export const metaAdsListAdSetsTool: ToolConfig<MetaAdsListAdSetsParams, MetaAdsL
       },
       totalCount: {
         type: 'number',
-        description: 'Total number of ad sets returned',
+        description: 'Number of ad sets returned in this response (may be limited by pagination)',
       },
     },
   }

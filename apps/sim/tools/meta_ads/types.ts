@@ -6,6 +6,15 @@ export function getMetaApiBaseUrl(): string {
   return `https://graph.facebook.com/${META_API_VERSION}`
 }
 
+/**
+ * Strips the `act_` prefix from an account ID if present, so that
+ * callers can safely wrap the result with `act_` without double-prefixing.
+ */
+export function stripActPrefix(accountId: string): string {
+  const trimmed = accountId.trim()
+  return trimmed.startsWith('act_') ? trimmed.slice(4) : trimmed
+}
+
 export interface MetaAdsBaseParams {
   accessToken: string
   accountId: string

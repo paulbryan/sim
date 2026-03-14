@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { getMetaApiBaseUrl } from '@/tools/meta_ads/types'
+import { getMetaApiBaseUrl, stripActPrefix } from '@/tools/meta_ads/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const trimmedId = String(accountId).trim()
+    const trimmedId = stripActPrefix(String(accountId))
     const url = `${getMetaApiBaseUrl()}/act_${trimmedId}/campaigns?fields=id,name,status&limit=200`
     const response = await fetch(url, {
       method: 'GET',

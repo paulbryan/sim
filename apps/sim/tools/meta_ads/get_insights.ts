@@ -1,5 +1,5 @@
 import type { MetaAdsGetInsightsParams, MetaAdsGetInsightsResponse } from '@/tools/meta_ads/types'
-import { getMetaApiBaseUrl } from '@/tools/meta_ads/types'
+import { getMetaApiBaseUrl, stripActPrefix } from '@/tools/meta_ads/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const metaAdsGetInsightsTool: ToolConfig<
@@ -101,7 +101,7 @@ export const metaAdsGetInsightsTool: ToolConfig<
       } else if (params.campaignId) {
         parentId = params.campaignId.trim()
       } else {
-        parentId = `act_${params.accountId.trim()}`
+        parentId = `act_${stripActPrefix(params.accountId)}`
       }
 
       return `${getMetaApiBaseUrl()}/${parentId}/insights?${searchParams.toString()}`
@@ -203,7 +203,8 @@ export const metaAdsGetInsightsTool: ToolConfig<
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of insight rows returned',
+      description:
+        'Number of insight rows returned in this response (may be limited by pagination)',
     },
   },
 }

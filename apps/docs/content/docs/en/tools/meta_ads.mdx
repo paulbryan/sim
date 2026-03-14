@@ -73,7 +73,7 @@ List campaigns in a Meta Ads account with optional status filtering
 |   ↳ `lifetimeBudget` | string | Lifetime budget in account currency cents |
 |   ↳ `createdTime` | string | Campaign creation time \(ISO 8601\) |
 |   ↳ `updatedTime` | string | Campaign last update time \(ISO 8601\) |
-| `totalCount` | number | Total number of campaigns returned |
+| `totalCount` | number | Number of campaigns returned in this response \(may be limited by pagination\) |
 
 ### `meta_ads_list_ad_sets`
 
@@ -101,7 +101,7 @@ List ad sets in a Meta Ads account or campaign
 |   ↳ `lifetimeBudget` | string | Lifetime budget in account currency cents |
 |   ↳ `startTime` | string | Ad set start time \(ISO 8601\) |
 |   ↳ `endTime` | string | Ad set end time \(ISO 8601\) |
-| `totalCount` | number | Total number of ad sets returned |
+| `totalCount` | number | Number of ad sets returned in this response \(may be limited by pagination\) |
 
 ### `meta_ads_list_ads`
 
@@ -129,7 +129,7 @@ List ads in a Meta Ads account, campaign, or ad set
 |   ↳ `campaignId` | string | Parent campaign ID |
 |   ↳ `createdTime` | string | Ad creation time \(ISO 8601\) |
 |   ↳ `updatedTime` | string | Ad last update time \(ISO 8601\) |
-| `totalCount` | number | Total number of ads returned |
+| `totalCount` | number | Number of ads returned in this response \(may be limited by pagination\) |
 
 ### `meta_ads_get_insights`
 
@@ -171,6 +171,6 @@ Get performance insights and metrics for Meta Ads campaigns, ad sets, or ads
 |   ↳ `conversions` | number | Total conversions from actions |
 |   ↳ `dateStart` | string | Start date of the reporting period |
 |   ↳ `dateStop` | string | End date of the reporting period |
-| `totalCount` | number | Total number of insight rows returned |
+| `totalCount` | number | Number of insight rows returned in this response \(may be limited by pagination\) |
 
 

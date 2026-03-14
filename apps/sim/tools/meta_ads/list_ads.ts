@@ -1,5 +1,5 @@
 import type { MetaAdsListAdsParams, MetaAdsListAdsResponse } from '@/tools/meta_ads/types'
-import { getMetaApiBaseUrl } from '@/tools/meta_ads/types'
+import { getMetaApiBaseUrl, stripActPrefix } from '@/tools/meta_ads/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const metaAdsListAdsTool: ToolConfig<MetaAdsListAdsParams, MetaAdsListAdsResponse> = {
@@ -70,7 +70,7 @@ export const metaAdsListAdsTool: ToolConfig<MetaAdsListAdsParams, MetaAdsListAds
       } else if (params.campaignId) {
         parentId = params.campaignId.trim()
       } else {
-        parentId = `act_${params.accountId.trim()}`
+        parentId = `act_${stripActPrefix(params.accountId)}`
       }
 
       return `${getMetaApiBaseUrl()}/${parentId}/ads?${searchParams.toString()}`
@@ -132,7 +132,7 @@ export const metaAdsListAdsTool: ToolConfig<MetaAdsListAdsParams, MetaAdsListAds
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of ads returned',
+      description: 'Number of ads returned in this response (may be limited by pagination)',
     },
   },
 }
