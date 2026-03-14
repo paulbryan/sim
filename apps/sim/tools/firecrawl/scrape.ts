@@ -111,7 +111,7 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
         markdown: data.data.markdown,
         html: data.data.html,
         metadata: data.data.metadata,
-        creditsUsed: data.creditsUsed,
+        creditsUsed: data.data.metadata?.creditsUsed,
       },
     }
   },
