@@ -132,10 +132,14 @@ export const metaAdsGetInsightsTool: ToolConfig<
         'onsite_conversion',
         'app_custom_event',
       ])
+      const conversionPrefixes = ['offsite_conversion.', 'onsite_conversion.', 'app_custom_event.']
       const conversions = actions
         .filter((a) => {
           const actionType = a.action_type as string
-          return conversionTypes.has(actionType) || actionType?.startsWith('offsite_conversion.')
+          return (
+            conversionTypes.has(actionType) ||
+            conversionPrefixes.some((prefix) => actionType?.startsWith(prefix))
+          )
         })
         .reduce((sum, a) => sum + Number(a.value ?? 0), 0)
 
