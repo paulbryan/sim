@@ -213,7 +213,7 @@ export function SettingsSidebar({
                 </div>
               ))
             : Array.from({ length: 3 }, (_, i) => (
-                <div key={i} className='flex flex-shrink-0 flex-col'>
+                <div key={i} className='sidebar-collapse-hide flex flex-shrink-0 flex-col'>
                   <div className='px-[16px] pb-[6px]'>
                     <Skeleton className='h-[14px] w-[64px] rounded-[4px]' />
                   </div>
@@ -233,7 +233,7 @@ export function SettingsSidebar({
               return (
                 <div key={key} className='flex flex-shrink-0 flex-col'>
                   {!isCollapsed && (
-                    <div className='px-[16px] pb-[6px]'>
+                    <div className='sidebar-collapse-remove px-[16px] pb-[6px]'>
                       <div className='font-base text-[var(--text-icon)] text-small'>{title}</div>
                     </div>
                   )}
