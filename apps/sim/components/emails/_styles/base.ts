@@ -8,7 +8,7 @@ import { getBrandConfig } from '@/ee/whitelabeling'
 /** Color tokens from globals.css (light mode), brand-aware for whitelabeled instances */
 function buildColors() {
   const brand = getBrandConfig()
-  const isWhitelabeled = brand.name !== 'Sim'
+  const isWhitelabeled = brand.isWhitelabeled
   const accentColor =
     isWhitelabeled && brand.theme?.primaryColor ? brand.theme.primaryColor : '#33C482'
 

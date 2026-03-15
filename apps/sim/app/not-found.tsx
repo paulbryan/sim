@@ -1,5 +1,3 @@
-'use client'
-
 import Link from 'next/link'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import Navbar from '@/app/(home)/components/navbar/navbar'

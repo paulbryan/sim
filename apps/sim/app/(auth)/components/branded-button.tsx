@@ -34,7 +34,7 @@ export const BrandedButton = forwardRef<HTMLButtonElement, BrandedButtonProps>(
     ref
   ) => {
     const brand = useBrandConfig()
-    const isWhitelabeled = brand.name !== 'Sim'
+    const isWhitelabeled = brand.isWhitelabeled
     const [isHovered, setIsHovered] = useState(false)
 
     const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {

@@ -28,7 +28,7 @@ export function EmailFooter({
   showUnsubscribe = true,
 }: EmailFooterProps) {
   const brand = getBrandConfig()
-  const isWhitelabeled = brand.name !== 'Sim'
+  const isWhitelabeled = brand.isWhitelabeled
 
   const footerLinkStyle = {
     color: colors.textMuted,
