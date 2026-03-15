@@ -3,8 +3,7 @@
 import { type KeyboardEvent, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Eye, EyeOff } from 'lucide-react'
-import { Input } from '@/components/emcn'
-import { Label } from '@/components/ui/label'
+import { Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import { BrandedButton } from '@/app/(auth)/components/branded-button'
@@ -122,10 +121,10 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
                       onChange={handlePasswordChange}
                       onKeyDown={handleKeyDown}
                       className={cn(
-                        'rounded-[10px] pr-10 shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
+                        'pr-10',
                         showValidationError &&
                           passwordErrors.length > 0 &&
-                          'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                          'border-red-500 focus:border-red-500'
                       )}
                       autoFocus
                     />
