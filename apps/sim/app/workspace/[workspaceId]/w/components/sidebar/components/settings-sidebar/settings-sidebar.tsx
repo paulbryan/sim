@@ -207,13 +207,17 @@ export function SettingsSidebar({
       >
         {sessionLoading || orgsLoading ? (
           isCollapsed ? (
-            <div className='flex flex-col gap-[2px] px-[8px]'>
-              {Array.from({ length: 7 }, (_, i) => (
-                <div key={i} className='mx-[2px] flex h-[30px] items-center px-[8px]'>
-                  <Skeleton className='h-[16px] w-[16px] rounded-[4px]' />
+            <>
+              {[3, 2, 2].map((count, sectionIdx) => (
+                <div key={sectionIdx} className='flex flex-col gap-[2px] px-[8px]'>
+                  {Array.from({ length: count }, (_, i) => (
+                    <div key={i} className='mx-[2px] flex h-[30px] items-center px-[8px]'>
+                      <Skeleton className='h-[16px] w-[16px] rounded-[4px]' />
+                    </div>
+                  ))}
                 </div>
               ))}
-            </div>
+            </>
           ) : (
             Array.from({ length: 3 }, (_, i) => (
               <div key={i} className='sidebar-collapse-hide flex flex-shrink-0 flex-col'>
