@@ -1,15 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import Image from 'next/image'
 import { ChevronDown } from '@/components/emcn/icons'
-import type { Category, ModuleTag } from './consts'
-import { CATEGORY_META, MODULE_META, TEMPLATES } from './consts'
+import type { Category } from './consts'
+import { CATEGORY_META, TEMPLATES } from './consts'
 
 const FEATURED_TEMPLATES = TEMPLATES.filter((t) => t.featured)
 const EXTRA_TEMPLATES = TEMPLATES.filter((t) => !t.featured)
 
-/** Group non-featured templates by category, preserving category order. */
 function getGroupedExtras() {
   const groups: { category: Category; label: string; templates: typeof TEMPLATES }[] = []
   const byCategory = new Map<Category, typeof TEMPLATES>()
@@ -38,19 +36,9 @@ function getGroupedExtras() {
 
 const GROUPED_EXTRAS = getGroupedExtras()
 
-function ModulePills({ modules }: { modules: ModuleTag[] }) {
-  return (
-    <div className='flex flex-wrap gap-[4px]'>
-      {modules.map((mod) => (
-        <span
-          key={mod}
-          className='rounded-full bg-[var(--surface-3)] px-[6px] py-[1px] text-[11px] text-[var(--text-secondary)]'
-        >
-          {MODULE_META[mod].label}
-        </span>
-      ))}
-    </div>
-  )
+function getFirstSentence(prompt: string): string {
+  const match = prompt.match(/^(.+?[.!?])\s/)
+  return match ? match[1] : prompt.slice(0, 120)
 }
 
 interface TemplatePromptsProps {
@@ -62,14 +50,12 @@ export function TemplatePrompts({ onSelect }: TemplatePromptsProps) {
 
   return (
     <div className='flex flex-col gap-[24px]'>
-      {/* Featured grid */}
-      <div className='grid grid-cols-3 gap-[16px]'>
+      <div className='grid grid-cols-3 gap-[10px]'>
         {FEATURED_TEMPLATES.map((template) => (
           <TemplateCard key={template.title} template={template} onSelect={onSelect} />
         ))}
       </div>
 
-      {/* Expand / collapse */}
       <button
         type='button'
         onClick={() => setExpanded((prev) => !prev)}
@@ -87,7 +73,6 @@ export function TemplatePrompts({ onSelect }: TemplatePromptsProps) {
         )}
       </button>
 
-      {/* Categorized extras */}
       {expanded && (
         <div className='flex flex-col gap-[32px]'>
           {GROUPED_EXTRAS.map((group) => (
@@ -95,7 +80,7 @@ export function TemplatePrompts({ onSelect }: TemplatePromptsProps) {
               <h3 className='font-medium text-[13px] text-[var(--text-secondary)]'>
                 {group.label}
               </h3>
-              <div className='grid grid-cols-3 gap-[16px]'>
+              <div className='grid grid-cols-3 gap-[10px]'>
                 {group.templates.map((template) => (
                   <TemplateCard key={template.title} template={template} onSelect={onSelect} />
                 ))}
@@ -115,37 +100,23 @@ interface TemplateCardProps {
 
 function TemplateCard({ template, onSelect }: TemplateCardProps) {
   const Icon = template.icon
+  const description = getFirstSentence(template.prompt)
 
   return (
     <button
       type='button'
       onClick={() => onSelect(template.prompt)}
       aria-label={`Select template: ${template.title}`}
-      className='group flex cursor-pointer flex-col text-left'
+      className='group flex cursor-pointer flex-col gap-[10px] rounded-[12px] border border-[var(--border-1)] p-[14px] text-left transition-colors hover:bg-[var(--surface-3)]'
     >
-      <div className='overflow-hidden rounded-[10px] border border-[var(--border-1)]'>
-        <div className='relative h-[120px] w-full overflow-hidden'>
-          {template.image ? (
-            <Image
-              src={template.image}
-              alt={template.title}
-              fill
-              unoptimized
-              className='object-cover transition-transform duration-300 group-hover:scale-105'
-            />
-          ) : (
-            <div className='flex h-full w-full items-center justify-center bg-[var(--surface-3)] transition-colors group-hover:bg-[var(--surface-4)]'>
-              <Icon className='h-[32px] w-[32px] text-[var(--text-icon)] opacity-40' />
-            </div>
-          )}
-        </div>
-        <div className='flex flex-col gap-[4px] border-[var(--border-1)] border-t bg-[var(--white)] px-[10px] py-[6px] dark:bg-[var(--surface-4)]'>
-          <div className='flex items-center gap-[6px]'>
-            <Icon className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
-            <span className='font-base text-[14px] text-[var(--text-body)]'>{template.title}</span>
-          </div>
-          <ModulePills modules={template.modules} />
-        </div>
+      <div className='flex h-[28px] w-[28px] items-center justify-center rounded-[8px] bg-[var(--surface-3)] transition-colors group-hover:bg-[var(--surface-4)]'>
+        <Icon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+      </div>
+      <div className='flex flex-col gap-[4px]'>
+        <span className='text-[13px] text-[var(--text-body)] leading-[18px]'>{template.title}</span>
+        <span className='line-clamp-2 text-[12px] text-[var(--text-tertiary)] leading-[16px]'>
+          {description}
+        </span>
       </div>
     </button>
   )
