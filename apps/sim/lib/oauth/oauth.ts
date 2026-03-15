@@ -8,6 +8,7 @@ import {
   DropboxIcon,
   GmailIcon,
   GoogleAdsIcon,
+  GoogleAnalyticsIcon,
   GoogleBigQueryIcon,
   GoogleCalendarIcon,
   GoogleContactsIcon,
@@ -145,6 +146,18 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.email',
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/contacts',
+        ],
+      },
+      'google-analytics': {
+        name: 'Google Analytics',
+        description: 'Query GA4 analytics data, run reports, and get realtime metrics.',
+        providerId: 'google-analytics',
+        icon: GoogleAnalyticsIcon,
+        baseProviderIcon: GoogleIcon,
+        scopes: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
+          'https://www.googleapis.com/auth/analytics.readonly',
         ],
       },
       'google-ads': {

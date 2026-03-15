@@ -3600,6 +3600,25 @@ export const ResendIcon = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
+export const GoogleAnalyticsIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'>
+    <g transform='translate(-174.95 -339.18)scale(3.54856)'>
+      <path
+        d='M149.3 112.8V221c0 12.1 8.4 18.9 17.2 18.9 8.2 0 17.2-5.7 17.2-18.9V113.6c0-11.1-8.2-18-17.2-18s-17.2 7.6-17.2 17.2'
+        fill='#f8ab00'
+      />
+      <path
+        d='M104.2 167.7V221c0 12.1 8.4 18.9 17.2 18.9 8.2 0 17.2-5.7 17.2-18.9v-52.5c0-11.1-8.2-18-17.2-18s-17.2 7.7-17.2 17.2'
+        fill='#e37300'
+      />
+      <path
+        d='M93.6 222.7c0 9.5-7.7 17.2-17.2 17.2s-17.2-7.7-17.2-17.2 7.7-17.2 17.2-17.2 17.2 7.6 17.2 17.2'
+        fill='#e37300'
+      />
+    </g>
+  </svg>
+)
+
 export const GoogleAdsIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>
     <g transform='matrix(.257748 0 0 .257745 -.361416 2.515516)'>

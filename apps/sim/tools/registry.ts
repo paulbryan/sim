@@ -798,6 +798,11 @@ import {
   googleDriveUploadTool,
 } from '@/tools/google_drive'
 import {
+  googleAnalyticsGetMetadataTool,
+  googleAnalyticsRunRealtimeReportTool,
+  googleAnalyticsRunReportTool,
+} from '@/tools/google_analytics'
+import {
   googleFormsBatchUpdateTool,
   googleFormsCreateFormTool,
   googleFormsCreateWatchTool,
@@ -3305,6 +3310,9 @@ export const tools: Record<string, ToolConfig> = {
   revenuecat_defer_google_subscription: revenuecatDeferGoogleSubscriptionTool,
   revenuecat_refund_google_subscription: revenuecatRefundGoogleSubscriptionTool,
   revenuecat_revoke_google_subscription: revenuecatRevokeGoogleSubscriptionTool,
+  google_analytics_run_report: googleAnalyticsRunReportTool,
+  google_analytics_run_realtime_report: googleAnalyticsRunRealtimeReportTool,
+  google_analytics_get_metadata: googleAnalyticsGetMetadataTool,
   google_drive_copy: googleDriveCopyTool,
   google_drive_create_folder: googleDriveCreateFolderTool,
   google_drive_delete: googleDriveDeleteTool,

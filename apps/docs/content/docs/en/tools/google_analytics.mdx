@@ -1,0 +1,129 @@
+---
+title: Google Analytics
+description: Query GA4 analytics data and reports
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_analytics"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Analytics](https://analytics.google.com) is Google's web and app analytics platform. Through Sim, your agents can query GA4 property data to automate reporting, monitoring, and analysis workflows.
+
+**The following Google Analytics Data API operations are included in this integration:**
+
+- **Run Report:** Generate customized reports with dimensions, metrics, date ranges, filters, and sorting. Supports pagination for large datasets.
+- **Run Realtime Report:** Get live data from the last 30 minutes, including active users, page views, and conversions in real time.
+- **Get Metadata:** Discover all available dimensions and metrics for a GA4 property, including their descriptions and categories.
+
+With these operations, your Sim agents can automate daily/weekly analytics reporting, monitor real-time traffic and conversions, build dashboards from GA4 data, detect anomalies in key metrics, and enrich workflows with analytics context—all without manual work in the Google Analytics UI.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Google Analytics GA4 into your workflow. Run custom reports, get realtime data, and discover available dimensions and metrics.
+
+
+
+## Tools
+
+### `google_analytics_run_report`
+
+Run a customized report on Google Analytics GA4 property data
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `propertyId` | string | Yes | The GA4 property ID \(e.g., 123456789\) |
+| `dimensions` | string | Yes | Comma-separated dimension names \(e.g., date,country,deviceCategory\). See GA4 dimensions reference. |
+| `metrics` | string | Yes | Comma-separated metric names \(e.g., activeUsers,sessions,screenPageViews\). See GA4 metrics reference. |
+| `startDate` | string | Yes | Start date in YYYY-MM-DD format, or relative dates like "7daysAgo", "30daysAgo", "yesterday" |
+| `endDate` | string | Yes | End date in YYYY-MM-DD format, or "today", "yesterday" |
+| `dimensionFilter` | string | No | Dimension filter as JSON \(e.g., \{"filter":\{"fieldName":"country","stringFilter":\{"value":"US"\}\}\}\) |
+| `metricFilter` | string | No | Metric filter as JSON \(e.g., \{"filter":\{"fieldName":"activeUsers","numericFilter":\{"operation":"GREATER_THAN","value":\{"int64Value":"100"\}\}\}\}\) |
+| `orderBys` | string | No | Order by specification as JSON array \(e.g., \[\{"metric":\{"metricName":"activeUsers"\},"desc":true\}\]\) |
+| `limit` | number | No | Maximum number of rows to return \(default: 10000, max: 250000\) |
+| `offset` | number | No | Starting row offset for pagination \(default: 0\) |
+| `keepEmptyRows` | boolean | No | Whether to include rows with all zero metric values |
+| `currencyCode` | string | No | Currency code for revenue metrics \(e.g., USD, EUR\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dimensionHeaders` | array | Dimension column headers |
+|   ↳ `name` | string | Dimension name |
+| `metricHeaders` | array | Metric column headers |
+|   ↳ `name` | string | Metric name |
+|   ↳ `type` | string | Metric data type |
+| `rows` | array | Report data rows |
+|   ↳ `dimensionValues` | json | Array of dimension values for this row |
+|   ↳ `metricValues` | json | Array of metric values for this row |
+| `rowCount` | number | Total number of rows in the result |
+| `metadata` | json | Report metadata including currency code and time zone |
+|   ↳ `currencyCode` | string | Currency code used in the report |
+|   ↳ `timeZone` | string | Time zone used in the report |
+
+### `google_analytics_run_realtime_report`
+
+Run a realtime report on Google Analytics GA4 property data from the last 30 minutes
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `propertyId` | string | Yes | The GA4 property ID \(e.g., 123456789\) |
+| `dimensions` | string | No | Comma-separated dimension names for realtime data \(e.g., unifiedScreenName,country,deviceCategory\) |
+| `metrics` | string | Yes | Comma-separated metric names \(e.g., activeUsers,screenPageViews,conversions\) |
+| `dimensionFilter` | string | No | Dimension filter as JSON |
+| `metricFilter` | string | No | Metric filter as JSON |
+| `limit` | number | No | Maximum number of rows to return \(default: 10000, max: 250000\) |
+| `startMinutesAgo` | number | No | Start of the time window in minutes ago \(default: 29, max: 29 for standard, 59 for 360\) |
+| `endMinutesAgo` | number | No | End of the time window in minutes ago \(default: 0, meaning now\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dimensionHeaders` | array | Dimension column headers |
+|   ↳ `name` | string | Dimension name |
+| `metricHeaders` | array | Metric column headers |
+|   ↳ `name` | string | Metric name |
+|   ↳ `type` | string | Metric data type |
+| `rows` | array | Realtime report data rows |
+|   ↳ `dimensionValues` | json | Array of dimension values for this row |
+|   ↳ `metricValues` | json | Array of metric values for this row |
+| `rowCount` | number | Total number of rows in the result |
+
+### `google_analytics_get_metadata`
+
+Get available dimensions, metrics, and their descriptions for a Google Analytics GA4 property
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `propertyId` | string | Yes | The GA4 property ID \(e.g., 123456789\). Use 0 to get universal metadata available across all properties. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `dimensions` | array | Available dimensions for the property |
+|   ↳ `apiName` | string | API name to use in report requests |
+|   ↳ `uiName` | string | Human-readable display name |
+|   ↳ `description` | string | Description of the dimension |
+|   ↳ `category` | string | Category grouping |
+| `metrics` | array | Available metrics for the property |
+|   ↳ `apiName` | string | API name to use in report requests |
+|   ↳ `uiName` | string | Human-readable display name |
+|   ↳ `description` | string | Description of the metric |
+|   ↳ `category` | string | Category grouping |
+|   ↳ `type` | string | Data type of the metric |
+
+
