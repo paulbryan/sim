@@ -4,7 +4,7 @@ import Navbar from '@/app/(home)/components/navbar/navbar'
 
 export default function NotFound() {
   return (
-    <AuthBackground className='font-[430] font-season'>
+    <AuthBackground className='dark font-[430] font-season'>
       <main className='relative flex min-h-full flex-col text-[#ECECEC]'>
         <header className='shrink-0 bg-[#1C1C1C]'>
           <Navbar />
