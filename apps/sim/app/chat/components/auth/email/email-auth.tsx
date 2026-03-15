@@ -2,17 +2,13 @@
 
 import { type KeyboardEvent, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Input } from '@/components/emcn'
-import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
-import { Label } from '@/components/ui/label'
+import { Input, InputOTP, InputOTPGroup, InputOTPSlot, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import AuthBackground from '@/app/(auth)/components/auth-background'
 import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
-import Nav from '@/app/(landing)/components/nav/nav'
+import Navbar from '@/app/(home)/components/navbar/navbar'
 
 const logger = createLogger('EmailAuth')
 
@@ -185,26 +181,26 @@ export default function EmailAuth({ identifier, onAuthSuccess }: EmailAuthProps)
   }
 
   return (
-    <AuthBackground>
-      <main className='relative flex min-h-screen flex-col text-foreground'>
-        <Nav hideAuthButtons={true} variant='auth' />
+    <AuthBackground className='dark font-[430] font-season'>
+      <main className='relative flex min-h-screen flex-col text-[#ECECEC]'>
+        <header>
+          <Navbar logoOnly />
+        </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1
-                  className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
-                >
+                <h1 className='font-[500] text-[#ECECEC] text-[32px] tracking-tight'>
                   {showOtpVerification ? 'Verify Your Email' : 'Email Verification'}
                 </h1>
-                <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+                <p className='font-[380] text-[#999] text-[16px]'>
                   {showOtpVerification
                     ? `A verification code has been sent to ${email}`
                     : 'This chat requires email verification'}
                 </p>
               </div>
 
-              <div className={`${inter.className} mt-8 w-full max-w-[410px]`}>
+              <div className='mt-8 w-full max-w-[410px]'>
                 {!showOtpVerification ? (
                   <form
                     onSubmit={(e) => {

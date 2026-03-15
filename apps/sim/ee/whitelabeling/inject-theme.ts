@@ -15,6 +15,7 @@ export function generateThemeCSS(): string {
 
   if (process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR) {
     cssVars.push(`--brand-primary-hex: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR};`)
+    cssVars.push(`--brand-tertiary-2: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR};`)
   }
 
   if (process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR) {

@@ -3,8 +3,6 @@
 import { Suspense, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import { BrandedButton } from '@/app/(auth)/components/branded-button'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import { InviteLayout } from '@/app/invite/components'
@@ -122,15 +120,13 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
-            Loading
-          </h1>
-          <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+          <h1 className={'font-medium text-[#ECECEC] text-[32px] tracking-tight'}>Loading</h1>
+          <p className={'font-[380] text-[#999] text-[16px]'}>
             Validating your unsubscribe link...
           </p>
         </div>
-        <div className={`${inter.className} mt-8 flex w-full items-center justify-center py-8`}>
-          <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+        <div className={'mt-8 flex w-full items-center justify-center py-8'}>
+          <Loader2 className='h-8 w-8 animate-spin text-[#999]' />
         </div>
         <SupportFooter position='absolute' />
       </InviteLayout>
@@ -141,15 +137,13 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+          <h1 className={'font-medium text-[#ECECEC] text-[32px] tracking-tight'}>
             Invalid Unsubscribe Link
           </h1>
-          <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
-            {error}
-          </p>
+          <p className={'font-[380] text-[#999] text-[16px]'}>{error}</p>
         </div>
 
-        <div className={`${inter.className} mt-8 w-full max-w-[410px] space-y-3`}>
+        <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
           <BrandedButton onClick={() => window.history.back()}>Go Back</BrandedButton>
         </div>
 
@@ -162,16 +156,16 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+          <h1 className={'font-medium text-[#ECECEC] text-[32px] tracking-tight'}>
             Important Account Emails
           </h1>
-          <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+          <p className={'font-[380] text-[#999] text-[16px]'}>
             Transactional emails like password resets, account confirmations, and security alerts
             cannot be unsubscribed from as they contain essential information for your account.
           </p>
         </div>
 
-        <div className={`${inter.className} mt-8 w-full max-w-[410px] space-y-3`}>
+        <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
           <BrandedButton onClick={() => window.close()}>Close</BrandedButton>
         </div>
 
@@ -184,16 +178,16 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+          <h1 className={'font-medium text-[#ECECEC] text-[32px] tracking-tight'}>
             Successfully Unsubscribed
           </h1>
-          <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+          <p className={'font-[380] text-[#999] text-[16px]'}>
             You have been unsubscribed from our emails. You will stop receiving emails within 48
             hours.
           </p>
         </div>
 
-        <div className={`${inter.className} mt-8 w-full max-w-[410px] space-y-3`}>
+        <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
           <BrandedButton onClick={() => window.close()}>Close</BrandedButton>
         </div>
 
@@ -207,18 +201,16 @@ function UnsubscribeContent() {
   return (
     <InviteLayout>
       <div className='space-y-1 text-center'>
-        <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+        <h1 className={'font-medium text-[#ECECEC] text-[32px] tracking-tight'}>
           Email Preferences
         </h1>
-        <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+        <p className={'font-[380] text-[#999] text-[16px]'}>
           Choose which emails you'd like to stop receiving.
         </p>
-        <p className={`${inter.className} mt-2 font-[380] text-[14px] text-muted-foreground`}>
-          {data?.email}
-        </p>
+        <p className={'mt-2 font-[380] text-[#999] text-[14px]'}>{data?.email}</p>
       </div>
 
-      <div className={`${inter.className} mt-8 w-full max-w-[410px] space-y-3`}>
+      <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
         <BrandedButton
           onClick={() => handleUnsubscribe('all')}
           disabled={processing || isAlreadyUnsubscribedFromAll}
@@ -231,9 +223,7 @@ function UnsubscribeContent() {
         </BrandedButton>
 
         <div className='py-2 text-center'>
-          <span className={`${inter.className} font-[380] text-[14px] text-muted-foreground`}>
-            or choose specific types
-          </span>
+          <span className={'font-[380] text-[#999] text-[14px]'}>or choose specific types</span>
         </div>
 
         <BrandedButton
@@ -276,8 +266,8 @@ function UnsubscribeContent() {
         </BrandedButton>
       </div>
 
-      <div className={`${inter.className} mt-6 max-w-[410px] text-center`}>
-        <p className='font-[380] text-[13px] text-muted-foreground'>
+      <div className={'mt-6 max-w-[410px] text-center'}>
+        <p className='font-[380] text-[#999] text-[13px]'>
           You'll continue receiving important account emails like password resets and security
           alerts.
         </p>
@@ -294,15 +284,13 @@ export default function Unsubscribe() {
       fallback={
         <InviteLayout>
           <div className='space-y-1 text-center'>
-            <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
-              Loading
-            </h1>
-            <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+            <h1 className={'font-medium text-[#ECECEC] text-[32px] tracking-tight'}>Loading</h1>
+            <p className={'font-[380] text-[#999] text-[16px]'}>
               Validating your unsubscribe link...
             </p>
           </div>
-          <div className={`${inter.className} mt-8 flex w-full items-center justify-center py-8`}>
-            <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+          <div className={'mt-8 flex w-full items-center justify-center py-8'}>
+            <Loader2 className='h-8 w-8 animate-spin text-[#999]' />
           </div>
           <SupportFooter position='absolute' />
         </InviteLayout>
