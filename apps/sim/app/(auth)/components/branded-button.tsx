@@ -34,7 +34,7 @@ export const BrandedButton = forwardRef<HTMLButtonElement, BrandedButtonProps>(
     ref
   ) => {
     const brand = useBrandConfig()
-    const isWhitelabeled = brand.isWhitelabeled
+    const hasCustomColor = brand.isWhitelabeled && Boolean(brand.theme?.primaryColor)
     const [isHovered, setIsHovered] = useState(false)
 
     const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -55,13 +55,13 @@ export const BrandedButton = forwardRef<HTMLButtonElement, BrandedButtonProps>(
         onMouseLeave={handleMouseLeave}
         className={cn(
           'group inline-flex h-[30px] items-center justify-center gap-[7px] rounded-[5px] border px-[9px] text-[13.5px] transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-          !isWhitelabeled &&
+          !hasCustomColor &&
             'border-[#FFFFFF] bg-[#FFFFFF] text-black hover:border-[#E0E0E0] hover:bg-[#E0E0E0]',
           fullWidth && 'w-full',
           className
         )}
         style={
-          isWhitelabeled
+          hasCustomColor
             ? {
                 backgroundColor: isHovered
                   ? (brand.theme?.primaryHoverColor ?? brand.theme?.primaryColor)
