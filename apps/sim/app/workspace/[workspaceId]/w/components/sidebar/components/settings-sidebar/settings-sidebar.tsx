@@ -24,6 +24,8 @@ import { useSuperUserStatus } from '@/hooks/queries/user-profile'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
+const SKELETON_SECTIONS = [3, 2, 2] as const
+
 interface SettingsSidebarProps {
   isCollapsed?: boolean
   showCollapsedContent?: boolean
@@ -208,7 +210,7 @@ export function SettingsSidebar({
         {sessionLoading || orgsLoading ? (
           isCollapsed ? (
             <>
-              {[3, 2, 2].map((count, sectionIdx) => (
+              {SKELETON_SECTIONS.map((count, sectionIdx) => (
                 <div key={sectionIdx} className='flex flex-col gap-[2px] px-[8px]'>
                   {Array.from({ length: count }, (_, i) => (
                     <div key={i} className='mx-[2px] flex h-[30px] items-center px-[8px]'>
