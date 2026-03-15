@@ -206,29 +206,37 @@ export function SettingsSidebar({
         )}
       >
         {sessionLoading || orgsLoading
-          ? Array.from({ length: 3 }, (_, i) => (
-              <div key={i} className='flex flex-shrink-0 flex-col'>
-                <div className='px-[16px] pb-[6px]'>
-                  <Skeleton className='h-[14px] w-[64px] rounded-[4px]' />
+          ? isCollapsed
+            ? Array.from({ length: 7 }, (_, i) => (
+                <div key={i} className='mx-[2px] flex h-[30px] items-center px-[8px]'>
+                  <Skeleton className='h-[16px] w-[16px] rounded-[4px]' />
                 </div>
-                <div className='flex flex-col gap-[2px] px-[8px]'>
-                  {Array.from({ length: i === 0 ? 3 : 2 }, (_, j) => (
-                    <div key={j} className='mx-[2px] flex h-[30px] items-center px-[8px]'>
-                      <Skeleton className='h-[24px] w-full rounded-[4px]' />
-                    </div>
-                  ))}
+              ))
+            : Array.from({ length: 3 }, (_, i) => (
+                <div key={i} className='flex flex-shrink-0 flex-col'>
+                  <div className='px-[16px] pb-[6px]'>
+                    <Skeleton className='h-[14px] w-[64px] rounded-[4px]' />
+                  </div>
+                  <div className='flex flex-col gap-[2px] px-[8px]'>
+                    {Array.from({ length: i === 0 ? 3 : 2 }, (_, j) => (
+                      <div key={j} className='mx-[2px] flex h-[30px] items-center px-[8px]'>
+                        <Skeleton className='h-[24px] w-full rounded-[4px]' />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))
+              ))
           : sectionConfig.map(({ key, title }) => {
               const sectionItems = navigationItems.filter((item) => item.section === key)
               if (sectionItems.length === 0) return null
 
               return (
                 <div key={key} className='flex flex-shrink-0 flex-col'>
-                  <div className='px-[16px] pb-[6px]'>
-                    <div className='font-base text-[var(--text-icon)] text-small'>{title}</div>
-                  </div>
+                  {!isCollapsed && (
+                    <div className='px-[16px] pb-[6px]'>
+                      <div className='font-base text-[var(--text-icon)] text-small'>{title}</div>
+                    </div>
+                  )}
                   <div className='flex flex-col gap-[2px] px-[8px]'>
                     {sectionItems.map((item) => {
                       const Icon = item.icon
