@@ -218,6 +218,61 @@ export function Tables() {
     [workspaceId, router]
   )
 
+  const handleExportCsv = useCallback(async () => {
+    if (!activeTable || !workspaceId) return
+    closeRowContextMenu()
+
+    try {
+      const tableRes = await fetch(
+        `/api/table/${activeTable.id}?workspaceId=${encodeURIComponent(workspaceId)}`
+      )
+      if (!tableRes.ok) throw new Error('Failed to fetch table')
+      const tableJson = await tableRes.json()
+      const table = tableJson.data?.table ?? tableJson.table
+
+      const rowsRes = await fetch(
+        `/api/table/${activeTable.id}/rows?workspaceId=${encodeURIComponent(workspaceId)}&limit=1000&offset=0`
+      )
+      if (!rowsRes.ok) throw new Error('Failed to fetch rows')
+      const rowsJson = await rowsRes.json()
+      const tableRows = rowsJson.data?.rows ?? rowsJson.rows ?? []
+
+      const cols = table?.schema?.columns ?? []
+      if (cols.length === 0) {
+        toast.error('Table has no columns to export')
+        return
+      }
+
+      const escapeCsvField = (value: unknown): string => {
+        if (value === null || value === undefined) return ''
+        const str = typeof value === 'object' ? JSON.stringify(value) : String(value)
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+          return `"${str.replace(/"/g, '""')}"`
+        }
+        return str
+      }
+
+      const header = cols.map((col: { name: string }) => escapeCsvField(col.name)).join(',')
+      const dataRows = tableRows.map((row: { data: Record<string, unknown> }) =>
+        cols.map((col: { name: string }) => escapeCsvField(row.data[col.name])).join(',')
+      )
+
+      const csv = [header, ...dataRows].join('\r\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${activeTable.name}.csv`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      logger.error('Failed to export table as CSV:', err)
+      toast.error('Failed to export table as CSV')
+    }
+  }, [activeTable, workspaceId, closeRowContextMenu])
+
   const handleListUploadCsv = useCallback(() => {
     csvInputRef.current?.click()
     closeListContextMenu()
@@ -309,6 +364,7 @@ export function Tables() {
         onCopyId={() => {
           if (activeTable) navigator.clipboard.writeText(activeTable.id)
         }}
+        onExportCsv={handleExportCsv}
         onDelete={() => setIsDeleteDialogOpen(true)}
         disableDelete={userPermissions.canEdit !== true}
         disableRename={userPermissions.canEdit !== true}
