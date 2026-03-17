@@ -1,4 +1,8 @@
 import { createLogger } from '@sim/logger'
+import {
+  importCsvToTable,
+  sanitizeName,
+} from '@/app/api/table/import-csv/route'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import type { UserTableArgs, UserTableResult } from '@/lib/copilot/tools/shared/schemas'
 import { COLUMN_TYPES } from '@/lib/table/constants'
@@ -55,19 +59,9 @@ async function resolveWorkspaceFile(
   return { buffer, name: record.name, type: record.type }
 }
 
-function parseFileRows(
-  buffer: Buffer,
-  fileName: string,
-  contentType: string
-): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
+function isCsvFile(fileName: string, contentType: string): boolean {
   const ext = fileName.split('.').pop()?.toLowerCase()
-  if (ext === 'json' || contentType === 'application/json') {
-    return parseJsonRows(buffer)
-  }
-  if (ext === 'csv' || ext === 'tsv' || contentType === 'text/csv') {
-    return parseCsvRows(buffer)
-  }
-  throw new Error(`Unsupported file format: "${ext}". Supported: csv, tsv, json`)
+  return ext === 'csv' || ext === 'tsv' || contentType === 'text/csv'
 }
 
 async function parseJsonRows(
@@ -90,27 +84,37 @@ async function parseJsonRows(
   return { headers: [...headerSet], rows: parsed }
 }
 
-async function parseCsvRows(
-  buffer: Buffer
-): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
-  const { parse } = await import('csv-parse/sync')
-  const parsed = parse(buffer.toString('utf-8'), {
-    columns: true,
-    skip_empty_lines: true,
-    trim: true,
-    relax_column_count: true,
-    relax_quotes: true,
-    skip_records_with_error: true,
-    cast: false,
-  }) as Record<string, unknown>[]
-  if (parsed.length === 0) {
-    throw new Error('CSV file has no data rows')
-  }
-  const headers = Object.keys(parsed[0])
-  if (headers.length === 0) {
-    throw new Error('CSV file has no headers')
-  }
-  return { headers, rows: parsed }
+function sanitizeHeadersAndRows(
+  headers: string[],
+  rows: Record<string, unknown>[]
+): { headers: string[]; rows: Record<string, unknown>[] } {
+  const seen = new Set<string>()
+  const headerMap = new Map<string, string>()
+
+  const sanitized = headers.map((raw) => {
+    let clean = sanitizeName(raw)
+    let suffix = 2
+    while (seen.has(clean.toLowerCase())) {
+      clean = `${sanitizeName(raw)}_${suffix}`
+      suffix++
+    }
+    seen.add(clean.toLowerCase())
+    headerMap.set(raw, clean)
+    return clean
+  })
+
+  const needsRemap = headers.some((h, i) => h !== sanitized[i])
+  const remappedRows = needsRemap
+    ? rows.map((row) => {
+        const out: Record<string, unknown> = {}
+        for (const [raw, clean] of headerMap) {
+          if (raw in row) out[clean] = row[raw]
+        }
+        return out
+      })
+    : rows
+
+  return { headers: sanitized, rows: remappedRows }
 }
 
 function inferColumnType(values: unknown[]): ColumnType {
@@ -640,13 +644,55 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const file = await resolveWorkspaceFile(filePath, workspaceId)
-          const { headers, rows } = await parseFileRows(file.buffer, file.name, file.type)
-          if (rows.length === 0) {
+          const ext = file.name.split('.').pop()?.toLowerCase()
+
+          if (isCsvFile(file.name, file.type)) {
+            const result = await importCsvToTable({
+              buffer: file.buffer,
+              fileName: file.name,
+              workspaceId,
+              userId: context.userId,
+              tableName: args.name,
+              description: args.description || `Imported from ${file.name}`,
+            })
+
+            logger.info('Table created from CSV file', {
+              tableId: result.tableId,
+              fileName: file.name,
+              columns: result.columns.length,
+              rows: result.rowCount,
+              userId: context.userId,
+            })
+
+            return {
+              success: true,
+              message: `Created table "${result.tableName}" with ${result.columns.length} columns and ${result.rowCount} rows from "${file.name}"`,
+              data: {
+                tableId: result.tableId,
+                tableName: result.tableName,
+                columns: result.columns.map((c) => ({ name: c.name, type: c.type })),
+                rowCount: result.rowCount,
+                sourceFile: file.name,
+              },
+            }
+          }
+
+          if (ext !== 'json' && file.type !== 'application/json') {
+            return {
+              success: false,
+              message: `Unsupported file format: "${ext}". Supported: csv, tsv, json`,
+            }
+          }
+
+          const { headers: rawHeaders, rows: rawRows } = await parseJsonRows(file.buffer)
+          if (rawRows.length === 0) {
             return { success: false, message: 'File contains no data rows' }
           }
 
+          const { headers, rows } = sanitizeHeadersAndRows(rawHeaders, rawRows)
           const columns = inferSchema(headers, rows)
-          const tableName = args.name || file.name.replace(/\.[^.]+$/, '')
+          const tableName =
+            args.name || sanitizeName(file.name.replace(/\.[^.]+$/, ''), 'imported_table')
           const requestId = crypto.randomUUID().slice(0, 8)
           const table = await createTable(
             {
@@ -663,7 +709,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const coerced = coerceRows(rows, columns, columnMap)
           const inserted = await batchInsertAll(table.id, coerced, table, workspaceId)
 
-          logger.info('Table created from file', {
+          logger.info('Table created from JSON file', {
             tableId: table.id,
             fileName: file.name,
             columns: columns.length,
@@ -703,10 +749,33 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           const file = await resolveWorkspaceFile(filePath, workspaceId)
-          const { headers, rows } = await parseFileRows(file.buffer, file.name, file.type)
-          if (rows.length === 0) {
+          const ext = file.name.split('.').pop()?.toLowerCase()
+          const isJson = ext === 'json' || file.type === 'application/json'
+          const isCsv = isCsvFile(file.name, file.type)
+          if (!isJson && !isCsv) {
+            return {
+              success: false,
+              message: `Unsupported file format: "${ext}". Supported: csv, tsv, json`,
+            }
+          }
+
+          let rawHeaders: string[]
+          let rawRows: Record<string, unknown>[]
+          if (isJson) {
+            const parsed = await parseJsonRows(file.buffer)
+            rawHeaders = parsed.headers
+            rawRows = parsed.rows
+          } else {
+            const { parseCsvBuffer } = await import('@/app/api/table/import-csv/route')
+            const parsed = await parseCsvBuffer(file.buffer)
+            rawHeaders = parsed.headers
+            rawRows = parsed.rows
+          }
+          if (rawRows.length === 0) {
             return { success: false, message: 'File contains no data rows' }
           }
+
+          const { headers, rows } = sanitizeHeadersAndRows(rawHeaders, rawRows)
 
           const tableColumns = table.schema.columns as ColumnDefinition[]
           const tableColNames = new Set(tableColumns.map((c) => c.name))

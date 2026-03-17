@@ -21,12 +21,24 @@ const SCHEMA_SAMPLE_SIZE = 100
 
 type ColumnType = 'string' | 'number' | 'boolean' | 'date'
 
-async function parseCsvBuffer(
-  buffer: Buffer,
-  delimiter = ','
+function detectDelimiter(content: string): string {
+  const firstLine = content.split('\n')[0] || ''
+  const commaCount = (firstLine.match(/,/g) || []).length
+  const tabCount = (firstLine.match(/\t/g) || []).length
+  const semiCount = (firstLine.match(/;/g) || []).length
+  if (tabCount > commaCount && tabCount > semiCount) return '\t'
+  if (semiCount > commaCount) return ';'
+  return ','
+}
+
+export async function parseCsvBuffer(
+  buffer: Buffer
 ): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
   const { parse } = await import('csv-parse/sync')
-  const parsed = parse(buffer.toString('utf-8'), {
+  let content = buffer.toString('utf-8')
+  if (content.charCodeAt(0) === 0xfeff) content = content.slice(1)
+  const delimiter = detectDelimiter(content)
+  const parsed = parse(content, {
     columns: true,
     skip_empty_lines: true,
     trim: true,
@@ -100,7 +112,7 @@ function inferSchema(headers: string[], rows: Record<string, unknown>[]): Column
  * underscores, and ensures the name starts with a letter or underscore.
  * Used for both table names and column names to satisfy NAME_PATTERN.
  */
-function sanitizeName(raw: string, fallbackPrefix = 'col'): string {
+export function sanitizeName(raw: string, fallbackPrefix = 'col'): string {
   let name = raw
     .trim()
     .replace(/[^a-zA-Z0-9_]/g, '_')
@@ -155,6 +167,86 @@ function coerceRows(
   })
 }
 
+/**
+ * Core CSV-to-table import logic. Parses the buffer, sanitizes headers, infers
+ * schema, creates the table, coerces and inserts all rows. Rolls back the table
+ * on insertion failure. Used by both the HTTP handler and copilot tools.
+ */
+export async function importCsvToTable(opts: {
+  buffer: Buffer
+  fileName: string
+  workspaceId: string
+  userId: string
+  tableName?: string
+  description?: string
+}): Promise<{
+  tableId: string
+  tableName: string
+  columns: ColumnDefinition[]
+  rowCount: number
+  schema: TableSchema
+}> {
+  const requestId = crypto.randomUUID().slice(0, 8)
+  const { headers, rows } = await parseCsvBuffer(opts.buffer)
+
+  const columns = inferSchema(headers, rows)
+  const headerToColumn = new Map(headers.map((h, i) => [h, columns[i].name]))
+
+  const tableName =
+    opts.tableName || sanitizeName(opts.fileName.replace(/\.[^.]+$/, ''), 'imported_table')
+  const planLimits = await getWorkspaceTableLimits(opts.workspaceId)
+
+  const normalizedSchema: TableSchema = {
+    columns: columns.map(normalizeColumn),
+  }
+
+  const table = await createTable(
+    {
+      name: tableName,
+      description: opts.description || `Imported from ${opts.fileName}`,
+      schema: normalizedSchema,
+      workspaceId: opts.workspaceId,
+      userId: opts.userId,
+      maxRows: planLimits.maxRowsPerTable,
+      maxTables: planLimits.maxTables,
+    },
+    requestId
+  )
+
+  try {
+    const coerced = coerceRows(rows, columns, headerToColumn)
+    let inserted = 0
+    for (let i = 0; i < coerced.length; i += MAX_BATCH_SIZE) {
+      const batch = coerced.slice(i, i + MAX_BATCH_SIZE)
+      const batchRequestId = crypto.randomUUID().slice(0, 8)
+      const result = await batchInsertRows(
+        { tableId: table.id, rows: batch, workspaceId: opts.workspaceId, userId: opts.userId },
+        table,
+        batchRequestId
+      )
+      inserted += result.length
+    }
+
+    logger.info('CSV imported to table', {
+      tableId: table.id,
+      fileName: opts.fileName,
+      columns: columns.length,
+      rows: inserted,
+    })
+
+    return {
+      tableId: table.id,
+      tableName: table.name,
+      columns,
+      rowCount: inserted,
+      schema: normalizedSchema,
+    }
+  } catch (insertError) {
+    await deleteTable(table.id, requestId).catch(() => {})
+    throw insertError
+  }
+}
+
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
@@ -194,69 +286,25 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const delimiter = ext === 'tsv' ? '\t' : ','
-    const { headers, rows } = await parseCsvBuffer(buffer, delimiter)
+    const result = await importCsvToTable({
+      buffer,
+      fileName: file.name,
+      workspaceId,
+      userId: authResult.userId,
+    })
 
-    const columns = inferSchema(headers, rows)
-    const headerToColumn = new Map(headers.map((h, i) => [h, columns[i].name]))
-
-    const tableName = sanitizeName(file.name.replace(/\.[^.]+$/, ''), 'imported_table')
-    const planLimits = await getWorkspaceTableLimits(workspaceId)
-
-    const normalizedSchema: TableSchema = {
-      columns: columns.map(normalizeColumn),
-    }
-
-    const table = await createTable(
-      {
-        name: tableName,
-        description: `Imported from ${file.name}`,
-        schema: normalizedSchema,
-        workspaceId,
-        userId: authResult.userId,
-        maxRows: planLimits.maxRowsPerTable,
-        maxTables: planLimits.maxTables,
-      },
-      requestId
-    )
-
-    try {
-      const coerced = coerceRows(rows, columns, headerToColumn)
-      let inserted = 0
-      for (let i = 0; i < coerced.length; i += MAX_BATCH_SIZE) {
-        const batch = coerced.slice(i, i + MAX_BATCH_SIZE)
-        const batchRequestId = crypto.randomUUID().slice(0, 8)
-        const result = await batchInsertRows(
-          { tableId: table.id, rows: batch, workspaceId, userId: authResult.userId },
-          table,
-          batchRequestId
-        )
-        inserted += result.length
-      }
-
-      logger.info(`[${requestId}] CSV imported`, {
-        tableId: table.id,
-        fileName: file.name,
-        columns: columns.length,
-        rows: inserted,
-      })
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          table: {
-            id: table.id,
-            name: table.name,
-            description: table.description,
-            schema: normalizedSchema,
-            rowCount: inserted,
-          },
+    return NextResponse.json({
+      success: true,
+      data: {
+        table: {
+          id: result.tableId,
+          name: result.tableName,
+          description: `Imported from ${file.name}`,
+          schema: result.schema,
+          rowCount: result.rowCount,
         },
-      })
-    } catch (insertError) {
-      await deleteTable(table.id, requestId).catch(() => {})
-      throw insertError
-    }
+      },
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     logger.error(`[${requestId}] CSV import failed:`, error)

@@ -147,9 +147,30 @@ export async function buildCopilotRequestPayload(
           `Read with: read("uploads/${filename}")`,
           `To save permanently: materialize_file(fileName: "${filename}")`,
         ]
-        if (filename.endsWith('.json')) {
+        const lower = filename.toLowerCase()
+        if (lower.endsWith('.csv') || lower.endsWith('.tsv')) {
+          lines.push(
+            `To create a table: materialize_file(fileName: "${filename}", operation: "table")`
+          )
+        }
+        if (lower.endsWith('.json')) {
           lines.push(
             `To import as a workflow: materialize_file(fileName: "${filename}", operation: "import")`
+          )
+          lines.push(
+            `To create a table (if JSON array): materialize_file(fileName: "${filename}", operation: "table")`
+          )
+        }
+        if (
+          lower.endsWith('.pdf') ||
+          lower.endsWith('.txt') ||
+          lower.endsWith('.md') ||
+          lower.endsWith('.docx') ||
+          lower.endsWith('.doc') ||
+          lower.endsWith('.csv')
+        ) {
+          lines.push(
+            `To add to knowledge base: materialize_file(fileName: "${filename}", operation: "knowledge_base")`
           )
         }
         uploadContexts.push({

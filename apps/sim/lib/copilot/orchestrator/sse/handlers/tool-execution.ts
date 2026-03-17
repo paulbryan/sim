@@ -348,16 +348,9 @@ async function maybeWriteReadCsvToTable(
       }
       rows = parsed
     } else {
-      const { parse } = await import('csv-parse/sync')
-      rows = parse(content, {
-        columns: true,
-        skip_empty_lines: true,
-        trim: true,
-        relax_column_count: true,
-        relax_quotes: true,
-        skip_records_with_error: true,
-        cast: false,
-      }) as Record<string, unknown>[]
+      const { parseCsvBuffer } = await import('@/app/api/table/import-csv/route')
+      const parsed = await parseCsvBuffer(Buffer.from(content, 'utf-8'))
+      rows = parsed.rows
     }
 
     if (rows.length === 0) {
@@ -610,24 +603,6 @@ export async function executeToolAndReport(
   }
 }
 
-function abortAwareSleep(ms: number, abortSignal?: AbortSignal): Promise<void> {
-  return new Promise<void>((resolve) => {
-    if (abortSignal?.aborted) {
-      resolve()
-      return
-    }
-    const timer = setTimeout(resolve, ms)
-    abortSignal?.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer)
-        resolve()
-      },
-      { once: true }
-    )
-  })
-}
-
 export async function waitForToolDecision(
   toolCallId: string,
   timeoutMs: number,
@@ -642,7 +617,7 @@ export async function waitForToolDecision(
     if (decision?.status) {
       return decision
     }
-    await abortAwareSleep(interval, abortSignal)
+    await new Promise((resolve) => setTimeout(resolve, interval))
     interval = Math.min(interval * TOOL_DECISION_POLL_BACKOFF, maxInterval)
   }
   return null
@@ -681,7 +656,7 @@ export async function waitForToolCompletion(
     ) {
       return decision
     }
-    await abortAwareSleep(interval, abortSignal)
+    await new Promise((resolve) => setTimeout(resolve, interval))
     interval = Math.min(interval * TOOL_DECISION_POLL_BACKOFF, maxInterval)
   }
   return null
