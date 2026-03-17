@@ -76,7 +76,7 @@ function extractTabularData(output: unknown): Record<string, unknown>[] | null {
   return null
 }
 
-function escapeCsvValue(value: unknown): string {
+export function escapeCsvValue(value: unknown): string {
   if (value === null || value === undefined) return ''
   const str = typeof value === 'object' ? JSON.stringify(value) : String(value)
   if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
@@ -85,7 +85,7 @@ function escapeCsvValue(value: unknown): string {
   return str
 }
 
-function convertRowsToCsv(rows: Record<string, unknown>[]): string {
+export function convertRowsToCsv(rows: Record<string, unknown>[]): string {
   if (rows.length === 0) return ''
 
   const headerSet = new Set<string>()

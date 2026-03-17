@@ -14,6 +14,7 @@ import {
   Upload,
 } from '@/components/emcn'
 import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
+import { escapeCsvValue } from '@/lib/copilot/orchestrator/sse/handlers/tool-execution'
 import type { TableDefinition } from '@/lib/table'
 import { generateUniqueTableName } from '@/lib/table/constants'
 import type { ResourceColumn, ResourceRow } from '@/app/workspace/[workspaceId]/components'
@@ -243,21 +244,12 @@ export function Tables() {
         return
       }
 
-      const escapeCsvField = (value: unknown): string => {
-        if (value === null || value === undefined) return ''
-        const str = typeof value === 'object' ? JSON.stringify(value) : String(value)
-        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
-          return `"${str.replace(/"/g, '""')}"`
-        }
-        return str
-      }
-
-      const header = cols.map((col: { name: string }) => escapeCsvField(col.name)).join(',')
+      const header = cols.map((col: { name: string }) => escapeCsvValue(col.name)).join(',')
       const dataRows = tableRows.map((row: { data: Record<string, unknown> }) =>
-        cols.map((col: { name: string }) => escapeCsvField(row.data[col.name])).join(',')
+        cols.map((col: { name: string }) => escapeCsvValue(row.data[col.name])).join(',')
       )
 
-      const csv = [header, ...dataRows].join('\r\n')
+      const csv = [header, ...dataRows].join('\n')
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')

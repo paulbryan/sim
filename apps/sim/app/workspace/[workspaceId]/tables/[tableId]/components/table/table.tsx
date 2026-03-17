@@ -38,6 +38,7 @@ import {
   TypeNumber,
   TypeText,
 } from '@/components/emcn/icons'
+import { escapeCsvValue } from '@/lib/copilot/orchestrator/sse/handlers/tool-execution'
 import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition, Filter, SortDirection, TableRow as TableRowType } from '@/lib/table'
 import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
@@ -1137,21 +1138,12 @@ export function Table({
   const handleExportCsv = useCallback(() => {
     if (!tableData || columns.length === 0) return
 
-    const escapeCsvField = (value: unknown): string => {
-      if (value === null || value === undefined) return ''
-      const str = typeof value === 'object' ? JSON.stringify(value) : String(value)
-      if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
-        return `"${str.replace(/"/g, '""')}"`
-      }
-      return str
-    }
-
-    const header = columns.map((col) => escapeCsvField(col.name)).join(',')
+    const header = columns.map((col) => escapeCsvValue(col.name)).join(',')
     const dataRows = rows.map((row) =>
-      columns.map((col) => escapeCsvField(row.data[col.name])).join(',')
+      columns.map((col) => escapeCsvValue(row.data[col.name])).join(',')
     )
 
-    const csv = [header, ...dataRows].join('\r\n')
+    const csv = [header, ...dataRows].join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
