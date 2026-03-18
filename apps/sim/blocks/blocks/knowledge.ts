@@ -195,18 +195,18 @@ export const KnowledgeBlock: BlockConfig = {
       condition: { field: 'operation', value: ['create_document', 'upsert_document'] },
     },
     {
-      id: 'documentTags',
-      title: 'Document Tags',
-      type: 'document-tag-entry',
-      dependsOn: ['knowledgeBaseSelector'],
-      condition: { field: 'operation', value: ['create_document', 'upsert_document'] },
-    },
-    {
       id: 'upsertDocumentId',
       title: 'Document ID (Optional)',
       type: 'short-input',
       placeholder: 'Enter existing document ID to update (or leave empty to match by name)',
       condition: { field: 'operation', value: 'upsert_document' },
+    },
+    {
+      id: 'documentTags',
+      title: 'Document Tags',
+      type: 'document-tag-entry',
+      dependsOn: ['knowledgeBaseSelector'],
+      condition: { field: 'operation', value: ['create_document', 'upsert_document'] },
     },
 
     // --- Update Chunk / Delete Chunk ---
