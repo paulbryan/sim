@@ -103,9 +103,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (existingDoc.length > 0) {
         existingDocumentId = existingDoc[0].id
       }
-    }
-
-    if (!existingDocumentId) {
+    } else {
       const docsByFilename = await db
         .select({ id: document.id })
         .from(document)
