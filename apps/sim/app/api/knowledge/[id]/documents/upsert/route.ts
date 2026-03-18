@@ -151,6 +151,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const firstDocument = createdDocuments[0]
+    if (!firstDocument) {
+      logger.error(`[${requestId}] createDocumentRecords returned empty array unexpectedly`)
+      return NextResponse.json({ error: 'Failed to create document record' }, { status: 500 })
+    }
 
     processDocumentsWithQueue(
       createdDocuments,
