@@ -159,10 +159,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           deleteError
         )
         await deleteDocument(firstDocument.documentId, requestId).catch(() => {})
-        return NextResponse.json(
-          { error: 'Failed to replace existing document' },
-          { status: 500 }
-        )
+        return NextResponse.json({ error: 'Failed to replace existing document' }, { status: 500 })
       }
     }
 
