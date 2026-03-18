@@ -81,12 +81,18 @@ export const knowledgeUpsertDocumentTool: ToolConfig<
         throw new Error('Document content exceeds maximum size of 1MB')
       }
 
-      const contentBytes = new TextEncoder().encode(textContent).length
-
-      const base64Content =
-        typeof Buffer !== 'undefined'
-          ? Buffer.from(textContent, 'utf8').toString('base64')
-          : btoa(String.fromCharCode(...new TextEncoder().encode(textContent)))
+      const utf8Bytes = new TextEncoder().encode(textContent)
+      const contentBytes = utf8Bytes.length
+      let base64Content: string
+      if (typeof Buffer !== 'undefined') {
+        base64Content = Buffer.from(textContent, 'utf8').toString('base64')
+      } else {
+        let binary = ''
+        for (let i = 0; i < utf8Bytes.length; i++) {
+          binary += String.fromCharCode(utf8Bytes[i])
+        }
+        base64Content = btoa(binary)
+      }
 
       const dataUri = `data:text/plain;base64,${base64Content}`
 

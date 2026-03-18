@@ -55,9 +55,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
     const userId = auth.userId
 
-    if (body.workflowId) {
+    const validatedData = UpsertDocumentSchema.parse(body)
+
+    if (validatedData.workflowId) {
       const authorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId: body.workflowId,
+        workflowId: validatedData.workflowId,
         userId,
         action: 'write',
       })
@@ -81,8 +83,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const validatedData = UpsertDocumentSchema.parse(body)
 
     let existingDocumentId: string | null = null
     let isUpdate = false
@@ -126,9 +126,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (existingDocumentId) {
       isUpdate = true
       logger.info(
-        `[${requestId}] Found existing document ${existingDocumentId}, deleting before re-creation`
+        `[${requestId}] Found existing document ${existingDocumentId}, creating replacement before deleting old`
       )
-      await deleteDocument(existingDocumentId, requestId)
     }
 
     const createdDocuments = await createDocumentRecords(
@@ -146,6 +145,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       knowledgeBaseId,
       requestId
     )
+
+    if (existingDocumentId) {
+      await deleteDocument(existingDocumentId, requestId)
+    }
 
     const firstDocument = createdDocuments[0]
 
