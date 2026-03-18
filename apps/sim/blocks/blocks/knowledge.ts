@@ -176,14 +176,14 @@ export const KnowledgeBlock: BlockConfig = {
       condition: { field: 'operation', value: 'upload_chunk' },
     },
 
-    // --- Create Document ---
+    // --- Create Document / Upsert Document ---
     {
       id: 'name',
       title: 'Document Name',
       type: 'short-input',
       placeholder: 'Enter document name',
       required: true,
-      condition: { field: 'operation', value: 'create_document' },
+      condition: { field: 'operation', value: ['create_document', 'upsert_document'] },
     },
     {
       id: 'content',
@@ -192,7 +192,7 @@ export const KnowledgeBlock: BlockConfig = {
       placeholder: 'Enter the document content',
       rows: 6,
       required: true,
-      condition: { field: 'operation', value: 'create_document' },
+      condition: { field: 'operation', value: ['create_document', 'upsert_document'] },
     },
     {
       id: 'documentTags',
@@ -200,25 +200,6 @@ export const KnowledgeBlock: BlockConfig = {
       type: 'document-tag-entry',
       dependsOn: ['knowledgeBaseSelector'],
       condition: { field: 'operation', value: ['create_document', 'upsert_document'] },
-    },
-
-    // --- Upsert Document ---
-    {
-      id: 'name',
-      title: 'Document Name',
-      type: 'short-input',
-      placeholder: 'Enter document name',
-      required: true,
-      condition: { field: 'operation', value: 'upsert_document' },
-    },
-    {
-      id: 'content',
-      title: 'Document Content',
-      type: 'long-input',
-      placeholder: 'Enter the document content',
-      rows: 6,
-      required: true,
-      condition: { field: 'operation', value: 'upsert_document' },
     },
     {
       id: 'upsertDocumentId',

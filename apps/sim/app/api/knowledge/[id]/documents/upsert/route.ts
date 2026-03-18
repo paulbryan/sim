@@ -144,14 +144,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       requestId
     )
 
-    if (existingDocumentId) {
-      await deleteDocument(existingDocumentId, requestId)
-    }
-
     const firstDocument = createdDocuments[0]
     if (!firstDocument) {
       logger.error(`[${requestId}] createDocumentRecords returned empty array unexpectedly`)
       return NextResponse.json({ error: 'Failed to create document record' }, { status: 500 })
+    }
+
+    if (existingDocumentId) {
+      try {
+        await deleteDocument(existingDocumentId, requestId)
+      } catch (deleteError) {
+        logger.error(
+          `[${requestId}] Failed to delete old document ${existingDocumentId}, rolling back new record`,
+          deleteError
+        )
+        await deleteDocument(firstDocument.documentId, requestId).catch(() => {})
+        return NextResponse.json(
+          { error: 'Failed to replace existing document' },
+          { status: 500 }
+        )
+      }
     }
 
     processDocumentsWithQueue(
