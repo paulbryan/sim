@@ -271,16 +271,14 @@ export const BoxBlock: BlockConfig = {
       'box_update_file',
     ],
     config: {
-      tool: (params) => {
+      tool: (params) => `box_${params.operation}`,
+      params: (params) => {
         const normalizedFile = normalizeFileInput(params.uploadFile || params.fileRef, {
           single: true,
         })
         if (normalizedFile) {
           params.file = normalizedFile
         }
-        return `box_${params.operation}`
-      },
-      params: (params) => {
         const { credential, operation, ...rest } = params
 
         const baseParams: Record<string, unknown> = {

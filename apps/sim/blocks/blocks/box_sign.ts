@@ -10,7 +10,7 @@ export const BoxSignBlock: BlockConfig = {
     'Send documents for e-signature, check status, and manage sign requests with Box Sign',
   longDescription:
     'Integrate Box Sign into your workflow to send documents for e-signature. Create sign requests with multiple signers, track signing status, list all requests, cancel pending requests, and resend reminders. Ideal for offer letters, contracts, and other documents requiring signatures.',
-  docsLink: 'https://docs.sim.ai/tools/box-sign',
+  docsLink: 'https://docs.sim.ai/tools/box_sign',
   category: 'tools',
   bgColor: '#0061D5',
   icon: BoxCompanyIcon,

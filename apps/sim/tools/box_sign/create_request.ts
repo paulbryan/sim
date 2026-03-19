@@ -147,7 +147,9 @@ export const boxSignCreateRequestTool: ToolConfig<BoxSignCreateRequestParams, Bo
             signers.push(...additional)
           }
         } catch {
-          // Ignore parse errors for additional signers
+          throw new Error(
+            'Invalid JSON in additionalSigners. Expected a JSON array of signer objects.'
+          )
         }
       }
 
