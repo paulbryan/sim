@@ -583,7 +583,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'box',
         icon: BoxCompanyIcon,
         baseProviderIcon: BoxCompanyIcon,
-        scopes: ['root_readwrite'],
+        scopes: ['root_readwrite', 'sign_requests.readwrite'],
       },
     },
     defaultService: 'box',
