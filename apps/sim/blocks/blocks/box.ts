@@ -12,7 +12,7 @@ export const BoxBlock: BlockConfig = {
     'Integrate Box into your workflow to manage files, folders, and e-signatures. Upload and download files, search content, create folders, send documents for e-signature, track signing status, and more.',
   docsLink: 'https://docs.sim.ai/tools/box',
   category: 'tools',
-  bgColor: '#0061D5',
+  bgColor: '#FFFFFF',
   icon: BoxCompanyIcon,
   authMode: AuthMode.OAuth,
 
