@@ -127,7 +127,10 @@ export const boxSignCreateRequestTool: ToolConfig<BoxSignCreateRequestParams, Bo
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const fileIds = params.sourceFileIds.split(',').map((id: string) => id.trim()).filter(Boolean)
+      const fileIds = params.sourceFileIds
+        .split(',')
+        .map((id: string) => id.trim())
+        .filter(Boolean)
       const sourceFiles = fileIds.map((id: string) => ({ type: 'file', id }))
 
       const signers: Array<Record<string, unknown>> = [
