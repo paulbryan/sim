@@ -478,6 +478,7 @@ export const auth = betterAuth({
         'sharepoint',
         'jira',
         'airtable',
+        'box',
         'dropbox',
         'salesforce',
         'wealthbox',
@@ -2172,6 +2173,51 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error in Attio getUserInfo:', error)
+              throw error
+            }
+          },
+        },
+
+        {
+          providerId: 'box',
+          clientId: env.BOX_CLIENT_ID as string,
+          clientSecret: env.BOX_CLIENT_SECRET as string,
+          authorizationUrl: 'https://account.box.com/api/oauth2/authorize',
+          tokenUrl: 'https://api.box.com/oauth2/token',
+          scopes: getCanonicalScopesForProvider('box'),
+          responseType: 'code',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/box`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.box.com/2.0/users/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                const errorText = await response.text()
+                logger.error('Box API error:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                  body: errorText,
+                })
+                throw new Error(`Box API error: ${response.status} ${response.statusText}`)
+              }
+
+              const data = await response.json()
+
+              return {
+                id: `${data.id}-${crypto.randomUUID()}`,
+                email: data.login,
+                name: data.name || data.login,
+                emailVerified: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                image: data.avatar_url || undefined,
+              }
+            } catch (error) {
+              logger.error('Error in Box getUserInfo:', error)
               throw error
             }
           },

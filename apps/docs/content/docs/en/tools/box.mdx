@@ -1,0 +1,280 @@
+---
+title: Box
+description: Upload, download, search, and manage files and folders in Box
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="box"
+  color="#0061D5"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Box](https://www.box.com/) is a leading cloud content management and file sharing platform trusted by enterprises worldwide to securely store, manage, and collaborate on files. Box provides robust APIs for automating file operations and integrating with business workflows.
+
+With the Box integration in Sim, you can:
+
+- **Upload files**: Upload documents, images, and other files to any Box folder
+- **Download files**: Retrieve file content from Box for processing in your workflows
+- **Get file info**: Access detailed metadata including size, owner, timestamps, tags, and shared links
+- **List folder contents**: Browse files and folders with sorting and pagination support
+- **Create folders**: Organize your Box storage by creating new folders programmatically
+- **Delete files and folders**: Remove content with optional recursive deletion for folders
+- **Copy files**: Duplicate files across folders with optional renaming
+- **Search**: Find files and folders by name, content, extension, or location
+- **Update file metadata**: Rename, move, add descriptions, or tag files
+
+These capabilities allow your Sim agents to automate Box operations directly within your workflows — from organizing documents and distributing content to processing uploaded files and maintaining structured cloud storage as part of your business processes.
+{/* MANUAL-CONTENT-END */}
+
+## Usage Instructions
+
+Integrate Box into your workflow to manage files and folders. Upload and download files, get file information, list folder contents, create and delete folders, copy files, search across your Box account, and update file metadata.
+
+
+
+## Tools
+
+### `box_upload_file`
+
+Upload a file to a Box folder
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `parentFolderId` | string | Yes | The ID of the folder to upload the file to \(use "0" for root\) |
+| `file` | file | No | The file to upload \(UserFile object\) |
+| `fileContent` | string | No | Legacy: base64 encoded file content |
+| `fileName` | string | No | Optional filename override |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Uploaded file ID |
+| `name` | string | Uploaded file name |
+| `size` | number | File size in bytes |
+| `sha1` | string | SHA1 hash of file content |
+| `createdAt` | string | Creation timestamp |
+| `modifiedAt` | string | Last modified timestamp |
+| `parentId` | string | Parent folder ID |
+| `parentName` | string | Parent folder name |
+
+### `box_download_file`
+
+Download a file from Box
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file to download |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+| `content` | string | Base64 encoded file content |
+
+### `box_get_file_info`
+
+Get detailed information about a file in Box
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file to get information about |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | File ID |
+| `name` | string | File name |
+| `description` | string | File description |
+| `size` | number | File size in bytes |
+| `sha1` | string | SHA1 hash of file content |
+| `createdAt` | string | Creation timestamp |
+| `modifiedAt` | string | Last modified timestamp |
+| `createdBy` | object | User who created the file |
+| `modifiedBy` | object | User who last modified the file |
+| `ownedBy` | object | User who owns the file |
+| `parentId` | string | Parent folder ID |
+| `parentName` | string | Parent folder name |
+| `sharedLink` | json | Shared link details |
+| `tags` | array | File tags |
+| `commentCount` | number | Number of comments |
+
+### `box_list_folder_items`
+
+List files and folders in a Box folder
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderId` | string | Yes | The ID of the folder to list items from \(use "0" for root\) |
+| `limit` | number | No | Maximum number of items to return per page |
+| `offset` | number | No | The offset for pagination |
+| `sort` | string | No | Sort field: id, name, date, or size |
+| `direction` | string | No | Sort direction: ASC or DESC |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalCount` | number | Total number of items in the folder |
+| `offset` | number | Current pagination offset |
+| `limit` | number | Current pagination limit |
+
+### `box_create_folder`
+
+Create a new folder in Box
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Name for the new folder |
+| `parentFolderId` | string | Yes | The ID of the parent folder \(use "0" for root\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Folder ID |
+| `name` | string | Folder name |
+| `createdAt` | string | Creation timestamp |
+| `modifiedAt` | string | Last modified timestamp |
+| `parentId` | string | Parent folder ID |
+| `parentName` | string | Parent folder name |
+
+### `box_delete_file`
+
+Delete a file from Box
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the file was successfully deleted |
+| `message` | string | Success confirmation message |
+
+### `box_delete_folder`
+
+Delete a folder from Box
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `folderId` | string | Yes | The ID of the folder to delete |
+| `recursive` | boolean | No | Delete folder and all its contents recursively |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the folder was successfully deleted |
+| `message` | string | Success confirmation message |
+
+### `box_copy_file`
+
+Copy a file to another folder in Box
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file to copy |
+| `parentFolderId` | string | Yes | The ID of the destination folder |
+| `name` | string | No | Optional new name for the copied file |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Uploaded file ID |
+| `name` | string | Uploaded file name |
+| `size` | number | File size in bytes |
+| `sha1` | string | SHA1 hash of file content |
+| `createdAt` | string | Creation timestamp |
+| `modifiedAt` | string | Last modified timestamp |
+| `parentId` | string | Parent folder ID |
+| `parentName` | string | Parent folder name |
+
+### `box_search`
+
+Search for files and folders in Box
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query string |
+| `limit` | number | No | Maximum number of results to return |
+| `offset` | number | No | The offset for pagination |
+| `ancestorFolderId` | string | No | Restrict search to a specific folder and its subfolders |
+| `fileExtensions` | string | No | Comma-separated file extensions to filter by \(e.g., pdf,docx\) |
+| `type` | string | No | Restrict to a specific content type: file, folder, or web_link |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Search results |
+|   ↳ `type` | string | Item type \(file, folder, web_link\) |
+|   ↳ `id` | string | Item ID |
+|   ↳ `name` | string | Item name |
+|   ↳ `size` | number | Item size in bytes |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `modifiedAt` | string | Last modified timestamp |
+|   ↳ `parentId` | string | Parent folder ID |
+|   ↳ `parentName` | string | Parent folder name |
+| `totalCount` | number | Total number of matching results |
+
+### `box_update_file`
+
+Update file info in Box (rename, move, change description, add tags)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | Yes | The ID of the file to update |
+| `name` | string | No | New name for the file |
+| `description` | string | No | New description for the file \(max 256 characters\) |
+| `parentFolderId` | string | No | Move the file to a different folder by specifying the folder ID |
+| `tags` | string | No | Comma-separated tags to set on the file |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | File ID |
+| `name` | string | File name |
+| `description` | string | File description |
+| `size` | number | File size in bytes |
+| `sha1` | string | SHA1 hash of file content |
+| `createdAt` | string | Creation timestamp |
+| `modifiedAt` | string | Last modified timestamp |
+| `createdBy` | object | User who created the file |
+| `modifiedBy` | object | User who last modified the file |
+| `ownedBy` | object | User who owns the file |
+| `parentId` | string | Parent folder ID |
+| `parentName` | string | Parent folder name |
+| `sharedLink` | json | Shared link details |
+| `tags` | array | File tags |
+| `commentCount` | number | Number of comments |
+
+

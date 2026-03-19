@@ -1,0 +1,183 @@
+---
+title: Box Sign
+description: Send documents for e-signature, check status, and manage sign requests with Box Sign
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="box_sign"
+  color="#0061D5"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Box Sign](https://www.box.com/esignature) is Box's native e-signature solution that allows you to send documents for legally binding electronic signatures directly from your Box account. It's built into Box, so signed documents are automatically stored and organized in your cloud content.
+
+With the Box Sign integration in Sim, you can:
+
+- **Create sign requests**: Send documents for e-signature with one or more signers, specifying roles (signer, approver, final copy reader)
+- **Track signing status**: Monitor the progress of sign requests including who has signed and pending actions
+- **List sign requests**: View all sign requests with marker-based pagination
+- **Cancel requests**: Cancel pending sign requests that are no longer needed
+- **Resend reminders**: Send reminder notifications to signers who haven't completed signing
+
+The Box Sign integration is ideal for automating document signing workflows such as offer letters, contracts, NDAs, and approval processes. Agents can create sign requests from documents already stored in Box, track completion, and trigger follow-up actions based on signing status.
+{/* MANUAL-CONTENT-END */}
+
+## Usage Instructions
+
+Integrate Box Sign into your workflow to send documents for e-signature. Create sign requests with multiple signers, track signing status, list all requests, cancel pending requests, and resend reminders. Ideal for offer letters, contracts, and other documents requiring signatures.
+
+
+
+## Tools
+
+### `box_sign_create_request`
+
+Create a new Box Sign request to send documents for e-signature
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `sourceFileIds` | string | Yes | Comma-separated Box file IDs to send for signing |
+| `signerEmail` | string | Yes | Primary signer email address |
+| `signerRole` | string | No | Primary signer role: signer, approver, or final_copy_reader \(default: signer\) |
+| `additionalSigners` | string | No | JSON array of additional signers, e.g. \[\{"email":"user@example.com","role":"signer"\}\] |
+| `parentFolderId` | string | No | Box folder ID where signed documents will be stored \(default: user root\) |
+| `emailSubject` | string | No | Custom subject line for the signing email |
+| `emailMessage` | string | No | Custom message in the signing email body |
+| `name` | string | No | Name for the sign request |
+| `daysValid` | number | No | Number of days before the request expires \(0-730\) |
+| `areRemindersEnabled` | boolean | No | Whether to send automatic signing reminders |
+| `areTextSignaturesEnabled` | boolean | No | Whether to allow typed \(text\) signatures |
+| `signatureColor` | string | No | Signature color: blue, black, or red |
+| `redirectUrl` | string | No | URL to redirect signers to after signing |
+| `declinedRedirectUrl` | string | No | URL to redirect signers to after declining |
+| `isDocumentPreparationNeeded` | boolean | No | Whether document preparation is needed before sending |
+| `externalId` | string | No | External system reference ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Sign request ID |
+| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+| `name` | string | Sign request name |
+| `shortId` | string | Human-readable short ID |
+| `signers` | array | List of signers |
+| `sourceFiles` | array | Source files for signing |
+| `emailSubject` | string | Custom email subject line |
+| `emailMessage` | string | Custom email message body |
+| `daysValid` | number | Number of days the request is valid |
+| `createdAt` | string | Creation timestamp |
+| `autoExpireAt` | string | Auto-expiration timestamp |
+| `prepareUrl` | string | URL for document preparation \(if preparation is needed\) |
+| `senderEmail` | string | Email of the sender |
+
+### `box_sign_get_request`
+
+Get the details and status of a Box Sign request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signRequestId` | string | Yes | The ID of the sign request to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Sign request ID |
+| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+| `name` | string | Sign request name |
+| `shortId` | string | Human-readable short ID |
+| `signers` | array | List of signers |
+| `sourceFiles` | array | Source files for signing |
+| `emailSubject` | string | Custom email subject line |
+| `emailMessage` | string | Custom email message body |
+| `daysValid` | number | Number of days the request is valid |
+| `createdAt` | string | Creation timestamp |
+| `autoExpireAt` | string | Auto-expiration timestamp |
+| `prepareUrl` | string | URL for document preparation \(if preparation is needed\) |
+| `senderEmail` | string | Email of the sender |
+
+### `box_sign_list_requests`
+
+List all Box Sign requests
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limit` | number | No | Maximum number of sign requests to return \(max 1000\) |
+| `marker` | string | No | Pagination marker from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `signRequests` | array | List of sign requests |
+|   ↳ `id` | string | Sign request ID |
+|   ↳ `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+|   ↳ `name` | string | Sign request name |
+|   ↳ `shortId` | string | Human-readable short ID |
+|   ↳ `signers` | array | List of signers |
+|   ↳ `sourceFiles` | array | Source files for signing |
+|   ↳ `emailSubject` | string | Custom email subject line |
+|   ↳ `emailMessage` | string | Custom email message body |
+|   ↳ `daysValid` | number | Number of days the request is valid |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `autoExpireAt` | string | Auto-expiration timestamp |
+|   ↳ `prepareUrl` | string | URL for document preparation \(if preparation is needed\) |
+|   ↳ `senderEmail` | string | Email of the sender |
+| `count` | number | Number of sign requests returned in this page |
+| `nextMarker` | string | Marker for next page of results |
+
+### `box_sign_cancel_request`
+
+Cancel a pending Box Sign request
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signRequestId` | string | Yes | The ID of the sign request to cancel |
+| `reason` | string | No | Optional reason for cancellation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Sign request ID |
+| `status` | string | Request status \(converting, created, sent, viewed, signed, cancelled, declined, expired, error_converting, error_sending, finalizing, error_finalizing\) |
+| `name` | string | Sign request name |
+| `shortId` | string | Human-readable short ID |
+| `signers` | array | List of signers |
+| `sourceFiles` | array | Source files for signing |
+| `emailSubject` | string | Custom email subject line |
+| `emailMessage` | string | Custom email message body |
+| `daysValid` | number | Number of days the request is valid |
+| `createdAt` | string | Creation timestamp |
+| `autoExpireAt` | string | Auto-expiration timestamp |
+| `prepareUrl` | string | URL for document preparation \(if preparation is needed\) |
+| `senderEmail` | string | Email of the sender |
+
+### `box_sign_resend_request`
+
+Resend a Box Sign request to signers who have not yet signed
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signRequestId` | string | Yes | The ID of the sign request to resend |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Success confirmation message |
+
+
