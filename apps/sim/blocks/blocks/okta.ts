@@ -291,10 +291,6 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
         if (params.groupName) result.name = params.groupName
         if (params.groupDescription) result.description = params.groupDescription
 
-        // Boolean switches: only forward when explicitly true so tool defaults apply when OFF
-        if (params.sendEmail === true) result.sendEmail = true
-        if (params.activate === true) result.activate = true
-
         // Pass through all other non-empty params
         const skipKeys = new Set([
           'operation',
@@ -303,8 +299,6 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
           'limit',
           'groupName',
           'groupDescription',
-          'sendEmail',
-          'activate',
         ])
         for (const [key, value] of Object.entries(params)) {
           if (!skipKeys.has(key) && value !== undefined && value !== null && value !== '') {

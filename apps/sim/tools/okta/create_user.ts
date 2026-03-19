@@ -88,7 +88,7 @@ export const oktaCreateUserTool: ToolConfig<OktaCreateUserParams, OktaCreateUser
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      const activate = params.activate !== false
+      const activate = params.activate ?? true
       return `https://${domain}/api/v1/users?activate=${activate}`
     },
     method: 'POST',
