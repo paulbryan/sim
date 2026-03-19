@@ -79,7 +79,7 @@ export const boxListFolderItemsTool: ToolConfig<BoxListFolderItemsParams, BoxFol
       return {
         success: true,
         output: {
-          items: (data.entries ?? []).map((item: Record<string, unknown>) => ({
+          entries: (data.entries ?? []).map((item: Record<string, unknown>) => ({
             type: item.type ?? '',
             id: item.id ?? '',
             name: item.name ?? '',

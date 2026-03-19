@@ -364,7 +364,7 @@ export const BoxBlock: BlockConfig = {
     commentCount: 'number',
     file: 'file',
     content: 'string',
-    items: 'json',
+    entries: 'json',
     totalCount: 'number',
     offset: 'number',
     limit: 'number',

@@ -117,7 +117,7 @@ export interface BoxFileInfoResponse extends ToolResponse {
 
 export interface BoxFolderItemsResponse extends ToolResponse {
   output: {
-    items: Array<Record<string, unknown>>
+    entries: Array<Record<string, unknown>>
     totalCount: number
     offset: number
     limit: number
@@ -186,22 +186,20 @@ export const FILE_OUTPUT_PROPERTIES = {
   commentCount: { type: 'number', description: 'Number of comments', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
-export const FOLDER_ITEM_OUTPUT_PROPERTIES = {
-  type: { type: 'string', description: 'Item type (file, folder, web_link)' },
-  id: { type: 'string', description: 'Item ID' },
-  name: { type: 'string', description: 'Item name' },
-  size: { type: 'number', description: 'Item size in bytes', optional: true },
-  createdAt: { type: 'string', description: 'Creation timestamp', optional: true },
-  modifiedAt: { type: 'string', description: 'Last modified timestamp', optional: true },
-} as const satisfies Record<string, OutputProperty>
-
 export const FOLDER_ITEMS_OUTPUT_PROPERTIES = {
-  items: {
+  entries: {
     type: 'array',
     description: 'List of items in the folder',
     items: {
       type: 'object',
-      properties: FOLDER_ITEM_OUTPUT_PROPERTIES,
+      properties: {
+        type: { type: 'string', description: 'Item type (file, folder, web_link)' },
+        id: { type: 'string', description: 'Item ID' },
+        name: { type: 'string', description: 'Item name' },
+        size: { type: 'number', description: 'Item size in bytes', optional: true },
+        createdAt: { type: 'string', description: 'Creation timestamp', optional: true },
+        modifiedAt: { type: 'string', description: 'Last modified timestamp', optional: true },
+      },
     },
   },
   totalCount: { type: 'number', description: 'Total number of items in the folder' },
