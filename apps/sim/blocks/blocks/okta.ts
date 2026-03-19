@@ -289,9 +289,10 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
 
         // Map group-specific UI fields to tool param names
         if (params.groupName) result.name = params.groupName
-        if (params.groupDescription) result.description = params.groupDescription
+        if (params.groupDescription !== undefined) result.description = params.groupDescription
 
         // Pass through all other non-empty params
+        // Allow empty strings so users can clear fields (e.g. update_user partial updates)
         const skipKeys = new Set([
           'operation',
           'apiKey',
@@ -301,7 +302,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
           'groupDescription',
         ])
         for (const [key, value] of Object.entries(params)) {
-          if (!skipKeys.has(key) && value !== undefined && value !== null && value !== '') {
+          if (!skipKeys.has(key) && value !== undefined && value !== null) {
             result[key] = value
           }
         }

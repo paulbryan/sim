@@ -61,11 +61,12 @@ export const oktaUpdateGroupTool: ToolConfig<OktaUpdateGroupParams, OktaUpdateGr
       Accept: 'application/json',
       'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      const profile: Record<string, string> = { name: params.name }
-      if (params.description) profile.description = params.description
-      return { profile }
-    },
+    body: (params) => ({
+      profile: {
+        name: params.name,
+        description: params.description ?? '',
+      },
+    }),
   },
 
   transformResponse: async (response: Response) => {

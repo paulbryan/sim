@@ -93,13 +93,13 @@ export const oktaUpdateUserTool: ToolConfig<OktaUpdateUserParams, OktaUpdateUser
     body: (params) => {
       const profile: Record<string, string> = {}
 
-      if (params.firstName) profile.firstName = params.firstName
-      if (params.lastName) profile.lastName = params.lastName
-      if (params.email) profile.email = params.email
-      if (params.login) profile.login = params.login
-      if (params.mobilePhone) profile.mobilePhone = params.mobilePhone
-      if (params.title) profile.title = params.title
-      if (params.department) profile.department = params.department
+      if (params.firstName !== undefined) profile.firstName = params.firstName
+      if (params.lastName !== undefined) profile.lastName = params.lastName
+      if (params.email !== undefined) profile.email = params.email
+      if (params.login !== undefined) profile.login = params.login
+      if (params.mobilePhone !== undefined) profile.mobilePhone = params.mobilePhone
+      if (params.title !== undefined) profile.title = params.title
+      if (params.department !== undefined) profile.department = params.department
 
       return { profile }
     },
