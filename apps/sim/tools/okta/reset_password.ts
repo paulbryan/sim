@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
-import type {
-  OktaApiError,
-  OktaResetPasswordParams,
-  OktaResetPasswordResponse,
+import {
+  type OktaApiError,
+  type OktaResetPasswordParams,
+  type OktaResetPasswordResponse,
+  validateOktaDomain,
 } from '@/tools/okta/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -45,7 +46,7 @@ export const oktaResetPasswordTool: ToolConfig<OktaResetPasswordParams, OktaRese
 
     request: {
       url: (params) => {
-        const domain = params.domain.replace(/^https?:\/\//, '').replace(/\/$/, '')
+        const domain = validateOktaDomain(params.domain)
         const sendEmail = params.sendEmail !== false
         return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}/lifecycle/reset_password?sendEmail=${sendEmail}`
       },

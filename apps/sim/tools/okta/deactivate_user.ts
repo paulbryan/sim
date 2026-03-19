@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
-import type {
-  OktaApiError,
-  OktaDeactivateUserParams,
-  OktaDeactivateUserResponse,
+import {
+  type OktaApiError,
+  type OktaDeactivateUserParams,
+  type OktaDeactivateUserResponse,
+  validateOktaDomain,
 } from '@/tools/okta/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -47,12 +48,9 @@ export const oktaDeactivateUserTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const domain = params.domain.replace(/^https?:\/\//, '').replace(/\/$/, '')
-      const queryParams = new URLSearchParams()
-      if (params.sendEmail) queryParams.append('sendEmail', 'true')
-      const queryString = queryParams.toString()
-      const base = `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}/lifecycle/deactivate`
-      return queryString ? `${base}?${queryString}` : base
+      const domain = validateOktaDomain(params.domain)
+      const sendEmail = params.sendEmail === true
+      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}/lifecycle/deactivate?sendEmail=${sendEmail}`
     },
     method: 'POST',
     headers: (params) => ({

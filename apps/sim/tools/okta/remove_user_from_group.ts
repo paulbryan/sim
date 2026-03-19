@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
-import type {
-  OktaApiError,
-  OktaRemoveUserFromGroupParams,
-  OktaRemoveUserFromGroupResponse,
+import {
+  type OktaApiError,
+  type OktaRemoveUserFromGroupParams,
+  type OktaRemoveUserFromGroupResponse,
+  validateOktaDomain,
 } from '@/tools/okta/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -46,7 +47,7 @@ export const oktaRemoveUserFromGroupTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const domain = params.domain.replace(/^https?:\/\//, '').replace(/\/$/, '')
+      const domain = validateOktaDomain(params.domain)
       return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId)}/users/${encodeURIComponent(params.userId)}`
     },
     method: 'DELETE',

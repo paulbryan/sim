@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
-import type {
-  OktaApiError,
-  OktaListUsersParams,
-  OktaListUsersResponse,
-  OktaUser,
+import {
+  type OktaApiError,
+  type OktaListUsersParams,
+  type OktaListUsersResponse,
+  type OktaUser,
+  validateOktaDomain,
 } from '@/tools/okta/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -51,7 +52,7 @@ export const oktaListUsersTool: ToolConfig<OktaListUsersParams, OktaListUsersRes
 
   request: {
     url: (params) => {
-      const domain = params.domain.replace(/^https?:\/\//, '').replace(/\/$/, '')
+      const domain = validateOktaDomain(params.domain)
       const queryParams = new URLSearchParams()
 
       if (params.search) queryParams.append('search', params.search)
@@ -72,15 +73,20 @@ export const oktaListUsersTool: ToolConfig<OktaListUsersParams, OktaListUsersRes
   },
 
   transformResponse: async (response: Response) => {
-    const data: OktaUser[] | OktaApiError = await response.json()
-
     if (!response.ok) {
-      const error = data as OktaApiError
+      let error: OktaApiError = {}
+      try {
+        error = await response.json()
+      } catch {
+        // non-JSON error body
+      }
       logger.error('Okta API request failed', { data: error, status: response.status })
       throw new Error(error.errorSummary || 'Failed to list users from Okta')
     }
 
-    const users = (data as OktaUser[]).map((user) => ({
+    const data: OktaUser[] = await response.json()
+
+    const users = data.map((user) => ({
       id: user.id,
       status: user.status,
       firstName: user.profile?.firstName ?? null,

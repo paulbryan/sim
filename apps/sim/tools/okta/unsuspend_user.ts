@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
-import type {
-  OktaApiError,
-  OktaUnsuspendUserParams,
-  OktaUnsuspendUserResponse,
+import {
+  type OktaApiError,
+  type OktaUnsuspendUserParams,
+  type OktaUnsuspendUserResponse,
+  validateOktaDomain,
 } from '@/tools/okta/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -39,7 +40,7 @@ export const oktaUnsuspendUserTool: ToolConfig<OktaUnsuspendUserParams, OktaUnsu
 
     request: {
       url: (params) => {
-        const domain = params.domain.replace(/^https?:\/\//, '').replace(/\/$/, '')
+        const domain = validateOktaDomain(params.domain)
         return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}/lifecycle/unsuspend`
       },
       method: 'POST',

@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
-import type {
-  OktaAddUserToGroupParams,
-  OktaAddUserToGroupResponse,
-  OktaApiError,
+import {
+  type OktaAddUserToGroupParams,
+  type OktaAddUserToGroupResponse,
+  type OktaApiError,
+  validateOktaDomain,
 } from '@/tools/okta/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -46,7 +47,7 @@ export const oktaAddUserToGroupTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const domain = params.domain.replace(/^https?:\/\//, '').replace(/\/$/, '')
+      const domain = validateOktaDomain(params.domain)
       return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId)}/users/${encodeURIComponent(params.userId)}`
     },
     method: 'PUT',

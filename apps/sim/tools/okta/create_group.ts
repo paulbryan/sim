@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
-import type {
-  OktaApiError,
-  OktaCreateGroupParams,
-  OktaCreateGroupResponse,
-  OktaGroup,
+import {
+  type OktaApiError,
+  type OktaCreateGroupParams,
+  type OktaCreateGroupResponse,
+  type OktaGroup,
+  validateOktaDomain,
 } from '@/tools/okta/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -44,7 +45,7 @@ export const oktaCreateGroupTool: ToolConfig<OktaCreateGroupParams, OktaCreateGr
 
   request: {
     url: (params) => {
-      const domain = params.domain.replace(/^https?:\/\//, '').replace(/\/$/, '')
+      const domain = validateOktaDomain(params.domain)
       return `https://${domain}/api/v1/groups`
     },
     method: 'POST',
@@ -61,15 +62,18 @@ export const oktaCreateGroupTool: ToolConfig<OktaCreateGroupParams, OktaCreateGr
   },
 
   transformResponse: async (response: Response) => {
-    const data: OktaGroup | OktaApiError = await response.json()
-
     if (!response.ok) {
-      const error = data as OktaApiError
+      let error: OktaApiError = {}
+      try {
+        error = await response.json()
+      } catch {
+        // non-JSON error body
+      }
       logger.error('Okta API request failed', { data: error, status: response.status })
       throw new Error(error.errorSummary || 'Failed to create group in Okta')
     }
 
-    const group = data as OktaGroup
+    const group: OktaGroup = await response.json()
     return {
       success: true,
       output: {

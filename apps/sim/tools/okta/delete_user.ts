@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
-import type { OktaApiError, OktaDeleteUserParams, OktaDeleteUserResponse } from '@/tools/okta/types'
+import {
+  type OktaApiError,
+  type OktaDeleteUserParams,
+  type OktaDeleteUserResponse,
+  validateOktaDomain,
+} from '@/tools/okta/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaDeleteUser')
@@ -40,12 +45,9 @@ export const oktaDeleteUserTool: ToolConfig<OktaDeleteUserParams, OktaDeleteUser
 
   request: {
     url: (params) => {
-      const domain = params.domain.replace(/^https?:\/\//, '').replace(/\/$/, '')
-      const queryParams = new URLSearchParams()
-      if (params.sendEmail) queryParams.append('sendEmail', 'true')
-      const queryString = queryParams.toString()
-      const base = `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}`
-      return queryString ? `${base}?${queryString}` : base
+      const domain = validateOktaDomain(params.domain)
+      const sendEmail = params.sendEmail === true
+      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}?sendEmail=${sendEmail}`
     },
     method: 'DELETE',
     headers: (params) => ({

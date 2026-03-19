@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
-import type {
-  OktaApiError,
-  OktaSuspendUserParams,
-  OktaSuspendUserResponse,
+import {
+  type OktaApiError,
+  type OktaSuspendUserParams,
+  type OktaSuspendUserResponse,
+  validateOktaDomain,
 } from '@/tools/okta/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -38,7 +39,7 @@ export const oktaSuspendUserTool: ToolConfig<OktaSuspendUserParams, OktaSuspendU
 
   request: {
     url: (params) => {
-      const domain = params.domain.replace(/^https?:\/\//, '').replace(/\/$/, '')
+      const domain = validateOktaDomain(params.domain)
       return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}/lifecycle/suspend`
     },
     method: 'POST',

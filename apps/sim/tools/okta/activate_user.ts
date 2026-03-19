@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
-import type {
-  OktaActivateUserParams,
-  OktaActivateUserResponse,
-  OktaApiError,
+import {
+  type OktaActivateUserParams,
+  type OktaActivateUserResponse,
+  type OktaApiError,
+  validateOktaDomain,
 } from '@/tools/okta/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -44,7 +45,7 @@ export const oktaActivateUserTool: ToolConfig<OktaActivateUserParams, OktaActiva
 
   request: {
     url: (params) => {
-      const domain = params.domain.replace(/^https?:\/\//, '').replace(/\/$/, '')
+      const domain = validateOktaDomain(params.domain)
       const sendEmail = params.sendEmail !== false
       return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}/lifecycle/activate?sendEmail=${sendEmail}`
     },
