@@ -240,8 +240,8 @@ export const SEARCH_RESULT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 export const UPLOAD_FILE_OUTPUT_PROPERTIES = {
-  id: { type: 'string', description: 'Uploaded file ID' },
-  name: { type: 'string', description: 'Uploaded file name' },
+  id: { type: 'string', description: 'File ID' },
+  name: { type: 'string', description: 'File name' },
   size: { type: 'number', description: 'File size in bytes' },
   sha1: { type: 'string', description: 'SHA1 hash of file content', optional: true },
   createdAt: { type: 'string', description: 'Creation timestamp', optional: true },
