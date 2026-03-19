@@ -8,7 +8,7 @@ const OKTA_DOMAIN_PATTERN =
  * Ensures the domain matches a known Okta domain suffix.
  */
 export function validateOktaDomain(rawDomain: string): string {
-  const domain = rawDomain.replace(/^https?:\/\//, '').replace(/\/$/, '')
+  const domain = rawDomain.trim().replace(/^https?:\/\//, '').replace(/\/$/, '')
   if (!OKTA_DOMAIN_PATTERN.test(domain)) {
     throw new Error(
       `Invalid Okta domain: "${domain}". Must be a valid Okta domain (e.g., dev-123456.okta.com)`
