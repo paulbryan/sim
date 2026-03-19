@@ -7,9 +7,9 @@ import { normalizeFileInput } from '@/blocks/utils'
 export const BoxBlock: BlockConfig = {
   type: 'box',
   name: 'Box',
-  description: 'Upload, download, search, and manage files and folders in Box',
+  description: 'Manage files, folders, and e-signatures with Box',
   longDescription:
-    'Integrate Box into your workflow to manage files and folders. Upload and download files, get file information, list folder contents, create and delete folders, copy files, search across your Box account, and update file metadata.',
+    'Integrate Box into your workflow to manage files, folders, and e-signatures. Upload and download files, search content, create folders, send documents for e-signature, track signing status, and more.',
   docsLink: 'https://docs.sim.ai/tools/box',
   category: 'tools',
   bgColor: '#0061D5',
@@ -32,6 +32,11 @@ export const BoxBlock: BlockConfig = {
         { label: 'Copy File', id: 'copy_file' },
         { label: 'Search', id: 'search' },
         { label: 'Update File', id: 'update_file' },
+        { label: 'Create Sign Request', id: 'sign_create_request' },
+        { label: 'Get Sign Request', id: 'sign_get_request' },
+        { label: 'List Sign Requests', id: 'sign_list_requests' },
+        { label: 'Cancel Sign Request', id: 'sign_cancel_request' },
+        { label: 'Resend Sign Request', id: 'sign_resend_request' },
       ],
       value: () => 'upload_file',
     },
@@ -209,13 +214,16 @@ export const BoxBlock: BlockConfig = {
       condition: { field: 'operation', value: 'delete_folder' },
     },
 
-    // Shared pagination fields
+    // Shared pagination fields (file operations)
     {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
       placeholder: 'Max results per page',
-      condition: { field: 'operation', value: ['list_folder_items', 'search'] },
+      condition: {
+        field: 'operation',
+        value: ['list_folder_items', 'search', 'sign_list_requests'],
+      },
       mode: 'advanced',
     },
     {
@@ -255,6 +263,165 @@ export const BoxBlock: BlockConfig = {
       condition: { field: 'operation', value: 'list_folder_items' },
       mode: 'advanced',
     },
+
+    // Sign Request fields
+    {
+      id: 'sourceFileIds',
+      title: 'Source File IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated Box file IDs (e.g., 12345,67890)',
+      required: { field: 'operation', value: 'sign_create_request' },
+      condition: { field: 'operation', value: 'sign_create_request' },
+    },
+    {
+      id: 'signerEmail',
+      title: 'Signer Email',
+      type: 'short-input',
+      placeholder: 'Primary signer email address',
+      required: { field: 'operation', value: 'sign_create_request' },
+      condition: { field: 'operation', value: 'sign_create_request' },
+    },
+    {
+      id: 'signerRole',
+      title: 'Signer Role',
+      type: 'dropdown',
+      options: [
+        { label: 'Signer', id: 'signer' },
+        { label: 'Approver', id: 'approver' },
+        { label: 'Final Copy Reader', id: 'final_copy_reader' },
+      ],
+      value: () => 'signer',
+      condition: { field: 'operation', value: 'sign_create_request' },
+    },
+    {
+      id: 'emailSubject',
+      title: 'Email Subject',
+      type: 'short-input',
+      placeholder: 'Custom email subject line',
+      condition: { field: 'operation', value: 'sign_create_request' },
+    },
+    {
+      id: 'emailMessage',
+      title: 'Email Message',
+      type: 'long-input',
+      placeholder: 'Custom message in the signing email',
+      condition: { field: 'operation', value: 'sign_create_request' },
+    },
+    {
+      id: 'signRequestName',
+      title: 'Request Name',
+      type: 'short-input',
+      placeholder: 'Name for this sign request',
+      condition: { field: 'operation', value: 'sign_create_request' },
+    },
+    {
+      id: 'additionalSigners',
+      title: 'Additional Signers',
+      type: 'long-input',
+      placeholder: '[{"email":"user@example.com","role":"signer"}]',
+      condition: { field: 'operation', value: 'sign_create_request' },
+      mode: 'advanced',
+    },
+    {
+      id: 'signParentFolderId',
+      title: 'Destination Folder ID',
+      type: 'short-input',
+      placeholder: 'Box folder ID for signed documents',
+      condition: { field: 'operation', value: 'sign_create_request' },
+      mode: 'advanced',
+    },
+    {
+      id: 'daysValid',
+      title: 'Days Valid',
+      type: 'short-input',
+      placeholder: 'Number of days before expiry (0-730)',
+      condition: { field: 'operation', value: 'sign_create_request' },
+      mode: 'advanced',
+    },
+    {
+      id: 'areRemindersEnabled',
+      title: 'Enable Reminders',
+      type: 'switch',
+      condition: { field: 'operation', value: 'sign_create_request' },
+      mode: 'advanced',
+    },
+    {
+      id: 'areTextSignaturesEnabled',
+      title: 'Allow Text Signatures',
+      type: 'switch',
+      condition: { field: 'operation', value: 'sign_create_request' },
+      mode: 'advanced',
+    },
+    {
+      id: 'signatureColor',
+      title: 'Signature Color',
+      type: 'dropdown',
+      options: [
+        { label: 'Blue', id: 'blue' },
+        { label: 'Black', id: 'black' },
+        { label: 'Red', id: 'red' },
+      ],
+      value: () => 'blue',
+      condition: { field: 'operation', value: 'sign_create_request' },
+      mode: 'advanced',
+    },
+    {
+      id: 'redirectUrl',
+      title: 'Redirect URL',
+      type: 'short-input',
+      placeholder: 'URL to redirect after signing',
+      condition: { field: 'operation', value: 'sign_create_request' },
+      mode: 'advanced',
+    },
+    {
+      id: 'declinedRedirectUrl',
+      title: 'Declined Redirect URL',
+      type: 'short-input',
+      placeholder: 'URL to redirect after declining',
+      condition: { field: 'operation', value: 'sign_create_request' },
+      mode: 'advanced',
+    },
+    {
+      id: 'isDocumentPreparationNeeded',
+      title: 'Document Preparation Needed',
+      type: 'switch',
+      condition: { field: 'operation', value: 'sign_create_request' },
+      mode: 'advanced',
+    },
+    {
+      id: 'externalId',
+      title: 'External ID',
+      type: 'short-input',
+      placeholder: 'External system reference ID',
+      condition: { field: 'operation', value: 'sign_create_request' },
+      mode: 'advanced',
+    },
+
+    // Sign Request ID (shared by get, cancel, resend)
+    {
+      id: 'signRequestId',
+      title: 'Sign Request ID',
+      type: 'short-input',
+      placeholder: 'Box Sign request ID',
+      required: {
+        field: 'operation',
+        value: ['sign_get_request', 'sign_cancel_request', 'sign_resend_request'],
+      },
+      condition: {
+        field: 'operation',
+        value: ['sign_get_request', 'sign_cancel_request', 'sign_resend_request'],
+      },
+    },
+
+    // Sign list pagination marker
+    {
+      id: 'marker',
+      title: 'Pagination Marker',
+      type: 'short-input',
+      placeholder: 'Marker from previous response',
+      condition: { field: 'operation', value: 'sign_list_requests' },
+      mode: 'advanced',
+    },
   ],
 
   tools: {
@@ -269,9 +436,20 @@ export const BoxBlock: BlockConfig = {
       'box_copy_file',
       'box_search',
       'box_update_file',
+      'box_sign_create_request',
+      'box_sign_get_request',
+      'box_sign_list_requests',
+      'box_sign_cancel_request',
+      'box_sign_resend_request',
     ],
     config: {
-      tool: (params) => `box_${params.operation}`,
+      tool: (params) => {
+        const op = params.operation as string
+        if (op.startsWith('sign_')) {
+          return `box_${op}`
+        }
+        return `box_${op}`
+      },
       params: (params) => {
         const normalizedFile = normalizeFileInput(params.file, { single: true })
         if (normalizedFile) {
@@ -329,6 +507,36 @@ export const BoxBlock: BlockConfig = {
             if (rest.moveToFolderId) baseParams.parentFolderId = rest.moveToFolderId
             if (rest.tags) baseParams.tags = rest.tags
             break
+          case 'sign_create_request':
+            baseParams.sourceFileIds = rest.sourceFileIds
+            baseParams.signerEmail = rest.signerEmail
+            if (rest.signerRole) baseParams.signerRole = rest.signerRole
+            if (rest.additionalSigners) baseParams.additionalSigners = rest.additionalSigners
+            if (rest.signParentFolderId) baseParams.parentFolderId = rest.signParentFolderId
+            if (rest.emailSubject) baseParams.emailSubject = rest.emailSubject
+            if (rest.emailMessage) baseParams.emailMessage = rest.emailMessage
+            if (rest.signRequestName) baseParams.name = rest.signRequestName
+            if (rest.daysValid) baseParams.daysValid = Number(rest.daysValid)
+            if (rest.areRemindersEnabled !== undefined)
+              baseParams.areRemindersEnabled = rest.areRemindersEnabled
+            if (rest.areTextSignaturesEnabled !== undefined)
+              baseParams.areTextSignaturesEnabled = rest.areTextSignaturesEnabled
+            if (rest.signatureColor) baseParams.signatureColor = rest.signatureColor
+            if (rest.redirectUrl) baseParams.redirectUrl = rest.redirectUrl
+            if (rest.declinedRedirectUrl) baseParams.declinedRedirectUrl = rest.declinedRedirectUrl
+            if (rest.isDocumentPreparationNeeded !== undefined)
+              baseParams.isDocumentPreparationNeeded = rest.isDocumentPreparationNeeded
+            if (rest.externalId) baseParams.externalId = rest.externalId
+            break
+          case 'sign_get_request':
+          case 'sign_cancel_request':
+          case 'sign_resend_request':
+            baseParams.signRequestId = rest.signRequestId
+            break
+          case 'sign_list_requests':
+            if (rest.limit) baseParams.limit = Number(rest.limit)
+            if (rest.marker) baseParams.marker = rest.marker
+            break
         }
 
         return baseParams
@@ -344,6 +552,9 @@ export const BoxBlock: BlockConfig = {
     folderId: { type: 'string', description: 'Box folder ID' },
     parentFolderId: { type: 'string', description: 'Parent folder ID' },
     query: { type: 'string', description: 'Search query' },
+    sourceFileIds: { type: 'string', description: 'Comma-separated Box file IDs' },
+    signerEmail: { type: 'string', description: 'Primary signer email address' },
+    signRequestId: { type: 'string', description: 'Sign request ID' },
   },
 
   outputs: {
@@ -371,5 +582,18 @@ export const BoxBlock: BlockConfig = {
     results: 'json',
     deleted: 'boolean',
     message: 'string',
+    status: 'string',
+    shortId: 'string',
+    signers: 'json',
+    sourceFiles: 'json',
+    emailSubject: 'string',
+    emailMessage: 'string',
+    daysValid: 'number',
+    autoExpireAt: 'string',
+    prepareUrl: 'string',
+    senderEmail: 'string',
+    signRequests: 'json',
+    count: 'number',
+    nextMarker: 'string',
   },
 }

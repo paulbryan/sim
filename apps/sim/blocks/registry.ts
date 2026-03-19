@@ -14,7 +14,6 @@ import { AsanaBlock } from '@/blocks/blocks/asana'
 import { AshbyBlock } from '@/blocks/blocks/ashby'
 import { AttioBlock } from '@/blocks/blocks/attio'
 import { BoxBlock } from '@/blocks/blocks/box'
-import { BoxSignBlock } from '@/blocks/blocks/box_sign'
 import { BrandfetchBlock } from '@/blocks/blocks/brandfetch'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { CalComBlock } from '@/blocks/blocks/calcom'
@@ -219,7 +218,6 @@ export const registry: Record<string, BlockConfig> = {
   attio: AttioBlock,
   brandfetch: BrandfetchBlock,
   box: BoxBlock,
-  box_sign: BoxSignBlock,
   browser_use: BrowserUseBlock,
   calcom: CalComBlock,
   calendly: CalendlyBlock,
