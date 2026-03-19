@@ -211,6 +211,16 @@ export const auth = betterAuth({
             modifiedAccount.refreshTokenExpiresAt = getMicrosoftRefreshTokenExpiry()
           }
 
+          // Box token response does not include a scope field, so Better Auth
+          // stores nothing. Populate it from the requested scopes so the
+          // credential-selector can verify permissions.
+          if (account.providerId === 'box' && !account.scope) {
+            const requestedScopes = getCanonicalScopesForProvider('box')
+            if (requestedScopes.length > 0) {
+              modifiedAccount.scope = requestedScopes.join(' ')
+            }
+          }
+
           return { data: modifiedAccount }
         },
         after: async (account) => {
