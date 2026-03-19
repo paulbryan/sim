@@ -26,12 +26,6 @@ export const boxSignCancelRequestTool: ToolConfig<BoxSignCancelRequestParams, Bo
       visibility: 'user-or-llm',
       description: 'The ID of the sign request to cancel',
     },
-    reason: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Optional reason for cancellation',
-    },
   },
 
   request: {
@@ -41,12 +35,7 @@ export const boxSignCancelRequestTool: ToolConfig<BoxSignCancelRequestParams, Bo
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => {
-      if (params.reason) {
-        return { reason: params.reason }
-      }
-      return {}
-    },
+    body: () => ({}),
   },
 
   transformResponse: async (response) => {

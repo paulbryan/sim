@@ -186,15 +186,6 @@ export const BoxSignBlock: BlockConfig = {
       },
     },
 
-    // Cancel-specific fields
-    {
-      id: 'reason',
-      title: 'Cancellation Reason',
-      type: 'short-input',
-      placeholder: 'Optional reason for cancellation',
-      condition: { field: 'operation', value: 'cancel_request' },
-    },
-
     // List fields
     {
       id: 'limit',
@@ -259,7 +250,6 @@ export const BoxSignBlock: BlockConfig = {
             break
           case 'cancel_request':
             baseParams.signRequestId = rest.signRequestId
-            if (rest.reason) baseParams.reason = rest.reason
             break
           case 'list_requests':
             if (rest.limit) baseParams.limit = Number(rest.limit)

@@ -34,7 +34,6 @@ export interface BoxSignListRequestsParams {
 export interface BoxSignCancelRequestParams {
   accessToken: string
   signRequestId: string
-  reason?: string
 }
 
 export interface BoxSignResendRequestParams {
