@@ -1109,6 +1109,52 @@ export const Sidebar = memo(function Sidebar() {
                 </div>
               </div>
 
+              {/* Quick-create button (collapsed only) */}
+              {isCollapsed && showCollapsedContent && (
+                <div className='flex flex-shrink-0 flex-col px-[8px] pt-[8px]'>
+                  <DropdownMenu>
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type='button'
+                            aria-label='Create new'
+                            className='mx-[2px] flex h-[30px] items-center justify-center rounded-[8px] px-[8px] hover:bg-[var(--surface-active)]'
+                          >
+                            <Plus className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                          </button>
+                        </DropdownMenuTrigger>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content side='right'>
+                        <p>Create new</p>
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                    <DropdownMenuContent side='right' align='start' sideOffset={8}>
+                      <DropdownMenuItem
+                        onSelect={() => navigateToPage(`/workspace/${workspaceId}/home`)}
+                      >
+                        <Blimp className='h-[14px] w-[14px]' />
+                        <span>New task</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={handleCreateWorkflow}
+                        disabled={!canEdit || isCreatingWorkflow}
+                      >
+                        <div
+                          className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+                          style={{
+                            backgroundColor: 'var(--text-icon)',
+                            borderColor: 'color-mix(in srgb, var(--text-icon) 60%, transparent)',
+                            backgroundClip: 'padding-box',
+                          }}
+                        />
+                        <span>{isCreatingWorkflow ? 'Creating...' : 'New workflow'}</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
+
               {/* Scrollable Tasks + Workflows */}
               <div
                 ref={isCollapsed ? undefined : scrollContainerRef}
@@ -1149,6 +1195,8 @@ export const Sidebar = memo(function Sidebar() {
                       onClick={() => navigateToPage(`/workspace/${workspaceId}/home`)}
                       ariaLabel='Tasks'
                       className='mt-[6px]'
+                      createLabel='New task'
+                      onCreateClick={() => navigateToPage(`/workspace/${workspaceId}/home`)}
                     >
                       {tasksLoading ? (
                         <DropdownMenuItem disabled>
@@ -1318,6 +1366,8 @@ export const Sidebar = memo(function Sidebar() {
                       onClick={handleCreateWorkflow}
                       ariaLabel='Workflows'
                       className='mt-[6px]'
+                      createLabel='New workflow'
+                      onCreateClick={canEdit ? handleCreateWorkflow : undefined}
                     >
                       {workflowsLoading && regularWorkflows.length === 0 ? (
                         <DropdownMenuItem disabled>

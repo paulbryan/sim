@@ -4,11 +4,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/emcn'
+import { Plus } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import type { FolderTreeNode } from '@/stores/folders/types'
@@ -21,6 +23,8 @@ interface CollapsedSidebarMenuProps {
   ariaLabel?: string
   children: React.ReactNode
   className?: string
+  createLabel?: string
+  onCreateClick?: () => void
 }
 
 export function CollapsedSidebarMenu({
@@ -30,6 +34,8 @@ export function CollapsedSidebarMenu({
   ariaLabel,
   children,
   className,
+  createLabel,
+  onCreateClick,
 }: CollapsedSidebarMenuProps) {
   return (
     <div className={cn('flex flex-col px-[8px]', className)}>
@@ -54,6 +60,15 @@ export function CollapsedSidebarMenu({
           </DropdownMenuTrigger>
         </div>
         <DropdownMenuContent side='right' align='start' sideOffset={8} {...hover.contentProps}>
+          {createLabel && onCreateClick && (
+            <>
+              <DropdownMenuItem onSelect={onCreateClick}>
+                <Plus className='h-[14px] w-[14px]' />
+                <span>{createLabel}</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           {children}
         </DropdownMenuContent>
       </DropdownMenu>
