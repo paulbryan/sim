@@ -4,6 +4,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { downloadToWorkspaceFileServerTool } from '@/lib/copilot/tools/server/files/download-to-workspace-file'
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
@@ -90,6 +91,7 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [knowledgeBaseServerTool.name]: knowledgeBaseServerTool,
   [userTableServerTool.name]: userTableServerTool,
   [workspaceFileServerTool.name]: workspaceFileServerTool,
+  [downloadToWorkspaceFileServerTool.name]: downloadToWorkspaceFileServerTool,
   [generateVisualizationServerTool.name]: generateVisualizationServerTool,
   [generateImageServerTool.name]: generateImageServerTool,
 }

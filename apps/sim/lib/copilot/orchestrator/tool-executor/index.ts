@@ -739,6 +739,7 @@ const SERVER_TOOLS = new Set<string>([
   'knowledge_base',
   'user_table',
   'workspace_file',
+  'download_to_workspace_file',
   'get_execution_summary',
   'get_job_logs',
   'generate_visualization',
