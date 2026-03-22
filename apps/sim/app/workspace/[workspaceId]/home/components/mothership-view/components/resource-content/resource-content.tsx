@@ -10,7 +10,11 @@ import {
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/client-sse/run-tool-execution'
-import { downloadWorkspaceFile, getMimeTypeFromExtension, getFileExtension } from '@/lib/uploads/utils/file-utils'
+import {
+  downloadWorkspaceFile,
+  getFileExtension,
+  getMimeTypeFromExtension,
+} from '@/lib/uploads/utils/file-utils'
 import {
   FileViewer,
   type PreviewMode,

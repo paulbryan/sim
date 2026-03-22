@@ -182,9 +182,7 @@ export const WorkspaceFileArgsSchema = z.object({
       contentType: z.string().optional(),
       workspaceId: z.string().optional(),
       newName: z.string().optional(),
-      edits: z
-        .array(z.object({ search: z.string(), replace: z.string() }))
-        .optional(),
+      edits: z.array(z.object({ search: z.string(), replace: z.string() })).optional(),
     })
     .optional(),
 })

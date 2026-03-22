@@ -18,11 +18,8 @@ export const workspaceFilesKeys = {
   contents: () => [...workspaceFilesKeys.all, 'content'] as const,
   contentFile: (workspaceId: string, fileId: string) =>
     [...workspaceFilesKeys.contents(), workspaceId, fileId] as const,
-  content: (
-    workspaceId: string,
-    fileId: string,
-    mode: 'text' | 'raw' | 'binary' = 'text'
-  ) => [...workspaceFilesKeys.contentFile(workspaceId, fileId), mode] as const,
+  content: (workspaceId: string, fileId: string, mode: 'text' | 'raw' | 'binary' = 'text') =>
+    [...workspaceFilesKeys.contentFile(workspaceId, fileId), mode] as const,
   storageInfo: () => [...workspaceFilesKeys.all, 'storageInfo'] as const,
 }
 
@@ -104,10 +101,7 @@ export function useWorkspaceFileContent(
   })
 }
 
-async function fetchWorkspaceFileBinary(
-  key: string,
-  signal?: AbortSignal
-): Promise<ArrayBuffer> {
+async function fetchWorkspaceFileBinary(key: string, signal?: AbortSignal): Promise<ArrayBuffer> {
   const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace`
   const response = await fetch(serveUrl, { signal })
   if (!response.ok) throw new Error('Failed to fetch file content')

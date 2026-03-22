@@ -180,12 +180,7 @@ function TextEditor({
     isLoading,
     error,
     dataUpdatedAt,
-  } = useWorkspaceFileContent(
-    workspaceId,
-    file.id,
-    file.key,
-    file.type === 'text/x-pptxgenjs'
-  )
+  } = useWorkspaceFileContent(workspaceId, file.id, file.key, file.type === 'text/x-pptxgenjs')
 
   const updateContent = useUpdateWorkspaceFileContent()
 
@@ -610,12 +605,7 @@ function PptxPreview({
     <div className='flex-1 overflow-y-auto bg-[var(--surface-1)] p-[24px]'>
       <div className='mx-auto flex max-w-[960px] flex-col gap-[16px]'>
         {slides.map((src, i) => (
-          <img
-            key={i}
-            src={src}
-            alt={`Slide ${i + 1}`}
-            className='w-full rounded-md shadow-lg'
-          />
+          <img key={i} src={src} alt={`Slide ${i + 1}`} className='w-full rounded-md shadow-lg' />
         ))}
       </div>
     </div>

@@ -163,7 +163,7 @@ async function handleCloudProxy(
   cloudKey: string,
   userId: string,
   contextParam?: string | null,
-  raw: boolean = false
+  raw = false
 ): Promise<NextResponse> {
   try {
     let context: StorageContext

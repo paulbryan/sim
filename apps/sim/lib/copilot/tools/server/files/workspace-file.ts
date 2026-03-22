@@ -1,5 +1,5 @@
-import PptxGenJS from 'pptxgenjs'
 import { createLogger } from '@sim/logger'
+import PptxGenJS from 'pptxgenjs'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import type { WorkspaceFileArgs, WorkspaceFileResult } from '@/lib/copilot/tools/shared/schemas'
 import {
