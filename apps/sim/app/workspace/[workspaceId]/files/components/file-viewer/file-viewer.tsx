@@ -439,8 +439,6 @@ function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
   )
 }
 
-const PPTX_CACHE_MAX = 5
-
 const pptxSlideCache = new Map<string, string[]>()
 
 function pptxCacheKey(fileId: string, dataUpdatedAt: number): string {
@@ -449,7 +447,7 @@ function pptxCacheKey(fileId: string, dataUpdatedAt: number): string {
 
 function pptxCacheSet(key: string, slides: string[]): void {
   pptxSlideCache.set(key, slides)
-  if (pptxSlideCache.size > PPTX_CACHE_MAX) {
+  if (pptxSlideCache.size > 5) {
     const oldest = pptxSlideCache.keys().next().value
     if (oldest !== undefined) pptxSlideCache.delete(oldest)
   }
