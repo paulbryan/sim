@@ -439,10 +439,20 @@ function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
   )
 }
 
+const PPTX_CACHE_MAX = 5
+
 const pptxSlideCache = new Map<string, string[]>()
 
 function pptxCacheKey(fileId: string, dataUpdatedAt: number): string {
   return `${fileId}:${dataUpdatedAt}`
+}
+
+function pptxCacheSet(key: string, slides: string[]): void {
+  pptxSlideCache.set(key, slides)
+  if (pptxSlideCache.size > PPTX_CACHE_MAX) {
+    const oldest = pptxSlideCache.keys().next().value
+    if (oldest !== undefined) pptxSlideCache.delete(oldest)
+  }
 }
 
 async function renderPptxSlides(
@@ -453,8 +463,9 @@ async function renderPptxSlides(
   const { PPTXViewer } = await import('pptxviewjs')
   if (cancelled()) return
 
-  const W = 1920
-  const H = 1080
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  const W = Math.round(1920 * dpr)
+  const H = Math.round(1080 * dpr)
 
   const canvas = document.createElement('canvas')
   canvas.width = W
@@ -540,7 +551,7 @@ function PptxPreview({
           () => cancelled
         )
         if (!cancelled && images.length > 0) {
-          pptxSlideCache.set(cacheKey, images)
+          pptxCacheSet(cacheKey, images)
         }
       } catch (err) {
         if (!cancelled) {
@@ -557,7 +568,7 @@ function PptxPreview({
     return () => {
       cancelled = true
     }
-  }, [fileData, dataUpdatedAt, streamingContent, cacheKey, cached])
+  }, [fileData, dataUpdatedAt, streamingContent, cacheKey])
 
   const error = fetchError
     ? fetchError instanceof Error

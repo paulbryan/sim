@@ -16,11 +16,13 @@ export const workspaceFilesKeys = {
   list: (workspaceId: string, scope: WorkspaceFileQueryScope = 'active') =>
     [...workspaceFilesKeys.lists(), workspaceId, scope] as const,
   contents: () => [...workspaceFilesKeys.all, 'content'] as const,
+  contentFile: (workspaceId: string, fileId: string) =>
+    [...workspaceFilesKeys.contents(), workspaceId, fileId] as const,
   content: (
     workspaceId: string,
     fileId: string,
     mode: 'text' | 'raw' | 'binary' = 'text'
-  ) => [...workspaceFilesKeys.contents(), workspaceId, fileId, mode] as const,
+  ) => [...workspaceFilesKeys.contentFile(workspaceId, fileId), mode] as const,
   storageInfo: () => [...workspaceFilesKeys.all, 'storageInfo'] as const,
 }
 
@@ -122,8 +124,7 @@ export function useWorkspaceFileBinary(workspaceId: string, fileId: string, key:
     queryKey: workspaceFilesKeys.content(workspaceId, fileId, 'binary'),
     queryFn: ({ signal }) => fetchWorkspaceFileBinary(key, signal),
     enabled: !!workspaceId && !!fileId && !!key,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    staleTime: 30 * 1000,
   })
 }
 
@@ -239,7 +240,7 @@ export function useUpdateWorkspaceFileContent() {
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
-        queryKey: [...workspaceFilesKeys.contents(), variables.workspaceId, variables.fileId],
+        queryKey: workspaceFilesKeys.contentFile(variables.workspaceId, variables.fileId),
       })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
@@ -345,7 +346,7 @@ export function useDeleteWorkspaceFile() {
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
       queryClient.removeQueries({
-        queryKey: workspaceFilesKeys.content(variables.workspaceId, variables.fileId),
+        queryKey: workspaceFilesKeys.contentFile(variables.workspaceId, variables.fileId),
       })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
