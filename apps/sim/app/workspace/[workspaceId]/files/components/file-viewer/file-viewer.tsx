@@ -439,6 +439,39 @@ function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
   )
 }
 
+const pptxSlideCache = new Map<string, string[]>()
+
+function pptxCacheKey(fileId: string, dataUpdatedAt: number): string {
+  return `${fileId}:${dataUpdatedAt}`
+}
+
+async function renderPptxSlides(
+  data: Uint8Array,
+  onSlide: (src: string, index: number) => void,
+  cancelled: () => boolean
+): Promise<void> {
+  const { PPTXViewer } = await import('pptxviewjs')
+  if (cancelled()) return
+
+  const W = 1920
+  const H = 1080
+
+  const canvas = document.createElement('canvas')
+  canvas.width = W
+  canvas.height = H
+  const viewer = new PPTXViewer({ canvas })
+  await viewer.loadFile(data)
+  const count = viewer.getSlideCount()
+  if (cancelled() || count === 0) return
+
+  for (let i = 0; i < count; i++) {
+    if (cancelled()) break
+    if (i === 0) await viewer.render()
+    else await viewer.goToSlide(i)
+    onSlide(canvas.toDataURL('image/jpeg', 0.85), i)
+  }
+}
+
 function PptxPreview({
   file,
   workspaceId,
@@ -455,11 +488,19 @@ function PptxPreview({
     dataUpdatedAt,
   } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
 
-  const [slides, setSlides] = useState<string[]>([])
+  const cacheKey = pptxCacheKey(file.id, dataUpdatedAt)
+  const cached = pptxSlideCache.get(cacheKey)
+
+  const [slides, setSlides] = useState<string[]>(cached ?? [])
   const [rendering, setRendering] = useState(false)
   const [renderError, setRenderError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (cached) {
+      setSlides(cached)
+      return
+    }
+
     let cancelled = false
 
     async function render() {
@@ -474,61 +515,33 @@ function PptxPreview({
           await fn(pptx)
           const arrayBuffer = (await pptx.write({ outputType: 'arraybuffer' })) as ArrayBuffer
           if (cancelled) return
-          const { PPTXViewer } = await import('pptxviewjs')
           const data = new Uint8Array(arrayBuffer)
-          const probe = document.createElement('canvas')
-          const probeViewer = new PPTXViewer({ canvas: probe })
-          await probeViewer.loadFile(data)
-          const count = probeViewer.getSlideCount()
-          if (cancelled || count === 0) return
-          const dpr = window.devicePixelRatio || 1
-          const W = Math.round(1920 * dpr)
-          const H = Math.round(1080 * dpr)
           const images: string[] = []
-          for (let i = 0; i < count; i++) {
-            if (cancelled) break
-            const canvas = document.createElement('canvas')
-            canvas.width = W
-            canvas.height = H
-            const viewer = new PPTXViewer({ canvas })
-            await viewer.loadFile(data)
-            if (i > 0) await viewer.goToSlide(i)
-            else await viewer.render()
-            images.push(canvas.toDataURL('image/png'))
-          }
-          if (!cancelled) setSlides(images)
+          await renderPptxSlides(
+            data,
+            (src) => {
+              images.push(src)
+              if (!cancelled) setSlides([...images])
+            },
+            () => cancelled
+          )
           return
         }
 
         if (!fileData) return
-        const { PPTXViewer } = await import('pptxviewjs')
-        if (cancelled) return
-
-        const data = new Uint8Array(fileData!)
-        const probe = document.createElement('canvas')
-        const probeViewer = new PPTXViewer({ canvas: probe })
-        await probeViewer.loadFile(data)
-        const count = probeViewer.getSlideCount()
-        if (cancelled || count === 0) return
-
-        const dpr = window.devicePixelRatio || 1
-        const W = Math.round(1920 * dpr)
-        const H = Math.round(1080 * dpr)
+        const data = new Uint8Array(fileData)
         const images: string[] = []
-
-        for (let i = 0; i < count; i++) {
-          if (cancelled) break
-          const canvas = document.createElement('canvas')
-          canvas.width = W
-          canvas.height = H
-          const viewer = new PPTXViewer({ canvas })
-          await viewer.loadFile(data)
-          if (i > 0) await viewer.goToSlide(i)
-          else await viewer.render()
-          images.push(canvas.toDataURL('image/png'))
+        await renderPptxSlides(
+          data,
+          (src) => {
+            images.push(src)
+            if (!cancelled) setSlides([...images])
+          },
+          () => cancelled
+        )
+        if (!cancelled && images.length > 0) {
+          pptxSlideCache.set(cacheKey, images)
         }
-
-        if (!cancelled) setSlides(images)
       } catch (err) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : 'Failed to render presentation'
@@ -544,7 +557,7 @@ function PptxPreview({
     return () => {
       cancelled = true
     }
-  }, [fileData, dataUpdatedAt, streamingContent])
+  }, [fileData, dataUpdatedAt, streamingContent, cacheKey, cached])
 
   const error = fetchError
     ? fetchError instanceof Error
