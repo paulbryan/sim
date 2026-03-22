@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { generatePptxFromCode } from '@/lib/copilot/tools/server/files/workspace-file'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
@@ -17,6 +18,27 @@ import {
 } from '@/app/api/files/utils'
 
 const logger = createLogger('FilesServeAPI')
+
+const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04])
+
+async function compilePptxIfNeeded(
+  buffer: Buffer,
+  filename: string,
+  workspaceId?: string,
+  raw?: boolean
+): Promise<{ buffer: Buffer; contentType: string }> {
+  const isPptx = filename.toLowerCase().endsWith('.pptx')
+  if (raw || !isPptx || buffer.subarray(0, 4).equals(ZIP_MAGIC)) {
+    return { buffer, contentType: getContentType(filename) }
+  }
+
+  const code = buffer.toString('utf-8')
+  const compiled = await generatePptxFromCode(code, workspaceId || '')
+  return {
+    buffer: compiled,
+    contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  }
+}
 
 const STORAGE_KEY_PREFIX_RE = /^\d{13}-[a-z0-9]{7}-/
 
@@ -44,6 +66,7 @@ export async function GET(
     const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
 
     const contextParam = request.nextUrl.searchParams.get('context')
+    const raw = request.nextUrl.searchParams.get('raw') === '1'
 
     const context = contextParam || (isCloudPath ? inferContextFromKey(cloudKey) : undefined)
 
@@ -68,10 +91,10 @@ export async function GET(
     const userId = authResult.userId
 
     if (isUsingCloudStorage()) {
-      return await handleCloudProxy(cloudKey, userId, contextParam)
+      return await handleCloudProxy(cloudKey, userId, contextParam, raw)
     }
 
-    return await handleLocalFile(cloudKey, userId)
+    return await handleLocalFile(cloudKey, userId, raw)
   } catch (error) {
     logger.error('Error serving file:', error)
 
@@ -83,7 +106,11 @@ export async function GET(
   }
 }
 
-async function handleLocalFile(filename: string, userId: string): Promise<NextResponse> {
+async function handleLocalFile(
+  filename: string,
+  userId: string,
+  raw: boolean
+): Promise<NextResponse> {
   try {
     const contextParam: StorageContext | undefined = inferContextFromKey(filename) as
       | StorageContext
@@ -108,10 +135,15 @@ async function handleLocalFile(filename: string, userId: string): Promise<NextRe
       throw new FileNotFoundError(`File not found: ${filename}`)
     }
 
-    const fileBuffer = await readFile(filePath)
+    const rawBuffer = await readFile(filePath)
     const segment = filename.split('/').pop() || filename
     const displayName = stripStorageKeyPrefix(segment)
-    const contentType = getContentType(displayName)
+    const { buffer: fileBuffer, contentType } = await compilePptxIfNeeded(
+      rawBuffer,
+      displayName,
+      undefined,
+      raw
+    )
 
     logger.info('Local file served', { userId, filename, size: fileBuffer.length })
 
@@ -130,7 +162,8 @@ async function handleLocalFile(filename: string, userId: string): Promise<NextRe
 async function handleCloudProxy(
   cloudKey: string,
   userId: string,
-  contextParam?: string | null
+  contextParam?: string | null,
+  raw: boolean = false
 ): Promise<NextResponse> {
   try {
     let context: StorageContext
@@ -156,12 +189,12 @@ async function handleCloudProxy(
       throw new FileNotFoundError(`File not found: ${cloudKey}`)
     }
 
-    let fileBuffer: Buffer
+    let rawBuffer: Buffer
 
     if (context === 'copilot') {
-      fileBuffer = await CopilotFiles.downloadCopilotFile(cloudKey)
+      rawBuffer = await CopilotFiles.downloadCopilotFile(cloudKey)
     } else {
-      fileBuffer = await downloadFile({
+      rawBuffer = await downloadFile({
         key: cloudKey,
         context,
       })
@@ -169,7 +202,12 @@ async function handleCloudProxy(
 
     const segment = cloudKey.split('/').pop() || 'download'
     const displayName = stripStorageKeyPrefix(segment)
-    const contentType = getContentType(displayName)
+    const { buffer: fileBuffer, contentType } = await compilePptxIfNeeded(
+      rawBuffer,
+      displayName,
+      undefined,
+      raw
+    )
 
     logger.info('Cloud file served', {
       userId,

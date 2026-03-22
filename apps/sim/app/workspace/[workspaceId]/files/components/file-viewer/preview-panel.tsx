@@ -327,3 +327,4 @@ function parseCsvLine(line: string, delimiter: string): string[] {
   fields.push(current.trim())
   return fields
 }
+

@@ -987,15 +987,19 @@ export function useChat(
                   onResourceEventRef.current?.()
 
                   if (resource.type === 'workflow') {
+                    const registry = useWorkflowRegistry.getState()
                     const wasRegistered = ensureWorkflowInRegistry(
                       resource.id,
                       resource.title,
                       workspaceId
                     )
                     if (wasAdded && wasRegistered) {
-                      useWorkflowRegistry.getState().setActiveWorkflow(resource.id)
-                    } else {
-                      useWorkflowRegistry.getState().loadWorkflowState(resource.id)
+                      registry.setActiveWorkflow(resource.id)
+                    } else if (
+                      registry.activeWorkflowId !== resource.id ||
+                      registry.hydration.phase !== 'ready'
+                    ) {
+                      registry.loadWorkflowState(resource.id)
                     }
                   }
                 }

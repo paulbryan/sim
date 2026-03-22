@@ -14,6 +14,7 @@ const TEXT_TYPES = new Set([
   'text/markdown',
   'text/html',
   'text/xml',
+  'text/x-pptxgenjs',
   'application/json',
   'application/xml',
   'application/javascript',
@@ -72,6 +73,19 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
       }
     }
 
+    if (isReadableType(record.type)) {
+      if (record.size > MAX_TEXT_READ_BYTES) {
+        return {
+          content: `[File too large to display inline: ${record.name} (${record.size} bytes, limit ${MAX_TEXT_READ_BYTES})]`,
+          totalLines: 1,
+        }
+      }
+
+      const buffer = await downloadWorkspaceFile(record)
+      const content = buffer.toString('utf-8')
+      return { content, totalLines: content.split('\n').length }
+    }
+
     const ext = getExtension(record.name)
     if (PARSEABLE_EXTENSIONS.has(ext)) {
       const buffer = await downloadWorkspaceFile(record)
@@ -100,16 +114,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
       }
     }
 
-    if (record.size > MAX_TEXT_READ_BYTES) {
-      return {
-        content: `[File too large to display inline: ${record.name} (${record.size} bytes, limit ${MAX_TEXT_READ_BYTES})]`,
-        totalLines: 1,
-      }
-    }
-
-    const buffer = await downloadWorkspaceFile(record)
-    const content = buffer.toString('utf-8')
-    return { content, totalLines: content.split('\n').length }
+    return null
   } catch (err) {
     logger.warn('Failed to read workspace file', {
       fileName: record.name,

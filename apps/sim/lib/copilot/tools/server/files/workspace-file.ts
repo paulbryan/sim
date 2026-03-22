@@ -1,8 +1,10 @@
+import PptxGenJS from 'pptxgenjs'
 import { createLogger } from '@sim/logger'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import type { WorkspaceFileArgs, WorkspaceFileResult } from '@/lib/copilot/tools/shared/schemas'
 import {
   deleteWorkspaceFile,
+  downloadWorkspaceFile as downloadWsFile,
   getWorkspaceFile,
   renameWorkspaceFile,
   updateWorkspaceFileContent,
@@ -11,12 +13,33 @@ import {
 
 const logger = createLogger('WorkspaceFileServerTool')
 
+const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+const PPTX_SOURCE_MIME = 'text/x-pptxgenjs'
+
 const EXT_TO_MIME: Record<string, string> = {
   '.txt': 'text/plain',
   '.md': 'text/markdown',
   '.html': 'text/html',
   '.json': 'application/json',
   '.csv': 'text/csv',
+  '.pptx': PPTX_MIME,
+}
+
+export async function generatePptxFromCode(code: string, workspaceId: string): Promise<Buffer> {
+  const pptx = new PptxGenJS()
+
+  async function getFileBase64(fileId: string): Promise<string> {
+    const record = await getWorkspaceFile(workspaceId, fileId)
+    if (!record) throw new Error(`File not found: ${fileId}`)
+    const buffer = await downloadWsFile(record)
+    const mime = record.type || 'image/png'
+    return `data:${mime};base64,${buffer.toString('base64')}`
+  }
+
+  const fn = new Function('pptx', 'getFileBase64', `return (async () => { ${code} })()`)
+  await fn(pptx, getFileBase64)
+  const output = await pptx.write({ outputType: 'nodebuffer' })
+  return output as Buffer
 }
 
 function inferContentType(fileName: string, explicitType?: string): string {
@@ -58,8 +81,28 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             return { success: false, message: 'content is required for write operation' }
           }
 
-          const contentType = inferContentType(fileName, explicitType)
+          const isPptx = fileName.toLowerCase().endsWith('.pptx')
+          let contentType: string
+
+          if (isPptx) {
+            // Validate the code compiles before storing
+            try {
+              await generatePptxFromCode(content, workspaceId)
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err)
+              logger.error('PPTX code validation failed', { error: msg, fileName })
+              return {
+                success: false,
+                message: `PPTX generation failed: ${msg}. Fix the pptxgenjs code and retry.`,
+              }
+            }
+            contentType = PPTX_SOURCE_MIME
+          } else {
+            contentType = inferContentType(fileName, explicitType)
+          }
+
           const fileBuffer = Buffer.from(content, 'utf-8')
+
           const result = await uploadWorkspaceFile(
             workspaceId,
             context.userId,
@@ -105,8 +148,28 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             return { success: false, message: `File with ID "${fileId}" not found` }
           }
 
+          const isPptxUpdate = fileRecord.name?.toLowerCase().endsWith('.pptx')
+          if (isPptxUpdate) {
+            try {
+              await generatePptxFromCode(content, workspaceId)
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err)
+              return {
+                success: false,
+                message: `PPTX generation failed: ${msg}. Fix the pptxgenjs code and retry.`,
+              }
+            }
+          }
+
           const fileBuffer = Buffer.from(content, 'utf-8')
-          await updateWorkspaceFileContent(workspaceId, fileId, context.userId, fileBuffer)
+
+          await updateWorkspaceFileContent(
+            workspaceId,
+            fileId,
+            context.userId,
+            fileBuffer,
+            isPptxUpdate ? PPTX_SOURCE_MIME : undefined
+          )
 
           logger.info('Workspace file updated via copilot', {
             fileId,
@@ -185,10 +248,82 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
         }
 
+        case 'patch': {
+          const fileId = (args as Record<string, unknown>).fileId as string | undefined
+          const edits = (args as Record<string, unknown>).edits as
+            | { search: string; replace: string }[]
+            | undefined
+
+          if (!fileId) {
+            return { success: false, message: 'fileId is required for patch operation' }
+          }
+          if (!edits || !Array.isArray(edits) || edits.length === 0) {
+            return { success: false, message: 'edits array is required for patch operation' }
+          }
+
+          const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+          if (!fileRecord) {
+            return { success: false, message: `File with ID "${fileId}" not found` }
+          }
+
+          const currentBuffer = await downloadWsFile(fileRecord)
+          let content = currentBuffer.toString('utf-8')
+
+          for (const edit of edits) {
+            const idx = content.indexOf(edit.search)
+            if (idx === -1) {
+              return {
+                success: false,
+                message: `Patch failed: search string not found in file "${fileRecord.name}". Search: "${edit.search.slice(0, 100)}${edit.search.length > 100 ? '...' : ''}"`,
+              }
+            }
+            content = content.slice(0, idx) + edit.replace + content.slice(idx + edit.search.length)
+          }
+
+          const isPptxPatch = fileRecord.name?.toLowerCase().endsWith('.pptx')
+          if (isPptxPatch) {
+            try {
+              await generatePptxFromCode(content, workspaceId)
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err)
+              return {
+                success: false,
+                message: `Patched PPTX code failed to compile: ${msg}. Fix the edits and retry.`,
+              }
+            }
+          }
+
+          const patchedBuffer = Buffer.from(content, 'utf-8')
+          await updateWorkspaceFileContent(
+            workspaceId,
+            fileId,
+            context.userId,
+            patchedBuffer,
+            isPptxPatch ? PPTX_SOURCE_MIME : undefined
+          )
+
+          logger.info('Workspace file patched via copilot', {
+            fileId,
+            name: fileRecord.name,
+            editCount: edits.length,
+            userId: context.userId,
+          })
+
+          return {
+            success: true,
+            message: `File "${fileRecord.name}" patched successfully (${edits.length} edit${edits.length > 1 ? 's' : ''} applied)`,
+            data: {
+              id: fileId,
+              name: fileRecord.name,
+              size: patchedBuffer.length,
+            },
+          }
+        }
+
         default:
           return {
             success: false,
-            message: `Unknown operation: ${operation}. Supported: write, update, rename, delete. Use the filesystem to list/read files.`,
+            message: `Unknown operation: ${operation}. Supported: write, update, patch, rename, delete.`,
           }
       }
     } catch (error) {
