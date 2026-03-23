@@ -276,11 +276,9 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             'An unexpected error occurred while processing the response.'
 
           if (clientDisconnected) {
-            logger.info(`[${requestId}] Stream ended after client disconnect`)
-            await eventWriter.close().catch(() => {})
-            await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
-            await updateRunStatus(runId, 'cancelled', { completedAt: new Date() }).catch(() => {})
-            return
+            logger.info(`[${requestId}] Stream failed after client disconnect`, {
+              error: errorMessage,
+            })
           }
 
           logger.error(`[${requestId}] Orchestration returned failure`, {
@@ -313,11 +311,9 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           return
         }
         if (clientDisconnected) {
-          logger.info(`[${requestId}] Stream ended after client disconnect`)
-          await eventWriter.close().catch(() => {})
-          await setStreamMeta(streamId, { status: 'cancelled', userId, executionId, runId })
-          await updateRunStatus(runId, 'cancelled', { completedAt: new Date() }).catch(() => {})
-          return
+          logger.info(`[${requestId}] Stream errored after client disconnect`, {
+            error: error instanceof Error ? error.message : 'Stream error',
+          })
         }
         logger.error(`[${requestId}] Orchestration error:`, error)
         await eventWriter.close()
