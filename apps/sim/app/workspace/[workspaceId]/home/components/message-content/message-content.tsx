@@ -373,7 +373,6 @@ export function MessageContent({
                   agentLabel={segment.agentLabel}
                   items={segment.items}
                   autoCollapse={allToolsDone && hasFollowingText}
-                  isStreaming={isStreaming}
                 />
               </div>
             )
