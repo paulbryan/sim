@@ -5,12 +5,12 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   getExtensionFromMimeType,
   getFileExtension,
   getMimeTypeFromExtension,
 } from '@/lib/uploads/utils/file-utils'
-import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('DownloadToWorkspaceFileTool')
 

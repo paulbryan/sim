@@ -1,9 +1,9 @@
 'use client'
 
-import type { ContentBlock, OptionItem, SubagentName, ToolCallData } from '../../types'
-import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '../../types'
 import { resolveToolDisplay } from '@/lib/copilot/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
+import type { ContentBlock, OptionItem, SubagentName, ToolCallData } from '../../types'
+import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '../../types'
 import type { AgentGroupItem } from './components'
 import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
 
@@ -55,7 +55,9 @@ function resolveAgentLabel(key: string): string {
   return SUBAGENT_LABELS[key as SubagentName] ?? formatToolName(key)
 }
 
-function mapToolStatusToClientState(status: ContentBlock['toolCall'] extends { status: infer T } ? T : string) {
+function mapToolStatusToClientState(
+  status: ContentBlock['toolCall'] extends { status: infer T } ? T : string
+) {
   switch (status) {
     case 'success':
       return ClientToolCallState.success
@@ -70,7 +72,8 @@ function mapToolStatusToClientState(status: ContentBlock['toolCall'] extends { s
 
 function getOverrideDisplayTitle(tc: NonNullable<ContentBlock['toolCall']>): string | undefined {
   if (tc.name === 'read' || tc.name.endsWith('_respond')) {
-    return resolveToolDisplay(tc.name, mapToolStatusToClientState(tc.status), tc.id, tc.params)?.text
+    return resolveToolDisplay(tc.name, mapToolStatusToClientState(tc.status), tc.id, tc.params)
+      ?.text
   }
   return undefined
 }

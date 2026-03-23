@@ -23,12 +23,12 @@ import {
   Wrench,
   Zap,
 } from 'lucide-react'
+import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 import {
   ClientToolCallState,
   type ClientToolDisplay,
   TOOL_DISPLAY_REGISTRY,
 } from '@/lib/copilot/tools/client/tool-display-registry'
-import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 
 const logger = createLogger('CopilotStoreUtils')
 
@@ -134,7 +134,9 @@ function specialToolDisplay(
   }
 
   const searchQuery =
-    readStringParam(params, 'pattern') || readStringParam(params, 'query') || readStringParam(params, 'glob')
+    readStringParam(params, 'pattern') ||
+    readStringParam(params, 'query') ||
+    readStringParam(params, 'glob')
 
   if ((toolName === 'grep' || toolName === 'glob') && searchQuery) {
     return {

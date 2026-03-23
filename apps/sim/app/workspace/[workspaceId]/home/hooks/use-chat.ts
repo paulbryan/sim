@@ -738,20 +738,14 @@ export function useChat(
                 const isPartial = data?.partial === true
                 if (!id) break
 
-                if (
-                  name === 'tool_search_tool_regex' ||
-                  name === 'grep' ||
-                  name === 'glob'
-                ) {
+                if (name === 'tool_search_tool_regex' || name === 'grep' || name === 'glob') {
                   break
                 }
                 const ui = parsed.ui || data?.ui
                 if (ui?.hidden) break
                 const displayTitle = ui?.title || ui?.phaseLabel
                 const phaseLabel = ui?.phaseLabel
-                const args = (data?.arguments ?? data?.input) as
-                  | Record<string, unknown>
-                  | undefined
+                const args = (data?.arguments ?? data?.input) as Record<string, unknown> | undefined
                 if (!toolMap.has(id)) {
                   toolMap.set(id, blocks.length)
                   blocks.push({
