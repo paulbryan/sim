@@ -165,7 +165,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     if (block.type === 'tool_call') {
       if (!block.toolCall) continue
       const tc = block.toolCall
-      if (tc.name === 'tool_search_tool_regex' || tc.name === 'grep' || tc.name === 'glob') continue
+      if (tc.name === 'tool_search_tool_regex') continue
       const isDispatch = SUBAGENT_KEYS.has(tc.name) && !tc.calledBy
 
       if (isDispatch) {

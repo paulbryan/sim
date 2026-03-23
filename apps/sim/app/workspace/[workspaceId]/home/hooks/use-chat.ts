@@ -738,7 +738,7 @@ export function useChat(
                 const isPartial = data?.partial === true
                 if (!id) break
 
-                if (name === 'tool_search_tool_regex' || name === 'grep' || name === 'glob') {
+                if (name === 'tool_search_tool_regex') {
                   break
                 }
                 const ui = parsed.ui || data?.ui

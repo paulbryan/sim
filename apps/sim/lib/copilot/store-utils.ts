@@ -34,7 +34,7 @@ const logger = createLogger('CopilotStoreUtils')
 
 /** Respond tools are internal handoff tools shown with a friendly generic label. */
 const HIDDEN_TOOL_SUFFIX = '_respond'
-const HIDDEN_TOOL_NAMES = new Set(['tool_search_tool_regex', 'grep', 'glob'])
+const HIDDEN_TOOL_NAMES = new Set(['tool_search_tool_regex'])
 
 /** UI metadata sent by the copilot on SSE tool_call events. */
 export interface ServerToolUI {
@@ -133,18 +133,6 @@ function specialToolDisplay(
     }
   }
 
-  const searchQuery =
-    readStringParam(params, 'pattern') ||
-    readStringParam(params, 'query') ||
-    readStringParam(params, 'glob')
-
-  if ((toolName === 'grep' || toolName === 'glob') && searchQuery) {
-    return {
-      text: formatSearchingLabel(searchQuery, state),
-      icon: Search,
-    }
-  }
-
   if (toolName === 'read') {
     const target = describeReadTarget(readStringParam(params, 'path'))
     return {
@@ -176,20 +164,6 @@ function readStringParam(
 ): string | undefined {
   const value = params?.[key]
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function formatSearchingLabel(query: string, state: ClientToolCallState): string {
-  switch (state) {
-    case ClientToolCallState.success:
-      return `Searched for ${query}`
-    case ClientToolCallState.error:
-      return `Failed searching for ${query}`
-    case ClientToolCallState.rejected:
-    case ClientToolCallState.aborted:
-      return `Skipped searching for ${query}`
-    default:
-      return `Searching for ${query}`
-  }
 }
 
 function formatReadingLabel(target: string | undefined, state: ClientToolCallState): string {
