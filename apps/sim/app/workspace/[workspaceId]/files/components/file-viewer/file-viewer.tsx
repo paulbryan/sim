@@ -457,8 +457,9 @@ async function renderPptxSlides(
   if (cancelled()) return
 
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
-  const W = Math.round(1920 * dpr)
-  const H = Math.round(1080 * dpr)
+  const { width, height } = await getPptxRenderSize(data, dpr)
+  const W = width
+  const H = height
 
   const canvas = document.createElement('canvas')
   canvas.width = W
@@ -473,6 +474,48 @@ async function renderPptxSlides(
     if (i === 0) await viewer.render()
     else await viewer.goToSlide(i)
     onSlide(canvas.toDataURL('image/jpeg', 0.85), i)
+  }
+}
+
+async function getPptxRenderSize(
+  data: Uint8Array,
+  dpr: number
+): Promise<{ width: number; height: number }> {
+  const fallback = {
+    width: Math.round(1920 * dpr),
+    height: Math.round(1080 * dpr),
+  }
+
+  try {
+    const JSZip = (await import('jszip')).default
+    const zip = await JSZip.loadAsync(data)
+    const presentationXml = await zip.file('ppt/presentation.xml')?.async('text')
+    if (!presentationXml) return fallback
+
+    const match = presentationXml.match(/<p:sldSz[^>]*cx="(\d+)"[^>]*cy="(\d+)"/)
+    if (!match) return fallback
+
+    const cx = Number(match[1])
+    const cy = Number(match[2])
+    if (!Number.isFinite(cx) || !Number.isFinite(cy) || cx <= 0 || cy <= 0) return fallback
+
+    const aspectRatio = cx / cy
+    if (!Number.isFinite(aspectRatio) || aspectRatio <= 0) return fallback
+
+    const baseLongEdge = 1920 * dpr
+    if (aspectRatio >= 1) {
+      return {
+        width: Math.round(baseLongEdge),
+        height: Math.round(baseLongEdge / aspectRatio),
+      }
+    }
+
+    return {
+      width: Math.round(baseLongEdge * aspectRatio),
+      height: Math.round(baseLongEdge),
+    }
+  } catch {
+    return fallback
   }
 }
 

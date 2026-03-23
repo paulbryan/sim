@@ -1243,6 +1243,27 @@ async function executeServerToolDirect(
       chatId: context.chatId,
       abortSignal: context.abortSignal,
     })
+
+    const resultRecord =
+      result && typeof result === 'object' && !Array.isArray(result)
+        ? (result as Record<string, unknown>)
+        : null
+
+    // Some server tools return an explicit { success, message, ... } envelope.
+    // Preserve tool-level failures instead of reporting them as transport success.
+    if (resultRecord?.success === false) {
+      const message =
+        (typeof resultRecord.error === 'string' && resultRecord.error) ||
+        (typeof resultRecord.message === 'string' && resultRecord.message) ||
+        `${toolName} failed`
+
+      return {
+        success: false,
+        error: message,
+        output: result,
+      }
+    }
+
     return { success: true, output: result }
   } catch (error) {
     logger.error('Server tool execution failed', {
