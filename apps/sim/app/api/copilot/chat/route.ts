@@ -346,7 +346,6 @@ export async function POST(req: NextRequest) {
           goRoute: '/api/copilot',
           autoExecuteTools: true,
           interactive: true,
-          promptForToolApproval: false,
           onComplete: async (result: OrchestratorResult) => {
             if (!actualChatId) return
 
@@ -426,7 +425,6 @@ export async function POST(req: NextRequest) {
       goRoute: '/api/copilot',
       autoExecuteTools: true,
       interactive: true,
-      promptForToolApproval: false,
     })
 
     const responseData = {

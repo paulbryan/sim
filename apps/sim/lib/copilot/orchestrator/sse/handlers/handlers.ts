@@ -11,6 +11,7 @@ import {
   isToolAvailableOnSimSide,
   markToolComplete,
 } from '@/lib/copilot/orchestrator/tool-executor'
+import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
 import type {
   ContentBlock,
   ExecutionContext,
@@ -19,7 +20,7 @@ import type {
   StreamingContext,
   ToolCallState,
 } from '@/lib/copilot/orchestrator/types'
-import { executeToolAndReport, waitForToolCompletion, waitForToolDecision } from './tool-execution'
+import { executeToolAndReport, waitForToolCompletion } from './tool-execution'
 
 const logger = createLogger('CopilotSseHandlers')
 
@@ -330,7 +331,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
     const toolCall = context.toolCalls.get(toolCallId)
     if (!toolCall) return
 
-    const { requiresConfirmation, clientExecutable, internal } = getEventUI(event)
+    const { clientExecutable, internal } = getEventUI(event)
 
     if (internal) {
       return
@@ -340,9 +341,11 @@ export const sseHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    // Fire tool execution without awaiting so parallel tool calls from the
-    // same LLM turn execute concurrently. executeToolAndReport is self-contained:
-    // it updates tool state, calls markToolComplete, and emits result events.
+    /**
+     * Fire tool execution without awaiting so parallel tool calls from the
+     * same LLM turn execute concurrently. executeToolAndReport is self-contained:
+     * it updates tool state, calls markToolComplete, and emits result events.
+     */
     const fireToolExecution = () => {
       void upsertAsyncToolCall({
         runId: context.runId || crypto.randomUUID(),
@@ -379,88 +382,14 @@ export const sseHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    if (requiresConfirmation && options.promptForToolApproval) {
-      const decision = await waitForToolDecision(
-        toolCallId,
-        options.timeout || STREAM_TIMEOUT_MS,
-        options.abortSignal
-      )
-
-      if (decision?.status === 'accepted' || decision?.status === 'success') {
-        if (clientExecutable) {
-          toolCall.status = 'executing'
-          const completion = await waitForToolCompletion(
-            toolCallId,
-            options.timeout || STREAM_TIMEOUT_MS,
-            options.abortSignal
-          )
-          handleClientCompletion(toolCall, toolCallId, completion)
-          await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
-          return
-        }
-        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
-          fireToolExecution()
-        }
-        return
-      }
-
-      if (decision?.status === 'rejected' || decision?.status === 'error') {
-        toolCall.status = 'rejected'
-        toolCall.endTime = Date.now()
-        markToolComplete(
-          toolCall.id,
-          toolCall.name,
-          400,
-          decision.message || 'Tool execution rejected',
-          { skipped: true, reason: 'user_rejected' }
-        ).catch((err) => {
-          logger.error('markToolComplete fire-and-forget failed (rejected)', {
-            toolCallId: toolCall.id,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        })
-        markToolResultSeen(toolCall.id)
-        return
-      }
-
-      if (decision?.status === 'background') {
-        toolCall.status = 'skipped'
-        toolCall.endTime = Date.now()
-        markToolComplete(
-          toolCall.id,
-          toolCall.name,
-          202,
-          decision.message || 'Tool execution moved to background',
-          { background: true }
-        ).catch((err) => {
-          logger.error('markToolComplete fire-and-forget failed (background)', {
-            toolCallId: toolCall.id,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        })
-        markToolResultSeen(toolCall.id)
-        return
-      }
-
-      toolCall.status = 'rejected'
-      toolCall.endTime = Date.now()
-      markToolComplete(toolCall.id, toolCall.name, 408, 'Tool approval timed out', {
-        skipped: true,
-        reason: 'timeout',
-      }).catch((err) => {
-        logger.error('markToolComplete fire-and-forget failed (timeout)', {
-          toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
-        })
-      })
-      markToolResultSeen(toolCall.id)
-      return
-    }
-
     // Client-executable tool: execute server-side if available, otherwise
     // delegate to the client (React UI) and wait for completion.
+    // Workflow run tools are implemented on Sim for MCP/server callers but must
+    // still run in the browser when clientExecutable so the workflow terminal
+    // receives SSE block logs (executeWorkflowWithFullLogging).
     if (clientExecutable) {
-      if (isToolAvailableOnSimSide(toolName)) {
+      const delegateWorkflowRunToClient = isWorkflowToolName(toolName)
+      if (isToolAvailableOnSimSide(toolName) && !delegateWorkflowRunToClient) {
         if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
           fireToolExecution()
         }
@@ -625,7 +554,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
 
     if (isPartial) return
 
-    const { requiresConfirmation, clientExecutable, internal } = getEventUI(event)
+    const { clientExecutable, internal } = getEventUI(event)
 
     if (internal) {
       return
@@ -671,83 +600,9 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       return
     }
 
-    if (requiresConfirmation && options.promptForToolApproval) {
-      const decision = await waitForToolDecision(
-        toolCallId,
-        options.timeout || STREAM_TIMEOUT_MS,
-        options.abortSignal
-      )
-      if (decision?.status === 'accepted' || decision?.status === 'success') {
-        if (clientExecutable) {
-          toolCall.status = 'executing'
-          const completion = await waitForToolCompletion(
-            toolCallId,
-            options.timeout || STREAM_TIMEOUT_MS,
-            options.abortSignal
-          )
-          handleClientCompletion(toolCall, toolCallId, completion)
-          await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
-          return
-        }
-        if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
-          fireToolExecution()
-        }
-        return
-      }
-      if (decision?.status === 'rejected' || decision?.status === 'error') {
-        toolCall.status = 'rejected'
-        toolCall.endTime = Date.now()
-        markToolComplete(
-          toolCall.id,
-          toolCall.name,
-          400,
-          decision.message || 'Tool execution rejected',
-          { skipped: true, reason: 'user_rejected' }
-        ).catch((err) => {
-          logger.error('markToolComplete fire-and-forget failed (subagent rejected)', {
-            toolCallId: toolCall.id,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        })
-        markToolResultSeen(toolCall.id)
-        return
-      }
-      if (decision?.status === 'background') {
-        toolCall.status = 'skipped'
-        toolCall.endTime = Date.now()
-        markToolComplete(
-          toolCall.id,
-          toolCall.name,
-          202,
-          decision.message || 'Tool execution moved to background',
-          { background: true }
-        ).catch((err) => {
-          logger.error('markToolComplete fire-and-forget failed (subagent background)', {
-            toolCallId: toolCall.id,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        })
-        markToolResultSeen(toolCall.id)
-        return
-      }
-
-      toolCall.status = 'rejected'
-      toolCall.endTime = Date.now()
-      markToolComplete(toolCall.id, toolCall.name, 408, 'Tool approval timed out', {
-        skipped: true,
-        reason: 'timeout',
-      }).catch((err) => {
-        logger.error('markToolComplete fire-and-forget failed (subagent timeout)', {
-          toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
-        })
-      })
-      markToolResultSeen(toolCall.id)
-      return
-    }
-
     if (clientExecutable) {
-      if (isToolAvailableOnSimSide(toolName)) {
+      const delegateWorkflowRunToClient = isWorkflowToolName(toolName)
+      if (isToolAvailableOnSimSide(toolName) && !delegateWorkflowRunToClient) {
         if (!abortPendingToolIfStreamDead(toolCall, toolCallId, options, context)) {
           fireToolExecution()
         }
