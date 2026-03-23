@@ -111,13 +111,28 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     const block = blocks[i]
 
     if (block.type === 'subagent_text') {
+      if (!block.content || !group) continue
+      const lastItem = group.items[group.items.length - 1]
+      if (lastItem?.type === 'text') {
+        lastItem.content += block.content
+      } else {
+        group.items.push({ type: 'text', content: block.content })
+      }
       continue
     }
 
     if (block.type === 'text') {
       if (!block.content?.trim()) continue
       if (block.subagent) {
-        continue
+        if (group && group.agentName === block.subagent) {
+          const lastItem = group.items[group.items.length - 1]
+          if (lastItem?.type === 'text') {
+            lastItem.content += block.content
+          } else {
+            group.items.push({ type: 'text', content: block.content })
+          }
+          continue
+        }
       }
       if (group) {
         segments.push(group)
@@ -358,6 +373,7 @@ export function MessageContent({
                   agentLabel={segment.agentLabel}
                   items={segment.items}
                   autoCollapse={allToolsDone && hasFollowingText}
+                  isStreaming={isStreaming}
                 />
               </div>
             )

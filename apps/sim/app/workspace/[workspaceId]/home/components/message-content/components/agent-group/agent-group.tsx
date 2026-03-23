@@ -5,6 +5,7 @@ import { ChevronDown } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { ToolCallData } from '../../../../types'
 import { getAgentIcon } from '../../utils'
+import { ChatContent } from '../chat-content/chat-content'
 import { ToolCallItem } from './tool-call-item'
 
 export type AgentGroupItem =
@@ -16,6 +17,7 @@ interface AgentGroupProps {
   agentLabel: string
   items: AgentGroupItem[]
   autoCollapse?: boolean
+  isStreaming?: boolean
 }
 
 const FADE_MS = 300
@@ -25,6 +27,7 @@ export function AgentGroup({
   agentLabel,
   items,
   autoCollapse = false,
+  isStreaming = false,
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
   const hasItems = items.length > 0
@@ -100,12 +103,9 @@ export function AgentGroup({
                 status={item.data.status}
               />
             ) : (
-              <span
-                key={`text-${idx}`}
-                className='pl-[24px] font-base text-[13px] text-[var(--text-secondary)]'
-              >
-                {item.content.trim()}
-              </span>
+              <div key={`text-${idx}`} className='pl-[24px]'>
+                <ChatContent content={item.content.trim()} isStreaming={isStreaming} />
+              </div>
             )
           )}
         </div>
