@@ -1,5 +1,11 @@
 import { createLogger } from '@sim/logger'
-import { updateRunStatus } from '@/lib/copilot/async-runs/repository'
+import { ASYNC_TOOL_STATUS, isTerminalAsyncStatus } from '@/lib/copilot/async-runs/lifecycle'
+import {
+  claimCompletedAsyncToolCall,
+  getAsyncToolCalls,
+  markAsyncToolResumed,
+  updateRunStatus,
+} from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import { prepareExecutionContext } from '@/lib/copilot/orchestrator/tool-executor'
 import type {
@@ -73,6 +79,7 @@ export async function orchestrateCopilotStream(
   try {
     let route = goRoute
     let payload = requestPayload
+    let claimedToolCallIds: string[] = []
 
     const callerOnEvent = options.onEvent
 
@@ -120,21 +127,86 @@ export async function orchestrateCopilotStream(
       const continuation = context.awaitingAsyncContinuation
       if (!continuation) break
 
+      claimedToolCallIds = []
+      const resumeWorkerId = continuation.runId || context.runId || context.messageId
+      const claimableToolCallIds: string[] = []
+      for (const toolCallId of continuation.pendingToolCallIds) {
+        const claimed = await claimCompletedAsyncToolCall(toolCallId, resumeWorkerId).catch(
+          () => null
+        )
+        if (claimed) {
+          claimableToolCallIds.push(toolCallId)
+          claimedToolCallIds.push(toolCallId)
+          continue
+        }
+        // Fall back to local continuation if the durable row is missing, but do not
+        // retry rows another worker already claimed.
+        const localPending = context.pendingToolPromises.has(toolCallId)
+        if (localPending) {
+          claimableToolCallIds.push(toolCallId)
+        } else {
+          logger.warn('Skipping already-claimed or missing async tool resume', {
+            toolCallId,
+            runId: continuation.runId,
+          })
+        }
+      }
+
+      if (claimableToolCallIds.length === 0) {
+        logger.warn('Skipping async resume because no tool calls were claimable', {
+          checkpointId: continuation.checkpointId,
+          runId: continuation.runId,
+        })
+        context.awaitingAsyncContinuation = undefined
+        break
+      }
+
+      logger.info('Resuming async tool continuation', {
+        checkpointId: continuation.checkpointId,
+        runId: continuation.runId,
+        toolCallIds: claimableToolCallIds,
+      })
+
+      const durableRows = await getAsyncToolCalls(claimableToolCallIds).catch(() => [])
+      const durableByToolCallId = new Map(durableRows.map((row) => [row.toolCallId, row]))
+
       const results = await Promise.all(
-        continuation.pendingToolCallIds.map(async (toolCallId) => {
+        claimableToolCallIds.map(async (toolCallId) => {
           const completion = await context.pendingToolPromises.get(toolCallId)
           const toolState = context.toolCalls.get(toolCallId)
+
+          const durable = durableByToolCallId.get(toolCallId)
+          const durableStatus = durable?.status
           const success =
-            completion?.status === 'success' || (!completion && toolState?.result?.success === true)
+            durableStatus === ASYNC_TOOL_STATUS.completed ||
+            (durableStatus == null &&
+              (completion?.status === 'success' ||
+                (!completion && toolState?.result?.success === true)))
+
+          const durableResult =
+            durable?.result && typeof durable.result === 'object'
+              ? (durable.result as Record<string, unknown>)
+              : undefined
           const data =
+            durableResult ||
             completion?.data ||
             (toolState?.result?.output as Record<string, unknown> | undefined) ||
             (success
               ? { message: completion?.message || 'Tool completed' }
-              : { error: completion?.message || toolState?.error || 'Tool failed' })
+              : {
+                  error: completion?.message || durable?.error || toolState?.error || 'Tool failed',
+                })
+
+          if (durableStatus && !isTerminalAsyncStatus(durableStatus)) {
+            logger.warn('Async tool row was claimed for resume without terminal durable state', {
+              toolCallId,
+              status: durableStatus,
+            })
+          }
+
           return {
             callId: toolCallId,
-            name: toolState?.name || '',
+            name: durable?.toolName || toolState?.name || '',
             data,
             success,
           }
@@ -159,6 +231,12 @@ export async function orchestrateCopilotStream(
       errors: context.errors.length ? context.errors : undefined,
       usage: context.usage,
       cost: context.cost,
+    }
+    if (result.success && claimedToolCallIds.length > 0) {
+      logger.info('Marking async tool calls as resumed', { toolCallIds: claimedToolCallIds })
+      await Promise.all(
+        claimedToolCallIds.map((toolCallId) => markAsyncToolResumed(toolCallId).catch(() => null))
+      )
     }
     await options.onComplete?.(result)
     return result

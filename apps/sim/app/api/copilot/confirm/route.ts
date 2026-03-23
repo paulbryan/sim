@@ -1,8 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { completeAsyncToolCall, upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
+import {
+  completeAsyncToolCall,
+  getAsyncToolCall,
+  upsertAsyncToolCall,
+} from '@/lib/copilot/async-runs/repository'
 import { REDIS_TOOL_CALL_PREFIX, REDIS_TOOL_CALL_TTL_SECONDS } from '@/lib/copilot/constants'
+import { publishToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -43,13 +48,22 @@ async function updateToolCallStatus(
         : status === 'error' || status === 'rejected'
           ? 'failed'
           : 'pending'
-  await upsertAsyncToolCall({
-    runId: crypto.randomUUID(),
-    toolCallId,
-    toolName: 'client_tool',
-    args: {},
-    status: durableStatus,
-  }).catch(() => {})
+  const existing = await getAsyncToolCall(toolCallId).catch(() => null)
+  if (existing?.runId) {
+    await upsertAsyncToolCall({
+      runId: existing.runId,
+      checkpointId: existing.checkpointId ?? null,
+      toolCallId,
+      toolName: existing.toolName || 'client_tool',
+      args: (existing.args as Record<string, unknown> | null) ?? {},
+      status: durableStatus,
+    }).catch(() => {})
+  } else {
+    logger.warn('Tool confirmation has no existing async tool row; durable state may be missing', {
+      toolCallId,
+      status,
+    })
+  }
   if (
     durableStatus === 'completed' ||
     durableStatus === 'failed' ||
@@ -66,6 +80,13 @@ async function updateToolCallStatus(
   const redis = getRedisClient()
   if (!redis) {
     logger.warn('Redis client not available for tool confirmation; durable DB mirror only')
+    publishToolConfirmation({
+      toolCallId,
+      status,
+      message: message || undefined,
+      timestamp: new Date().toISOString(),
+      data,
+    })
     return true
   }
 
@@ -80,6 +101,13 @@ async function updateToolCallStatus(
       payload.data = data
     }
     await redis.set(key, JSON.stringify(payload), 'EX', REDIS_TOOL_CALL_TTL_SECONDS)
+    publishToolConfirmation({
+      toolCallId,
+      status,
+      message: message || undefined,
+      timestamp: payload.timestamp as string,
+      data,
+    })
     return true
   } catch (error) {
     logger.error('Failed to update tool call status', {

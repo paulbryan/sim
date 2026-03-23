@@ -8,6 +8,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { isTerminalAsyncStatus } from './lifecycle'
 
 const logger = createLogger('CopilotAsyncRunsRepo')
 
@@ -107,18 +108,29 @@ export async function createRunCheckpoint(input: {
 }
 
 export async function upsertAsyncToolCall(input: {
-  runId: string
+  runId?: string | null
   checkpointId?: string | null
   toolCallId: string
   toolName: string
   args?: Record<string, unknown>
   status?: CopilotAsyncToolStatus
 }) {
+  const existing = await getAsyncToolCall(input.toolCallId)
+  const effectiveRunId = input.runId ?? existing?.runId ?? null
+  if (!effectiveRunId) {
+    logger.warn('upsertAsyncToolCall missing runId and no existing row', {
+      toolCallId: input.toolCallId,
+      toolName: input.toolName,
+      status: input.status ?? 'pending',
+    })
+    return null
+  }
+
   const now = new Date()
   const [row] = await db
     .insert(copilotAsyncToolCalls)
     .values({
-      runId: input.runId,
+      runId: effectiveRunId,
       checkpointId: input.checkpointId ?? null,
       toolCallId: input.toolCallId,
       toolName: input.toolName,
@@ -129,7 +141,7 @@ export async function upsertAsyncToolCall(input: {
     .onConflictDoUpdate({
       target: copilotAsyncToolCalls.toolCallId,
       set: {
-        runId: input.runId,
+        runId: effectiveRunId,
         checkpointId: input.checkpointId ?? null,
         toolName: input.toolName,
         args: input.args ?? {},
@@ -140,6 +152,16 @@ export async function upsertAsyncToolCall(input: {
     .returning()
 
   return row
+}
+
+export async function getAsyncToolCall(toolCallId: string) {
+  const [row] = await db
+    .select()
+    .from(copilotAsyncToolCalls)
+    .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+    .limit(1)
+
+  return row ?? null
 }
 
 export async function markAsyncToolStatus(
@@ -186,11 +208,7 @@ export async function completeAsyncToolCall(input: {
   result?: Record<string, unknown> | null
   error?: string | null
 }) {
-  const [existing] = await db
-    .select()
-    .from(copilotAsyncToolCalls)
-    .where(eq(copilotAsyncToolCalls.toolCallId, input.toolCallId))
-    .limit(1)
+  const existing = await getAsyncToolCall(input.toolCallId)
 
   if (!existing) {
     logger.warn('completeAsyncToolCall called before pending row existed', {
@@ -200,11 +218,7 @@ export async function completeAsyncToolCall(input: {
     return null
   }
 
-  if (
-    existing.status === 'completed' ||
-    existing.status === 'failed' ||
-    existing.status === 'cancelled'
-  ) {
+  if (isTerminalAsyncStatus(existing.status)) {
     return existing
   }
 

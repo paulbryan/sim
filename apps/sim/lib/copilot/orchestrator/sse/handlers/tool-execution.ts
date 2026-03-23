@@ -3,12 +3,7 @@ import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { completeAsyncToolCall, markAsyncToolRunning } from '@/lib/copilot/async-runs/repository'
-import {
-  TOOL_DECISION_INITIAL_POLL_MS,
-  TOOL_DECISION_MAX_POLL_MS,
-  TOOL_DECISION_POLL_BACKOFF,
-} from '@/lib/copilot/constants'
-import { getToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
+import { waitForToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
 import {
   asRecord,
   markToolResultSeen,
@@ -766,42 +761,14 @@ export async function executeToolAndReport(
   }
 }
 
-function abortAwareSleep(ms: number, abortSignal?: AbortSignal): Promise<void> {
-  return new Promise<void>((resolve) => {
-    if (abortSignal?.aborted) {
-      resolve()
-      return
-    }
-    const timer = setTimeout(resolve, ms)
-    abortSignal?.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer)
-        resolve()
-      },
-      { once: true }
-    )
-  })
-}
-
 export async function waitForToolDecision(
   toolCallId: string,
   timeoutMs: number,
   abortSignal?: AbortSignal
 ): Promise<{ status: string; message?: string } | null> {
-  const start = Date.now()
-  let interval = TOOL_DECISION_INITIAL_POLL_MS
-  const maxInterval = TOOL_DECISION_MAX_POLL_MS
-  while (Date.now() - start < timeoutMs) {
-    if (abortSignal?.aborted) return null
-    const decision = await getToolConfirmation(toolCallId)
-    if (decision?.status) {
-      return decision
-    }
-    await abortAwareSleep(interval, abortSignal)
-    interval = Math.min(interval * TOOL_DECISION_POLL_BACKOFF, maxInterval)
-  }
-  return null
+  const decision = await waitForToolConfirmation(toolCallId, timeoutMs, abortSignal)
+  if (!decision) return null
+  return { status: decision.status, message: decision.message }
 }
 
 /**
@@ -814,31 +781,22 @@ export async function waitForToolDecision(
  *
  * Used for client-executable run tools: the client executes the workflow
  * and posts success/error to /api/copilot/confirm when done. The server
- * polls here until that completion signal arrives.
+ * waits here until that completion signal arrives.
  */
 export async function waitForToolCompletion(
   toolCallId: string,
   timeoutMs: number,
   abortSignal?: AbortSignal
 ): Promise<{ status: string; message?: string; data?: Record<string, unknown> } | null> {
-  const start = Date.now()
-  let interval = TOOL_DECISION_INITIAL_POLL_MS
-  const maxInterval = TOOL_DECISION_MAX_POLL_MS
-  while (Date.now() - start < timeoutMs) {
-    if (abortSignal?.aborted) return null
-    const decision = await getToolConfirmation(toolCallId)
-    // Return on completion/terminal statuses, not intermediate 'accepted'
-    if (
-      decision?.status === 'success' ||
-      decision?.status === 'error' ||
-      decision?.status === 'rejected' ||
-      decision?.status === 'background' ||
-      decision?.status === 'cancelled'
-    ) {
-      return decision
-    }
-    await abortAwareSleep(interval, abortSignal)
-    interval = Math.min(interval * TOOL_DECISION_POLL_BACKOFF, maxInterval)
+  const decision = await waitForToolConfirmation(toolCallId, timeoutMs, abortSignal)
+  if (
+    decision?.status === 'success' ||
+    decision?.status === 'error' ||
+    decision?.status === 'rejected' ||
+    decision?.status === 'background' ||
+    decision?.status === 'cancelled'
+  ) {
+    return decision
   }
   return null
 }

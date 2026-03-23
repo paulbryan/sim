@@ -174,7 +174,13 @@ async function emitSyntheticToolResult(
       result: resultPayload,
       error: !success ? completion?.message : undefined,
     } as SSEEvent)
-  } catch {}
+  } catch (error) {
+    logger.warn('Failed to emit synthetic tool_result', {
+      toolCallId,
+      toolName,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
 }
 
 // Normalization + dedupe helpers live in sse-utils to keep server/client in sync.
@@ -361,13 +367,6 @@ export const sseHandlers: Record<string, SSEHandler> = {
       context.pendingToolPromises.set(toolCallId, pendingPromise)
       pendingPromise.finally(() => {
         context.pendingToolPromises.delete(toolCallId)
-      })
-      pendingPromise.catch((err) => {
-        logger.error('Parallel tool execution failed', {
-          toolCallId,
-          toolName,
-          error: err instanceof Error ? err.message : String(err),
-        })
       })
     }
 
@@ -660,13 +659,6 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       context.pendingToolPromises.set(toolCallId, pendingPromise)
       pendingPromise.finally(() => {
         context.pendingToolPromises.delete(toolCallId)
-      })
-      pendingPromise.catch((err) => {
-        logger.error('Parallel subagent tool execution failed', {
-          toolCallId,
-          toolName,
-          error: err instanceof Error ? err.message : String(err),
-        })
       })
     }
 
