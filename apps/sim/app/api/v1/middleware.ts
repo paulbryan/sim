@@ -37,7 +37,9 @@ export async function checkRateLimit(
     | 'file-detail'
     | 'knowledge'
     | 'knowledge-detail'
-    | 'knowledge-search' = 'logs'
+    | 'knowledge-search'
+    | 'agents'
+    | 'agent-detail' = 'logs'
 ): Promise<RateLimitResult> {
   try {
     const auth = await authenticateV1Request(request)

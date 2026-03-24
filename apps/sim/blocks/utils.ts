@@ -47,6 +47,30 @@ export function getDependsOnFields(dependsOn: SubBlockConfig['dependsOn']): stri
   return [...(dependsOn.all || []), ...(dependsOn.any || [])]
 }
 
+/**
+ * Block types that are surfaced as "built-in tools" in the agent tool picker,
+ * as opposed to third-party integration blocks.
+ * Shared between the workflow tool-input and the standalone agent tool picker.
+ */
+export const BUILT_IN_TOOL_TYPES = new Set([
+  'api',
+  'file',
+  'function',
+  'knowledge',
+  'search',
+  'thinking',
+  'image_generator',
+  'video_generator',
+  'vision',
+  'translate',
+  'tts',
+  'stt',
+  'memory',
+  'table',
+  'webhook_request',
+  'workflow',
+])
+
 export function resolveOutputType(
   outputs: Record<string, OutputFieldDefinition>
 ): Record<string, BlockOutput> {
@@ -80,7 +104,7 @@ function buildModelVisibilityCondition(model: string, shouldShow: boolean) {
   return shouldShow ? { field: 'model', value: model } : { field: 'model', value: model, not: true }
 }
 
-function shouldRequireApiKeyForModel(model: string): boolean {
+export function shouldRequireApiKeyForModel(model: string): boolean {
   const normalizedModel = model.trim().toLowerCase()
   if (!normalizedModel) return false
 

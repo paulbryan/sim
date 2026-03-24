@@ -61,6 +61,10 @@ export interface ToolInput {
   operation?: string
   /** Database ID for custom tools (new reference format) */
   customToolId?: string
+  /** Direct tool ID for execution */
+  toolId?: string
+  /** Whether the tool details are expanded in the UI */
+  isExpanded?: boolean
 }
 
 export interface Message {

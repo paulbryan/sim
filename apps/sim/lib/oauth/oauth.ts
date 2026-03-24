@@ -669,6 +669,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'groups:history',
           'chat:write',
           'chat:write.public',
+          'chat:write.customize',
           'im:write',
           'im:history',
           'im:read',
@@ -678,6 +679,10 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'files:read',
           'canvases:write',
           'reactions:write',
+          // Required for agent event subscriptions (app_mention events, DMs)
+          'app_mentions:read',
+          // Required for conversations.list to return group DMs
+          'mpim:read',
         ],
       },
     },

@@ -2863,3 +2863,107 @@ export const mothershipInboxWebhook = pgTable('mothership_inbox_webhook', {
   secret: text('secret').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ============================================================
+// Agents - Standalone agent registry
+// ============================================================
+
+export const agentPlatformEnum = pgEnum('agent_platform', ['slack'])
+
+/**
+ * Agents - Standalone AI agents with their own configuration,
+ * separate from workflow blocks. Can be deployed to Slack and
+ * exposed as REST APIs.
+ */
+export const agent = pgTable(
+  'agent',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    /** Agent configuration: model, tools, skills, memory, prompts, etc. */
+    config: jsonb('config').notNull().default('{}'),
+    /** Whether the agent is deployed to at least one platform or API */
+    isDeployed: boolean('is_deployed').notNull().default(false),
+    deployedAt: timestamp('deployed_at'),
+    archivedAt: timestamp('archived_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdIdx: index('agent_workspace_id_idx').on(table.workspaceId),
+    createdByIdx: index('agent_created_by_idx').on(table.createdBy),
+    uniqueNamePerWorkspace: uniqueIndex('agent_workspace_name_unique')
+      .on(table.workspaceId, table.name)
+      .where(sql`${table.archivedAt} IS NULL`),
+  })
+)
+
+/**
+ * Agent Deployments - Per-platform deployment configuration for an agent.
+ * One row per (agent, platform) pair.
+ */
+export const agentDeployment = pgTable(
+  'agent_deployment',
+  {
+    id: text('id').primaryKey(),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => agent.id, { onDelete: 'cascade' }),
+    platform: agentPlatformEnum('platform').notNull(),
+    /** OAuth credential used for this deployment (e.g. Slack bot token) */
+    credentialId: text('credential_id').references(() => credential.id, {
+      onDelete: 'set null',
+    }),
+    /** Platform-specific config (teamId, channelIds, respondTo, etc.) */
+    config: jsonb('config').notNull().default('{}'),
+    isActive: boolean('is_active').notNull().default(false),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    agentIdIdx: index('agent_deployment_agent_id_idx').on(table.agentId),
+    platformIdx: index('agent_deployment_platform_idx').on(table.platform),
+    credentialIdx: index('agent_deployment_credential_id_idx').on(table.credentialId),
+    uniqueAgentPlatform: uniqueIndex('agent_deployment_agent_platform_unique').on(
+      table.agentId,
+      table.platform
+    ),
+  })
+)
+
+/**
+ * Agent Conversations - Maps platform-specific conversation identifiers
+ * (Slack thread, DM, channel) to memory keys in the memory table.
+ */
+export const agentConversation = pgTable(
+  'agent_conversation',
+  {
+    id: text('id').primaryKey(),
+    agentId: text('agent_id')
+      .notNull()
+      .references(() => agent.id, { onDelete: 'cascade' }),
+    platform: agentPlatformEnum('platform').notNull(),
+    /** External identifier: channel_id, thread_ts, DM id, or API conversation ID */
+    externalId: text('external_id').notNull(),
+    /** Corresponds to memory.key in the memory table */
+    conversationId: text('conversation_id').notNull(),
+    metadata: jsonb('metadata').notNull().default('{}'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    agentIdIdx: index('agent_conversation_agent_id_idx').on(table.agentId),
+    uniqueConversation: uniqueIndex('agent_conversation_unique').on(
+      table.agentId,
+      table.platform,
+      table.externalId
+    ),
+  })
+)

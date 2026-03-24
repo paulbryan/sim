@@ -32,7 +32,9 @@ import {
   Settings,
   Sim,
   Table,
+  Wordmark,
 } from '@/components/emcn/icons'
+import { AgentIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
@@ -197,7 +199,6 @@ const SidebarNavItem = memo(function SidebarNavItem({
   const Icon = item.icon
   const baseClasses =
     'group flex h-[30px] items-center gap-[8px] rounded-[8px] mx-[2px] px-[8px] text-[14px] hover:bg-[var(--surface-active)]'
-  const activeClasses = active ? 'bg-[var(--surface-active)]' : ''
 
   const content = (
     <>
@@ -210,7 +211,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
     <Link
       href={item.href}
       data-item-id={item.id}
-      className={`${baseClasses} ${activeClasses}`}
+      className={cn(baseClasses, active && 'bg-[var(--surface-active)]')}
       onClick={
         item.onClick
           ? (e) => {
@@ -228,7 +229,7 @@ const SidebarNavItem = memo(function SidebarNavItem({
     <button
       type='button'
       data-item-id={item.id}
-      className={`${baseClasses} ${activeClasses}`}
+      className={cn(baseClasses, active && 'bg-[var(--surface-active)]')}
       onClick={item.onClick}
     >
       {content}
@@ -274,7 +275,7 @@ export const Sidebar = memo(function Sidebar() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  const { data: sessionData, isPending: sessionLoading } = useSession()
+  const { data: sessionData } = useSession()
   const { canEdit } = useUserPermissionsContext()
   const { config: permissionConfig, filterBlocks } = usePermissionConfig()
   const { navigateToSettings, getSettingsHref } = useSettingsNavigation()
@@ -553,6 +554,13 @@ export const Sidebar = memo(function Sidebar() {
     () =>
       [
         {
+          id: 'agents',
+          label: 'Agents',
+          icon: AgentIcon,
+          href: `/workspace/${workspaceId}/agents`,
+          hidden: permissionConfig.hideAgentsTab,
+        },
+        {
           id: 'tables',
           label: 'Tables',
           icon: Table,
@@ -588,6 +596,7 @@ export const Sidebar = memo(function Sidebar() {
       ].filter((item) => !item.hidden),
     [
       workspaceId,
+      permissionConfig.hideAgentsTab,
       permissionConfig.hideKnowledgeBaseTab,
       permissionConfig.hideTablesTab,
       permissionConfig.hideFilesTab,
@@ -615,7 +624,7 @@ export const Sidebar = memo(function Sidebar() {
         },
       },
     ],
-    [workspaceId, navigateToSettings, getSettingsHref, isCollapsed, setSidebarWidth]
+    [navigateToSettings, getSettingsHref, isCollapsed, setSidebarWidth]
   )
 
   const { data: fetchedTasks = [], isLoading: tasksLoading } = useTasks(workspaceId)
@@ -785,7 +794,6 @@ export const Sidebar = memo(function Sidebar() {
 
   const isOnSettingsPage = pathname?.startsWith(`/workspace/${workspaceId}/settings`) ?? false
 
-  const isLoading = workflowsLoading || sessionLoading
   const initialScrollDoneRef = useRef(false)
 
   useEffect(() => {
@@ -900,24 +908,10 @@ export const Sidebar = memo(function Sidebar() {
 
       const zipFile = files[0]
       await importWorkspace(zipFile)
-
-      if (event.target) {
-        event.target.value = ''
-      }
+      event.target.value = ''
     },
     [importWorkspace]
   )
-
-  const resolveWorkspaceIdFromPath = useCallback((): string | undefined => {
-    if (workspaceId) return workspaceId
-    if (typeof window === 'undefined') return undefined
-
-    const parts = window.location.pathname.split('/')
-    const idx = parts.indexOf('workspace')
-    if (idx === -1) return undefined
-
-    return parts[idx + 1]
-  }, [workspaceId])
 
   useRegisterGlobalCommands(() =>
     createCommands([
@@ -935,30 +929,13 @@ export const Sidebar = memo(function Sidebar() {
           }
         },
       },
-      // {
-      //   id: 'goto-templates',
-      //   handler: () => {
-      //     try {
-      //       const pathWorkspaceId = resolveWorkspaceIdFromPath()
-      //       if (pathWorkspaceId) {
-      //         navigateToPage(`/workspace/${pathWorkspaceId}/templates`)
-      //         logger.info('Navigated to templates', { workspaceId: pathWorkspaceId })
-      //       } else {
-      //         logger.warn('No workspace ID found, cannot navigate to templates')
-      //       }
-      //     } catch (err) {
-      //       logger.error('Failed to navigate to templates', { err })
-      //     }
-      //   },
-      // },
       {
         id: 'goto-logs',
         handler: () => {
           try {
-            const pathWorkspaceId = resolveWorkspaceIdFromPath()
-            if (pathWorkspaceId) {
-              navigateToPage(`/workspace/${pathWorkspaceId}/logs`)
-              logger.info('Navigated to logs', { workspaceId: pathWorkspaceId })
+            if (workspaceId) {
+              navigateToPage(`/workspace/${workspaceId}/logs`)
+              logger.info('Navigated to logs', { workspaceId })
             } else {
               logger.warn('No workspace ID found, cannot navigate to logs')
             }
@@ -1017,7 +994,7 @@ export const Sidebar = memo(function Sidebar() {
                 ) : (
                   <Link
                     href={`/workspace/${workspaceId}/home`}
-                    className='flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover:bg-[var(--surface-active)]'
+                    className='flex h-[30px] items-center rounded-[8px] px-[6px] hover:bg-[var(--surface-active)]'
                   >
                     {brand.logoUrl ? (
                       <Image
@@ -1029,7 +1006,7 @@ export const Sidebar = memo(function Sidebar() {
                         unoptimized
                       />
                     ) : (
-                      <Sim className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+                      <Wordmark className='h-[16px] w-auto text-[var(--text-body)]' />
                     )}
                   </Link>
                 )}
@@ -1369,7 +1346,7 @@ export const Sidebar = memo(function Sidebar() {
                         workspaceId={workspaceId}
                         workflowId={workflowId}
                         regularWorkflows={regularWorkflows}
-                        isLoading={isLoading}
+                        isLoading={workflowsLoading}
                         canReorder={canEdit}
                         handleFileChange={handleImportFileChange}
                         fileInputRef={fileInputRef}
