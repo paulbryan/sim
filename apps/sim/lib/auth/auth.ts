@@ -106,7 +106,7 @@ function getMicrosoftUserInfoFromIdToken(tokens: { accessToken: string }, provid
   return {
     id: `${payload.oid || payload.sub}-${crypto.randomUUID()}`,
     name: payload.name || 'Microsoft User',
-    email: payload.preferred_username || payload.email || payload.upn,
+    email: payload.email || payload.preferred_username || payload.upn,
     emailVerified: true,
     createdAt: now,
     updatedAt: now,
