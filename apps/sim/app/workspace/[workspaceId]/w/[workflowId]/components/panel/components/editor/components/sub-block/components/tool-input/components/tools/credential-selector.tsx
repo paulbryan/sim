@@ -72,7 +72,10 @@ export function ToolCredentialSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [editingInputValue, setEditingInputValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
-  const { activeWorkflowId } = useWorkflowRegistry()
+  const { activeWorkflowId, workflows } = useWorkflowRegistry()
+  // Only pass workflowId when it's a real registered workflow (not an agent ID set as the active context)
+  const effectiveWorkflowId =
+    activeWorkflowId && workflows[activeWorkflowId] ? activeWorkflowId : undefined
 
   const selectedId = value || ''
   const effectiveLabel = label || `Select ${getProviderName(provider)} account`
@@ -86,7 +89,7 @@ export function ToolCredentialSelector({
   } = useOAuthCredentials(effectiveProviderId, {
     enabled: Boolean(effectiveProviderId),
     workspaceId,
-    workflowId: activeWorkflowId || undefined,
+    workflowId: effectiveWorkflowId,
   })
 
   const selectedCredential = useMemo(

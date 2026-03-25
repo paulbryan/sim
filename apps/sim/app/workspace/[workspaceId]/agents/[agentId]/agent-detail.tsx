@@ -13,6 +13,7 @@ import type { BreadcrumbItem } from '@/app/workspace/[workspaceId]/components'
 import { ResourceHeader } from '@/app/workspace/[workspaceId]/components'
 import { useAgent, useDeleteAgent, useUpdateAgent } from '@/hooks/queries/agents'
 import { useInlineRename } from '@/hooks/use-inline-rename'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('AgentDetail')
 
@@ -36,6 +37,17 @@ export function AgentDetail({ agentId, workspaceId }: AgentDetailProps) {
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isInitializedRef = useRef(false)
+
+  // SubBlockStore.setValue reads activeWorkflowId from the workflow registry and no-ops when null.
+  // Set the agentId as the active "workflow" so tool sub-block params (credentials, etc.) persist.
+  useEffect(() => {
+    useWorkflowRegistry.setState({ activeWorkflowId: agentId })
+    return () => {
+      if (useWorkflowRegistry.getState().activeWorkflowId === agentId) {
+        useWorkflowRegistry.setState({ activeWorkflowId: null })
+      }
+    }
+  }, [agentId])
 
   useEffect(() => {
     if (agent && !isInitializedRef.current) {
