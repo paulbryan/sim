@@ -570,7 +570,10 @@ export async function executeSync(
             inArray(document.processingStatus, ['pending', 'failed']),
             and(
               eq(document.processingStatus, 'processing'),
-              lt(document.processingStartedAt, staleProcessingCutoff)
+              or(
+                isNull(document.processingStartedAt),
+                lt(document.processingStartedAt, staleProcessingCutoff)
+              )
             )
           ),
           lt(document.uploadedAt, syncStartedAt),
@@ -605,8 +608,6 @@ export async function executeSync(
       }
     }
 
-    await completeSyncLog(syncLogId, 'completed', result)
-
     // Enqueue all added/updated documents for processing in a single batch
     if (pendingProcessing.length > 0) {
       try {
@@ -617,13 +618,15 @@ export async function executeSync(
           crypto.randomUUID()
         )
       } catch (error) {
-        logger.warn('Failed to enqueue documents for processing', {
+        logger.warn('Failed to enqueue documents for processing — will retry on next sync', {
           connectorId,
           count: pendingProcessing.length,
           error: error instanceof Error ? error.message : String(error),
         })
       }
     }
+
+    await completeSyncLog(syncLogId, 'completed', result)
 
     const [{ count: actualDocCount }] = await db
       .select({ count: sql<number>`count(*)::int` })
