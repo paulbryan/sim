@@ -150,11 +150,14 @@ export async function dispatchSync(
   const requestId = options?.requestId ?? crypto.randomUUID()
 
   if (isTriggerAvailable()) {
-    await knowledgeConnectorSync.trigger({
-      connectorId,
-      fullSync: options?.fullSync,
-      requestId,
-    })
+    await knowledgeConnectorSync.trigger(
+      {
+        connectorId,
+        fullSync: options?.fullSync,
+        requestId,
+      },
+      { tags: [`connector:${connectorId}`] }
+    )
     logger.info(`Dispatched connector sync to Trigger.dev`, { connectorId, requestId })
   } else {
     executeSync(connectorId, { fullSync: options?.fullSync }).catch((error) => {

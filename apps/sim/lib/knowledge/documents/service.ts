@@ -687,6 +687,7 @@ export async function processDocumentsWithTrigger(
           payload: doc,
           options: {
             idempotencyKey: `doc-process-${doc.documentId}-${requestId}`,
+            tags: [`kb:${doc.knowledgeBaseId}`, `doc:${doc.documentId}`],
           },
         }))
       )
