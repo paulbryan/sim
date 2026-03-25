@@ -668,7 +668,7 @@ export function isTriggerAvailable(): boolean {
 export async function processDocumentsWithTrigger(
   documents: DocumentProcessingPayload[],
   requestId: string
-): Promise<{ success: boolean; message: string; jobIds?: string[] }> {
+): Promise<{ success: boolean; message: string; batchIds?: string[] }> {
   if (!isTriggerAvailable()) {
     throw new Error('Trigger.dev is not configured - TRIGGER_SECRET_KEY missing')
   }
@@ -700,7 +700,7 @@ export async function processDocumentsWithTrigger(
     return {
       success: true,
       message: `${documents.length} document processing jobs triggered`,
-      jobIds: batchIds,
+      batchIds,
     }
   } catch (error) {
     logger.error(`[${requestId}] Failed to trigger document processing jobs:`, error)
