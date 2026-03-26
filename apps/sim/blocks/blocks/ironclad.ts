@@ -249,7 +249,7 @@ export const IroncladBlock: BlockConfig = {
         }
         if (result.workflowId !== undefined) {
           result.ironcladWorkflowId = result.workflowId
-          delete result.workflowId
+          result.workflowId = undefined
         }
         if (params.page !== undefined) result.page = Number(params.page)
         if (params.pageSize !== undefined && params.pageSize !== '') {
