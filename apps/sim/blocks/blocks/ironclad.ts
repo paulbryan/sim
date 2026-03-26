@@ -163,6 +163,7 @@ export const IroncladBlock: BlockConfig = {
       type: 'long-input',
       placeholder: '{"counterpartyName": {"type": "string", "value": "Acme Corp"}}',
       condition: { field: 'operation', value: ['create_record', 'update_record'] },
+      required: { field: 'operation', value: 'update_record' },
       wandConfig: {
         enabled: true,
         prompt:

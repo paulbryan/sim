@@ -72,7 +72,7 @@ export const listWorkflowsTool: ToolConfig<
       output: {
         workflows,
         page: data.page ?? 0,
-        pageSize: data.pageSize ?? 20,
+        pageSize: data.pageSize ?? data.perPage ?? 20,
         count: data.count ?? 0,
       },
     }

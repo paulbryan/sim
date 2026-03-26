@@ -53,7 +53,7 @@ export const listWorkflowCommentsTool: ToolConfig<
     return {
       success: true,
       output: {
-        comments: data ?? [],
+        comments: data.list ?? data.comments ?? data ?? [],
       },
     }
   },
