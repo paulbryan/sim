@@ -23,6 +23,7 @@ import {
   GoogleSheetsIcon,
   GoogleTasksIcon,
   HubspotIcon,
+  IroncladIcon,
   JiraIcon,
   LinearIcon,
   LinkedInIcon,
@@ -561,6 +562,32 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'airtable',
+  },
+  ironclad: {
+    name: 'Ironclad',
+    icon: IroncladIcon,
+    services: {
+      ironclad: {
+        name: 'Ironclad',
+        description: 'Manage contracts, workflows, and records in Ironclad.',
+        providerId: 'ironclad',
+        icon: IroncladIcon,
+        baseProviderIcon: IroncladIcon,
+        scopes: [
+          'public.workflows.readWorkflows',
+          'public.workflows.createWorkflows',
+          'public.workflows.updateWorkflows',
+          'public.workflows.cancel',
+          'public.workflows.readApprovals',
+          'public.workflows.readComments',
+          'public.workflows.createComments',
+          'public.records.readRecords',
+          'public.records.createRecords',
+          'public.records.updateRecords',
+        ],
+      },
+    },
+    defaultService: 'ironclad',
   },
   notion: {
     name: 'Notion',
@@ -1102,6 +1129,18 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientSecret,
         useBasicAuth: true,
         supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'ironclad': {
+      const { clientId, clientSecret } = getCredentials(
+        env.IRONCLAD_CLIENT_ID,
+        env.IRONCLAD_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://na1.ironcladapp.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
       }
     }
     case 'notion': {
