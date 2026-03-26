@@ -247,8 +247,8 @@ export const IroncladBlock: BlockConfig = {
           credential: oauthCredential,
           ...rest,
         }
-        if (params.page) result.page = Number(params.page)
-        if (params.pageSize) {
+        if (params.page !== undefined) result.page = Number(params.page)
+        if (params.pageSize !== undefined && params.pageSize !== '') {
           if (params.operation === 'list_workflows') {
             result.perPage = Number(params.pageSize)
             result.pageSize = undefined
