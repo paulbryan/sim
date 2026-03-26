@@ -247,6 +247,10 @@ export const IroncladBlock: BlockConfig = {
           credential: oauthCredential,
           ...rest,
         }
+        if (result.workflowId !== undefined) {
+          result.ironcladWorkflowId = result.workflowId
+          delete result.workflowId
+        }
         if (params.page !== undefined) result.page = Number(params.page)
         if (params.pageSize !== undefined && params.pageSize !== '') {
           if (params.operation === 'list_workflows') {

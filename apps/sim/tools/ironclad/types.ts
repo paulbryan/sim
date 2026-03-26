@@ -39,7 +39,7 @@ export interface IroncladListWorkflowsResponse extends ToolResponse {
 
 /** Get Workflow params */
 export interface IroncladGetWorkflowParams extends IroncladBaseParams {
-  workflowId: string
+  ironcladWorkflowId: string
 }
 
 /** Get Workflow response */
@@ -56,7 +56,7 @@ export interface IroncladGetWorkflowResponse extends ToolResponse {
 
 /** Update Workflow Metadata params */
 export interface IroncladUpdateWorkflowMetadataParams extends IroncladBaseParams {
-  workflowId: string
+  ironcladWorkflowId: string
   actions: string
 }
 
@@ -135,7 +135,7 @@ export interface IroncladUpdateRecordResponse extends ToolResponse {
 
 /** Cancel Workflow params */
 export interface IroncladCancelWorkflowParams extends IroncladBaseParams {
-  workflowId: string
+  ironcladWorkflowId: string
 }
 
 /** Cancel Workflow response */
@@ -147,7 +147,7 @@ export interface IroncladCancelWorkflowResponse extends ToolResponse {
 
 /** List Workflow Approvals params */
 export interface IroncladListWorkflowApprovalsParams extends IroncladBaseParams {
-  workflowId: string
+  ironcladWorkflowId: string
 }
 
 /** List Workflow Approvals response */
@@ -159,7 +159,7 @@ export interface IroncladListWorkflowApprovalsResponse extends ToolResponse {
 
 /** Add Comment params */
 export interface IroncladAddCommentParams extends IroncladBaseParams {
-  workflowId: string
+  ironcladWorkflowId: string
   comment: string
 }
 
@@ -172,7 +172,7 @@ export interface IroncladAddCommentResponse extends ToolResponse {
 
 /** List Workflow Comments params */
 export interface IroncladListWorkflowCommentsParams extends IroncladBaseParams {
-  workflowId: string
+  ironcladWorkflowId: string
 }
 
 /** List Workflow Comments response */

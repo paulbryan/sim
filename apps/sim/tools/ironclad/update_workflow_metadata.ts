@@ -26,7 +26,7 @@ export const updateWorkflowMetadataTool: ToolConfig<
       visibility: 'hidden',
       description: 'OAuth access token',
     },
-    workflowId: {
+    ironcladWorkflowId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
@@ -43,7 +43,7 @@ export const updateWorkflowMetadataTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://na1.ironcladapp.com/public/api/v1/workflows/${params.workflowId.trim()}/attributes`,
+      `https://na1.ironcladapp.com/public/api/v1/workflows/${params.ironcladWorkflowId.trim()}/attributes`,
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

@@ -19,7 +19,7 @@ export const getWorkflowTool: ToolConfig<IroncladGetWorkflowParams, IroncladGetW
       visibility: 'hidden',
       description: 'OAuth access token',
     },
-    workflowId: {
+    ironcladWorkflowId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
@@ -29,7 +29,7 @@ export const getWorkflowTool: ToolConfig<IroncladGetWorkflowParams, IroncladGetW
 
   request: {
     url: (params) =>
-      `https://na1.ironcladapp.com/public/api/v1/workflows/${params.workflowId.trim()}`,
+      `https://na1.ironcladapp.com/public/api/v1/workflows/${params.ironcladWorkflowId.trim()}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,

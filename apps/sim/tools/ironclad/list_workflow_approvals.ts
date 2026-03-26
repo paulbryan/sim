@@ -26,7 +26,7 @@ export const listWorkflowApprovalsTool: ToolConfig<
       visibility: 'hidden',
       description: 'OAuth access token',
     },
-    workflowId: {
+    ironcladWorkflowId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
@@ -36,7 +36,7 @@ export const listWorkflowApprovalsTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://na1.ironcladapp.com/public/api/v1/workflows/${params.workflowId.trim()}/approvals`,
+      `https://na1.ironcladapp.com/public/api/v1/workflows/${params.ironcladWorkflowId.trim()}/approvals`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
