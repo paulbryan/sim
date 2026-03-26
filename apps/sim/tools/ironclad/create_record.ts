@@ -66,10 +66,18 @@ export const createRecordTool: ToolConfig<
         name: params.name,
       }
       if (params.properties) {
-        body.properties = JSON.parse(params.properties)
+        try {
+          body.properties = JSON.parse(params.properties)
+        } catch {
+          throw new Error('Invalid JSON in properties field')
+        }
       }
       if (params.links) {
-        body.links = JSON.parse(params.links)
+        try {
+          body.links = JSON.parse(params.links)
+        } catch {
+          throw new Error('Invalid JSON in links field')
+        }
       }
       return body
     },

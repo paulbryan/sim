@@ -50,15 +50,23 @@ export const updateWorkflowMetadataTool: ToolConfig<
       'Content-Type': 'application/json',
       Accept: 'application/json',
     }),
-    body: (params) => ({
-      actions: JSON.parse(params.actions),
-    }),
+    body: (params) => {
+      try {
+        return { actions: JSON.parse(params.actions) }
+      } catch {
+        throw new Error('Invalid JSON in actions field')
+      }
+    },
   },
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const data = await response.json()
-      throw new Error(data.message || data.error || 'Failed to update workflow metadata')
+      const data = await response.json().catch(() => ({}))
+      throw new Error(
+        (data as Record<string, string>).message ||
+          (data as Record<string, string>).error ||
+          'Failed to update workflow metadata'
+      )
     }
 
     return {

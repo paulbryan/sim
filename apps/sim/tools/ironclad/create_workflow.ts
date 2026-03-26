@@ -52,7 +52,11 @@ export const createWorkflowTool: ToolConfig<
         template: params.template,
       }
       if (params.attributes) {
-        body.attributes = JSON.parse(params.attributes)
+        try {
+          body.attributes = JSON.parse(params.attributes)
+        } catch {
+          throw new Error('Invalid JSON in attributes field')
+        }
       }
       return body
     },

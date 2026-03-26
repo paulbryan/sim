@@ -47,7 +47,13 @@ export const updateRecordTool: ToolConfig<
       'Content-Type': 'application/json',
       Accept: 'application/json',
     }),
-    body: (params) => JSON.parse(params.properties),
+    body: (params) => {
+      try {
+        return JSON.parse(params.properties)
+      } catch {
+        throw new Error('Invalid JSON in properties field')
+      }
+    },
   },
 
   transformResponse: async (response: Response) => {
