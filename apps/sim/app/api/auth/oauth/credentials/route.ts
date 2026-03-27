@@ -149,6 +149,7 @@ export async function GET(request: NextRequest) {
           displayName: credential.displayName,
           providerId: credential.providerId,
           accountId: credential.accountId,
+          updatedAt: credential.updatedAt,
           accountProviderId: account.providerId,
           accountScope: account.scope,
           accountUpdatedAt: account.updatedAt,
@@ -159,6 +160,48 @@ export async function GET(request: NextRequest) {
         .limit(1)
 
       if (platformCredential) {
+        if (platformCredential.type === 'service_account') {
+          if (workflowId) {
+            if (
+              !effectiveWorkspaceId ||
+              platformCredential.workspaceId !== effectiveWorkspaceId
+            ) {
+              return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+            }
+          } else {
+            const [membership] = await db
+              .select({ id: credentialMember.id })
+              .from(credentialMember)
+              .where(
+                and(
+                  eq(credentialMember.credentialId, platformCredential.id),
+                  eq(credentialMember.userId, requesterUserId),
+                  eq(credentialMember.status, 'active')
+                )
+              )
+              .limit(1)
+
+            if (!membership) {
+              return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+            }
+          }
+
+          return NextResponse.json(
+            {
+              credentials: [
+                toCredentialResponse(
+                  platformCredential.id,
+                  platformCredential.displayName,
+                  platformCredential.providerId || 'google-service-account',
+                  platformCredential.updatedAt,
+                  null
+                ),
+              ],
+            },
+            { status: 200 }
+          )
+        }
+
         if (platformCredential.type !== 'oauth' || !platformCredential.accountId) {
           return NextResponse.json({ credentials: [] }, { status: 200 })
         }
@@ -238,14 +281,52 @@ export async function GET(request: NextRequest) {
           )
         )
 
-      return NextResponse.json(
-        {
-          credentials: credentialsData.map((row) =>
-            toCredentialResponse(row.id, row.displayName, row.providerId, row.updatedAt, row.scope)
-          ),
-        },
-        { status: 200 }
+      const results = credentialsData.map((row) =>
+        toCredentialResponse(row.id, row.displayName, row.providerId, row.updatedAt, row.scope)
       )
+
+      const isGoogleProvider =
+        providerParam.startsWith('google') || providerParam === 'gmail'
+
+      if (isGoogleProvider) {
+        const serviceAccountCreds = await db
+          .select({
+            id: credential.id,
+            displayName: credential.displayName,
+            providerId: credential.providerId,
+            updatedAt: credential.updatedAt,
+          })
+          .from(credential)
+          .innerJoin(
+            credentialMember,
+            and(
+              eq(credentialMember.credentialId, credential.id),
+              eq(credentialMember.userId, requesterUserId),
+              eq(credentialMember.status, 'active')
+            )
+          )
+          .where(
+            and(
+              eq(credential.workspaceId, effectiveWorkspaceId),
+              eq(credential.type, 'service_account'),
+              eq(credential.providerId, 'google-service-account')
+            )
+          )
+
+        for (const sa of serviceAccountCreds) {
+          results.push(
+            toCredentialResponse(
+              sa.id,
+              sa.displayName,
+              sa.providerId || 'google-service-account',
+              sa.updatedAt,
+              null
+            )
+          )
+        }
+      }
+
+      return NextResponse.json({ credentials: results }, { status: 200 })
     }
 
     return NextResponse.json({ credentials: [] }, { status: 200 })

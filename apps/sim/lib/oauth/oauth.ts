@@ -225,6 +225,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/meetings.space.readonly',
         ],
       },
+      'google-service-account': {
+        name: 'Google Service Account',
+        description: 'Authenticate with a JSON key file from Google Cloud Console.',
+        providerId: 'google-service-account',
+        icon: GoogleIcon,
+        baseProviderIcon: GoogleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
       'vertex-ai': {
         name: 'Vertex AI',
         description: 'Access Google Cloud Vertex AI for Gemini models with OAuth.',

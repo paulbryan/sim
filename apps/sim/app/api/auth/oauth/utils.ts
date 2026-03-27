@@ -1,7 +1,9 @@
+import { createSign } from 'crypto'
 import { db } from '@sim/db'
 import { account, credential, credentialSetMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray } from 'drizzle-orm'
+import { decryptSecret } from '@/lib/core/security/encryption'
 import { refreshOAuthToken } from '@/lib/oauth'
 import {
   getMicrosoftRefreshTokenExpiry,
@@ -25,16 +27,26 @@ interface AccountInsertData {
   accessTokenExpiresAt?: Date
 }
 
+export interface ResolvedCredential {
+  accountId: string
+  workspaceId?: string
+  usedCredentialTable: boolean
+  credentialType?: string
+  credentialId?: string
+}
+
 /**
  * Resolves a credential ID to its underlying account ID.
  * If `credentialId` matches a `credential` row, returns its `accountId` and `workspaceId`.
+ * For service_account credentials, returns credentialId and type instead of accountId.
  * Otherwise assumes `credentialId` is already a raw `account.id` (legacy).
  */
 export async function resolveOAuthAccountId(
   credentialId: string
-): Promise<{ accountId: string; workspaceId?: string; usedCredentialTable: boolean } | null> {
+): Promise<ResolvedCredential | null> {
   const [credentialRow] = await db
     .select({
+      id: credential.id,
       type: credential.type,
       accountId: credential.accountId,
       workspaceId: credential.workspaceId,
@@ -44,6 +56,16 @@ export async function resolveOAuthAccountId(
     .limit(1)
 
   if (credentialRow) {
+    if (credentialRow.type === 'service_account') {
+      return {
+        accountId: '',
+        credentialId: credentialRow.id,
+        credentialType: 'service_account',
+        workspaceId: credentialRow.workspaceId,
+        usedCredentialTable: true,
+      }
+    }
+
     if (credentialRow.type !== 'oauth' || !credentialRow.accountId) {
       return null
     }
@@ -55,6 +77,83 @@ export async function resolveOAuthAccountId(
   }
 
   return { accountId: credentialId, usedCredentialTable: false }
+}
+
+/**
+ * Generates a short-lived access token for a Google service account credential
+ * using the two-legged OAuth JWT flow (RFC 7523).
+ */
+export async function getServiceAccountToken(
+  credentialId: string,
+  scopes: string[],
+  impersonateEmail?: string
+): Promise<string> {
+  const [credentialRow] = await db
+    .select({
+      encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
+    })
+    .from(credential)
+    .where(eq(credential.id, credentialId))
+    .limit(1)
+
+  if (!credentialRow?.encryptedServiceAccountKey) {
+    throw new Error('Service account key not found')
+  }
+
+  const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
+  const keyData = JSON.parse(decrypted) as {
+    client_email: string
+    private_key: string
+    token_uri?: string
+  }
+
+  const now = Math.floor(Date.now() / 1000)
+  const tokenUri = keyData.token_uri || 'https://oauth2.googleapis.com/token'
+
+  const header = { alg: 'RS256', typ: 'JWT' }
+  const payload: Record<string, unknown> = {
+    iss: keyData.client_email,
+    scope: scopes.join(' '),
+    aud: tokenUri,
+    iat: now,
+    exp: now + 3600,
+  }
+
+  if (impersonateEmail) {
+    payload.sub = impersonateEmail
+  }
+
+  const toBase64Url = (obj: unknown) =>
+    Buffer.from(JSON.stringify(obj)).toString('base64url')
+
+  const signingInput = `${toBase64Url(header)}.${toBase64Url(payload)}`
+
+  const signer = createSign('RSA-SHA256')
+  signer.update(signingInput)
+  const signature = signer.sign(keyData.private_key, 'base64url')
+
+  const jwt = `${signingInput}.${signature}`
+
+  const response = await fetch(tokenUri, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }),
+  })
+
+  if (!response.ok) {
+    const errorBody = await response.text()
+    logger.error('Service account token exchange failed', {
+      status: response.status,
+      body: errorBody,
+    })
+    throw new Error(`Token exchange failed: ${response.status}`)
+  }
+
+  const tokenData = (await response.json()) as { access_token: string }
+  return tokenData.access_token
 }
 
 /**
