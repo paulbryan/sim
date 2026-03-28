@@ -347,10 +347,14 @@ export class Serializer {
           )
         )
 
+      const isOrphanWithValue =
+        matchingConfigs.length === 0 && subBlock.value != null && subBlock.value !== ''
+
       if (
         (matchingConfigs.length > 0 && shouldInclude) ||
         hasStarterInputFormatValues ||
-        isLegacyAgentField
+        isLegacyAgentField ||
+        isOrphanWithValue
       ) {
         params[id] = subBlock.value
       }

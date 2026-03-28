@@ -681,8 +681,7 @@ export function IntegrationsManager() {
       setShowCreateModal(false)
       resetCreateForm()
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to add service account'
+      const message = error instanceof Error ? error.message : 'Failed to add service account'
       setSaError(message)
       logger.error('Failed to create service account credential', error)
     } finally {
@@ -932,8 +931,7 @@ export function IntegrationsManager() {
                   ←
                 </button>
                 <span>
-                  Add{' '}
-                  {selectedOAuthService?.name || resolveProviderLabel(createOAuthProviderId)}
+                  Add {selectedOAuthService?.name || resolveProviderLabel(createOAuthProviderId)}
                 </span>
               </div>
             </ModalHeader>

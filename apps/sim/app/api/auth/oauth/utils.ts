@@ -83,6 +83,11 @@ export async function resolveOAuthAccountId(
  * Generates a short-lived access token for a Google service account credential
  * using the two-legged OAuth JWT flow (RFC 7523).
  */
+const SA_EXCLUDED_SCOPES = new Set([
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+])
+
 export async function getServiceAccountToken(
   credentialId: string,
   scopes: string[],
@@ -107,13 +112,15 @@ export async function getServiceAccountToken(
     token_uri?: string
   }
 
+  const filteredScopes = scopes.filter((s) => !SA_EXCLUDED_SCOPES.has(s))
+
   const now = Math.floor(Date.now() / 1000)
   const tokenUri = keyData.token_uri || 'https://oauth2.googleapis.com/token'
 
   const header = { alg: 'RS256', typ: 'JWT' }
   const payload: Record<string, unknown> = {
     iss: keyData.client_email,
-    scope: scopes.join(' '),
+    scope: filteredScopes.join(' '),
     aud: tokenUri,
     iat: now,
     exp: now + 3600,
@@ -123,8 +130,14 @@ export async function getServiceAccountToken(
     payload.sub = impersonateEmail
   }
 
-  const toBase64Url = (obj: unknown) =>
-    Buffer.from(JSON.stringify(obj)).toString('base64url')
+  logger.info('Service account JWT payload', {
+    iss: keyData.client_email,
+    sub: impersonateEmail || '(none)',
+    scopes: filteredScopes.join(' '),
+    aud: tokenUri,
+  })
+
+  const toBase64Url = (obj: unknown) => Buffer.from(JSON.stringify(obj)).toString('base64url')
 
   const signingInput = `${toBase64Url(header)}.${toBase64Url(payload)}`
 

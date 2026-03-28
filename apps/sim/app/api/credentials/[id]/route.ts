@@ -133,10 +133,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           !parsed.private_key ||
           !parsed.project_id
         ) {
-          return NextResponse.json(
-            { error: 'Invalid service account JSON key' },
-            { status: 400 }
-          )
+          return NextResponse.json({ error: 'Invalid service account JSON key' }, { status: 400 })
         }
         const { encrypted } = await encryptSecret(parseResult.data.serviceAccountJson)
         updates.encryptedServiceAccountKey = encrypted
@@ -146,10 +143,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     if (Object.keys(updates).length === 0) {
-      if (
-        access.credential.type === 'oauth' ||
-        access.credential.type === 'service_account'
-      ) {
+      if (access.credential.type === 'oauth' || access.credential.type === 'service_account') {
         return NextResponse.json(
           {
             error: 'No updatable fields provided.',

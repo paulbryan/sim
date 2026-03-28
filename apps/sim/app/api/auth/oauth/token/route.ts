@@ -149,10 +149,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ accessToken }, { status: 200 })
       } catch (error) {
         logger.error(`[${requestId}] Service account token error:`, error)
-        return NextResponse.json(
-          { error: 'Failed to get service account token' },
-          { status: 401 }
-        )
+        return NextResponse.json({ error: 'Failed to get service account token' }, { status: 401 })
       }
     }
 

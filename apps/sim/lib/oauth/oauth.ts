@@ -72,6 +72,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/gmail.modify',
           'https://www.googleapis.com/auth/gmail.labels',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-drive': {
         name: 'Google Drive',

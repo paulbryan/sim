@@ -119,6 +119,7 @@ export interface OAuthServiceConfig {
   baseProviderIcon: (props: { className?: string }) => ReactNode
   scopes: string[]
   authType?: OAuthAuthType
+  serviceAccountProviderId?: string
 }
 
 /**

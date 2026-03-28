@@ -7,7 +7,10 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
-import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import {
+  getCanonicalScopesForProvider,
+  getServiceAccountProviderForProviderId,
+} from '@/lib/oauth/utils'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -162,10 +165,7 @@ export async function GET(request: NextRequest) {
       if (platformCredential) {
         if (platformCredential.type === 'service_account') {
           if (workflowId) {
-            if (
-              !effectiveWorkspaceId ||
-              platformCredential.workspaceId !== effectiveWorkspaceId
-            ) {
+            if (!effectiveWorkspaceId || platformCredential.workspaceId !== effectiveWorkspaceId) {
               return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
             }
           } else {
@@ -285,10 +285,9 @@ export async function GET(request: NextRequest) {
         toCredentialResponse(row.id, row.displayName, row.providerId, row.updatedAt, row.scope)
       )
 
-      const isGoogleProvider =
-        providerParam.startsWith('google') || providerParam === 'gmail'
+      const saProviderId = getServiceAccountProviderForProviderId(providerParam)
 
-      if (isGoogleProvider) {
+      if (saProviderId) {
         const serviceAccountCreds = await db
           .select({
             id: credential.id,
@@ -309,7 +308,7 @@ export async function GET(request: NextRequest) {
             and(
               eq(credential.workspaceId, effectiveWorkspaceId),
               eq(credential.type, 'service_account'),
-              eq(credential.providerId, 'google-service-account')
+              eq(credential.providerId, saProviderId)
             )
           )
 
@@ -318,7 +317,7 @@ export async function GET(request: NextRequest) {
             toCredentialResponse(
               sa.id,
               sa.displayName,
-              sa.providerId || 'google-service-account',
+              sa.providerId || saProviderId,
               sa.updatedAt,
               null
             )

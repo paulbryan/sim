@@ -1,15 +1,16 @@
 'use client'
 
 import { createElement, useCallback, useMemo, useState } from 'react'
-import { ExternalLink, Users } from 'lucide-react'
+import { ExternalLink, KeyRound, Users } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Combobox } from '@/components/emcn/components'
+import { Button, Combobox, Input, Label } from '@/components/emcn/components'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { getPollingProviderFromOAuth } from '@/lib/credential-sets/providers'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
+  getServiceAccountProviderForProviderId,
   OAUTH_PROVIDERS,
   type OAuthProvider,
   parseProvider,
@@ -56,6 +57,10 @@ export function CredentialSelector({
   const [isEditing, setIsEditing] = useState(false)
   const { activeWorkflowId } = useWorkflowRegistry()
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
+  const [impersonateEmail, setImpersonateEmail] = useSubBlockValue<string | null>(
+    blockId,
+    'impersonateUserEmail'
+  )
 
   const requiredScopes = subBlock.requiredScopes || []
   const label = subBlock.placeholder || 'Select credential'
@@ -112,6 +117,16 @@ export function CredentialSelector({
     [credentials, selectedId]
   )
 
+  const isServiceAccount = useMemo(
+    () => selectedCredential?.provider?.endsWith('-service-account') ?? false,
+    [selectedCredential]
+  )
+
+  const supportsServiceAccount = useMemo(
+    () => !!getServiceAccountProviderForProviderId(effectiveProviderId),
+    [effectiveProviderId]
+  )
+
   const selectedCredentialSet = useMemo(
     () => credentialSets.find((cs) => cs.id === selectedCredentialSetId),
     [credentialSets, selectedCredentialSetId]
@@ -150,6 +165,7 @@ export function CredentialSelector({
 
   const needsUpdate =
     hasSelection &&
+    !isServiceAccount &&
     missingRequiredScopes.length > 0 &&
     !effectiveDisabled &&
     !isPreview &&
@@ -285,6 +301,17 @@ export function CredentialSelector({
       )
     }
 
+    if (isServiceAccount) {
+      return (
+        <div className='flex w-full items-center truncate'>
+          <div className='mr-2 flex-shrink-0 opacity-90'>
+            <KeyRound className='h-3 w-3' />
+          </div>
+          <span className='truncate'>{displayValue}</span>
+        </div>
+      )
+    }
+
     return (
       <div className='flex w-full items-center truncate'>
         <div className='mr-2 flex-shrink-0 opacity-90'>
@@ -299,6 +326,7 @@ export function CredentialSelector({
     selectedCredentialProvider,
     isCredentialSetSelected,
     selectedCredentialSet,
+    isServiceAccount,
   ])
 
   const handleComboboxChange = useCallback(
@@ -348,6 +376,24 @@ export function CredentialSelector({
         overlayContent={overlayContent}
         className={overlayContent ? 'pl-7' : ''}
       />
+
+      {supportsServiceAccount && !isPreview && (
+        <div className='mt-2.5 flex flex-col gap-2.5'>
+          <div className='flex items-center gap-1.5 pl-0.5'>
+            <Label>
+              Impersonated Account
+              <span className='ml-0.5'>*</span>
+            </Label>
+          </div>
+          <Input
+            type='email'
+            value={impersonateEmail ?? ''}
+            onChange={(e) => setImpersonateEmail(e.target.value || null)}
+            placeholder='User email to impersonate'
+            disabled={effectiveDisabled}
+          />
+        </div>
+      )}
 
       {needsUpdate && (
         <div className='mt-2 flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
