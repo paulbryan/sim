@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   const requestId = generateRequestId()
   try {
     const body = await request.json()
-    const { credential, workflowId, projectId, datasetId } = body
+    const { credential, workflowId, projectId, datasetId, impersonateEmail } = body
 
     if (!credential) {
       logger.error('Missing credential in request')
@@ -40,7 +40,9 @@ export async function POST(request: Request) {
     const accessToken = await refreshAccessTokenIfNeeded(
       credential,
       authz.credentialOwnerUserId,
-      requestId
+      requestId,
+      ['https://www.googleapis.com/auth/bigquery'],
+      impersonateEmail
     )
     if (!accessToken) {
       logger.error('Failed to get access token', {

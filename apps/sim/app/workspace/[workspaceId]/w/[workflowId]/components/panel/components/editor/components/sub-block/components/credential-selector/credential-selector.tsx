@@ -377,7 +377,7 @@ export function CredentialSelector({
         className={overlayContent ? 'pl-7' : ''}
       />
 
-      {supportsServiceAccount && !isPreview && (
+      {((supportsServiceAccount && subBlock.mode === 'advanced') || isServiceAccount) && !isPreview && (
         <div className='mt-2.5 flex flex-col gap-2.5'>
           <div className='flex items-center gap-1.5 pl-0.5'>
             <Label>

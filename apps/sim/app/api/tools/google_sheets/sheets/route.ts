@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
     const credentialId = searchParams.get('credentialId')
     const spreadsheetId = searchParams.get('spreadsheetId')
     const workflowId = searchParams.get('workflowId') || undefined
+    const impersonateEmail = searchParams.get('impersonateEmail') || undefined
 
     if (!credentialId) {
       logger.warn(`[${requestId}] Missing credentialId parameter`)
@@ -59,7 +60,9 @@ export async function GET(request: NextRequest) {
     const accessToken = await refreshAccessTokenIfNeeded(
       credentialId,
       authz.credentialOwnerUserId,
-      requestId
+      requestId,
+      ['https://www.googleapis.com/auth/drive'],
+      impersonateEmail
     )
 
     if (!accessToken) {

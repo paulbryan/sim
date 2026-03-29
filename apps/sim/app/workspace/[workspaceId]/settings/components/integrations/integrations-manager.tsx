@@ -22,6 +22,7 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { Input as UiInput } from '@/components/ui'
+import { cn } from '@/lib/core/utils/cn'
 import { useSession } from '@/lib/auth/auth-client'
 import {
   clearPendingCredentialCreateRequest,
@@ -96,6 +97,7 @@ export function IntegrationsManager() {
   const [saDescription, setSaDescription] = useState('')
   const [saError, setSaError] = useState<string | null>(null)
   const [saIsSubmitting, setSaIsSubmitting] = useState(false)
+  const [saDragActive, setSaDragActive] = useState(false)
 
   const { data: session } = useSession()
   const currentUserId = session?.user?.id || ''
@@ -689,28 +691,62 @@ export function IntegrationsManager() {
     }
   }
 
+  const readSaJsonFile = useCallback(
+    (file: File) => {
+      if (!file.name.endsWith('.json')) {
+        setSaError('Only .json files are supported')
+        return
+      }
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const text = e.target?.result
+        if (typeof text === 'string') {
+          setSaJsonInput(text)
+          setSaError(null)
+          try {
+            const parsed = JSON.parse(text)
+            if (parsed.client_email && !saDisplayName.trim()) {
+              setSaDisplayName(parsed.client_email)
+            }
+          } catch {
+            // validation will catch this on submit
+          }
+        }
+      }
+      reader.readAsText(file)
+    },
+    [saDisplayName]
+  )
+
   const handleSaFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const text = e.target?.result
-      if (typeof text === 'string') {
-        setSaJsonInput(text)
-        setSaError(null)
-        try {
-          const parsed = JSON.parse(text)
-          if (parsed.client_email && !saDisplayName.trim()) {
-            setSaDisplayName(parsed.client_email)
-          }
-        } catch {
-          // validation will catch this on submit
-        }
-      }
-    }
-    reader.readAsText(file)
+    readSaJsonFile(file)
     event.target.value = ''
   }
+
+  const handleSaDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setSaDragActive(true)
+  }, [])
+
+  const handleSaDragLeave = useCallback((event: React.DragEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setSaDragActive(false)
+  }, [])
+
+  const handleSaDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+      setSaDragActive(false)
+      const file = event.dataTransfer.files[0]
+      if (file) readSaJsonFile(file)
+    },
+    [readSaJsonFile]
+  )
 
   const filteredServices = useMemo(() => {
     if (!serviceSearch.trim()) return oauthServiceOptions
@@ -963,26 +999,48 @@ export function IntegrationsManager() {
                   <Label>
                     JSON Key<span className='ml-1'>*</span>
                   </Label>
-                  <Textarea
-                    value={saJsonInput}
-                    onChange={(event) => {
-                      setSaJsonInput(event.target.value)
-                      setSaError(null)
-                      if (!saDisplayName.trim()) {
-                        try {
-                          const parsed = JSON.parse(event.target.value)
-                          if (parsed.client_email) setSaDisplayName(parsed.client_email)
-                        } catch {
-                          // not valid yet
+                  <div
+                    onDragOver={handleSaDragOver}
+                    onDragLeave={handleSaDragLeave}
+                    onDrop={handleSaDrop}
+                    className={cn(
+                      'relative mt-1.5 rounded-md border-2 border-dashed transition-colors',
+                      saDragActive
+                        ? 'border-[var(--accent)] bg-[var(--accent)]/5'
+                        : 'border-transparent'
+                    )}
+                  >
+                    {saDragActive && (
+                      <div className='pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md bg-[var(--accent)]/5'>
+                        <p className='font-medium text-[13px] text-[var(--accent)]'>
+                          Drop JSON key file here
+                        </p>
+                      </div>
+                    )}
+                    <Textarea
+                      value={saJsonInput}
+                      onChange={(event) => {
+                        setSaJsonInput(event.target.value)
+                        setSaError(null)
+                        if (!saDisplayName.trim()) {
+                          try {
+                            const parsed = JSON.parse(event.target.value)
+                            if (parsed.client_email) setSaDisplayName(parsed.client_email)
+                          } catch {
+                            // not valid yet
+                          }
                         }
-                      }
-                    }}
-                    placeholder='Paste your service account JSON key here...'
-                    autoComplete='off'
-                    data-lpignore='true'
-                    className='mt-1.5 min-h-[120px] resize-none font-mono text-[12px]'
-                    autoFocus
-                  />
+                      }}
+                      placeholder='Paste your service account JSON key here or drag & drop a .json file...'
+                      autoComplete='off'
+                      data-lpignore='true'
+                      className={cn(
+                        'min-h-[120px] resize-none border-0 font-mono text-[12px]',
+                        saDragActive && 'opacity-30'
+                      )}
+                      autoFocus
+                    />
+                  </div>
                   <div className='mt-1.5'>
                     <label className='inline-flex cursor-pointer items-center gap-1.5 text-[12px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'>
                       <input

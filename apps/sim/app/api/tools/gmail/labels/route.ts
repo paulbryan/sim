@@ -6,7 +6,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
+import {
+  getServiceAccountToken,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/app/api/auth/oauth/utils'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GmailLabelsAPI')
@@ -33,6 +37,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
     const query = searchParams.get('query')
+    const impersonateEmail = searchParams.get('impersonateEmail') || undefined
 
     if (!credentialId) {
       logger.warn(`[${requestId}] Missing credentialId parameter`)
@@ -62,28 +67,39 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const credentials = await db
-      .select()
-      .from(account)
-      .where(eq(account.id, resolved.accountId))
-      .limit(1)
+    let accessToken: string | null = null
 
-    if (!credentials.length) {
-      logger.warn(`[${requestId}] Credential not found`)
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+    if (resolved.credentialType === 'service_account' && resolved.credentialId) {
+      accessToken = await getServiceAccountToken(
+        resolved.credentialId,
+        ['https://www.googleapis.com/auth/gmail.labels'],
+        impersonateEmail
+      )
+    } else {
+      const credentials = await db
+        .select()
+        .from(account)
+        .where(eq(account.id, resolved.accountId))
+        .limit(1)
+
+      if (!credentials.length) {
+        logger.warn(`[${requestId}] Credential not found`)
+        return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+      }
+
+      const accountRow = credentials[0]
+
+      logger.info(
+        `[${requestId}] Using credential: ${accountRow.id}, provider: ${accountRow.providerId}`
+      )
+
+      accessToken = await refreshAccessTokenIfNeeded(
+        resolved.accountId,
+        accountRow.userId,
+        requestId,
+        ['https://www.googleapis.com/auth/gmail.labels']
+      )
     }
-
-    const accountRow = credentials[0]
-
-    logger.info(
-      `[${requestId}] Using credential: ${accountRow.id}, provider: ${accountRow.providerId}`
-    )
-
-    const accessToken = await refreshAccessTokenIfNeeded(
-      resolved.accountId,
-      accountRow.userId,
-      requestId
-    )
 
     if (!accessToken) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })

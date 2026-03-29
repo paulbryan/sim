@@ -308,17 +308,34 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
 }
 
 /**
- * Refreshes an OAuth token if needed based on credential information
+ * Refreshes an OAuth token if needed based on credential information.
+ * Also handles service account credentials by generating a JWT-based token.
  * @param credentialId The ID of the credential to check and potentially refresh
  * @param userId The user ID who owns the credential (for security verification)
  * @param requestId Request ID for log correlation
+ * @param scopes Optional scopes for service account token generation
  * @returns The valid access token or null if refresh fails
  */
 export async function refreshAccessTokenIfNeeded(
   credentialId: string,
   userId: string,
-  requestId: string
+  requestId: string,
+  scopes?: string[],
+  impersonateEmail?: string
 ): Promise<string | null> {
+  const resolved = await resolveOAuthAccountId(credentialId)
+  if (!resolved) {
+    return null
+  }
+
+  if (resolved.credentialType === 'service_account' && resolved.credentialId) {
+    const effectiveScopes = scopes?.length
+      ? scopes
+      : ['https://www.googleapis.com/auth/cloud-platform']
+    logger.info(`[${requestId}] Using service account token for credential`)
+    return getServiceAccountToken(resolved.credentialId, effectiveScopes, impersonateEmail)
+  }
+
   // Get the credential directly using the getCredential helper
   const credential = await getCredential(requestId, credentialId, userId)
 

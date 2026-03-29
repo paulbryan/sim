@@ -86,6 +86,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/drive.file',
           'https://www.googleapis.com/auth/drive',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-docs': {
         name: 'Google Docs',
@@ -99,6 +100,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/drive.file',
           'https://www.googleapis.com/auth/drive',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-sheets': {
         name: 'Google Sheets',
@@ -112,6 +114,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/drive.file',
           'https://www.googleapis.com/auth/drive',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-forms': {
         name: 'Google Forms',
@@ -126,6 +129,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/forms.body',
           'https://www.googleapis.com/auth/forms.responses.readonly',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-calendar': {
         name: 'Google Calendar',
@@ -138,6 +142,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/calendar',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-contacts': {
         name: 'Google Contacts',
@@ -150,6 +155,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/contacts',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-ads': {
         name: 'Google Ads',
@@ -162,6 +168,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/adwords',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-bigquery': {
         name: 'Google BigQuery',
@@ -174,6 +181,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/bigquery',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-tasks': {
         name: 'Google Tasks',
@@ -186,6 +194,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/tasks',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-vault': {
         name: 'Google Vault',
@@ -199,6 +208,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/ediscovery',
           'https://www.googleapis.com/auth/devstorage.read_only',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-groups': {
         name: 'Google Groups',
@@ -212,6 +222,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/admin.directory.group',
           'https://www.googleapis.com/auth/admin.directory.group.member',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-meet': {
         name: 'Google Meet',
@@ -225,6 +236,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/meetings.space.created',
           'https://www.googleapis.com/auth/meetings.space.readonly',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
       'google-service-account': {
         name: 'Google Service Account',
@@ -246,6 +258,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/cloud-platform',
         ],
+        serviceAccountProviderId: 'google-service-account',
       },
     },
     defaultService: 'gmail',
