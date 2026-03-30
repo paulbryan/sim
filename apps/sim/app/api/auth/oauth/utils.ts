@@ -13,6 +13,16 @@ import {
 
 const logger = createLogger('OAuthUtilsAPI')
 
+export class ServiceAccountTokenError extends Error {
+  constructor(
+    public readonly statusCode: number,
+    public readonly errorDescription: string
+  ) {
+    super(errorDescription)
+    this.name = 'ServiceAccountTokenError'
+  }
+}
+
 interface AccountInsertData {
   id: string
   userId: string
@@ -162,7 +172,16 @@ export async function getServiceAccountToken(
       status: response.status,
       body: errorBody,
     })
-    throw new Error(`Token exchange failed: ${response.status}`)
+    let description = `Token exchange failed: ${response.status}`
+    try {
+      const parsed = JSON.parse(errorBody) as { error_description?: string }
+      if (parsed.error_description) {
+        description = parsed.error_description
+      }
+    } catch {
+      // use default description
+    }
+    throw new ServiceAccountTokenError(response.status, description)
   }
 
   const tokenData = (await response.json()) as { access_token: string }

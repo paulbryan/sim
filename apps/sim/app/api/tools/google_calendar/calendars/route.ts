@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded, ServiceAccountTokenError } from '@/app/api/auth/oauth/utils'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GoogleCalendarAPI')
@@ -101,6 +101,10 @@ export async function GET(request: NextRequest) {
       })),
     })
   } catch (error) {
+    if (error instanceof ServiceAccountTokenError) {
+      logger.warn(`[${requestId}] Service account token error`, { message: error.message })
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     logger.error(`[${requestId}] Error fetching Google calendars`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

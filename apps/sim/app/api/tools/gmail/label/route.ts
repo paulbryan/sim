@@ -10,6 +10,7 @@ import {
   getServiceAccountToken,
   refreshAccessTokenIfNeeded,
   resolveOAuthAccountId,
+  ServiceAccountTokenError,
 } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
@@ -143,6 +144,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ label: formattedLabel }, { status: 200 })
   } catch (error) {
+    if (error instanceof ServiceAccountTokenError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     logger.error(`[${requestId}] Error fetching Gmail label:`, error)
     return NextResponse.json({ error: 'Failed to fetch Gmail label' }, { status: 500 })
   }

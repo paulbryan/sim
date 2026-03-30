@@ -53,20 +53,6 @@ export const GoogleAdsBlock: BlockConfig = {
       required: true,
     },
     {
-      id: 'isServiceAccount',
-      title: 'Is Service Account',
-      type: 'short-input',
-      hidden: true,
-    },
-    {
-      id: 'impersonateUserEmail',
-      title: 'Impersonated Account',
-      type: 'short-input',
-      placeholder: 'Email to impersonate (for service accounts)',
-      condition: { field: 'isServiceAccount', value: 'true' },
-    },
-
-    {
       id: 'developerToken',
       title: 'Developer Token',
       type: 'short-input',
