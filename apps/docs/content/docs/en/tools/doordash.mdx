@@ -1,0 +1,460 @@
+---
+title: DoorDash
+description: Create and manage DoorDash Drive deliveries, businesses, and stores
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="doordash"
+  color="#FF3008"
+/>
+
+## Overview
+
+The DoorDash block integrates with the [DoorDash Drive API](https://developer.doordash.com/en-US/docs/drive/overview/) to enable last-mile delivery orchestration directly from your workflows.
+
+### Authentication
+
+DoorDash Drive uses **JWT-based authentication** with three credentials:
+
+- **Developer ID** — Your DoorDash developer account identifier
+- **Key ID** — The key identifier for signing requests
+- **Signing Secret** — The secret used to sign JWT tokens (Base64-encoded)
+
+You can find these credentials in the [DoorDash Developer Portal](https://developer.doordash.com/portal/integration/drive/credentials).
+
+### Recommended Workflow
+
+The typical delivery flow is:
+
+1. **Create Quote** — Validate delivery coverage, get pricing and ETAs
+2. **Accept Quote** — Confirm the quote to create the delivery (must be within 5 minutes)
+3. **Get Delivery** — Track delivery status and Dasher assignment
+4. **Update Delivery** — Modify tip or dropoff details if needed
+5. **Cancel Delivery** — Cancel before a Dasher is assigned
+
+Alternatively, use **Create Delivery** to skip the quote step and create a delivery directly.
+
+### Business & Store Management
+
+DoorDash Drive also supports managing business entities and store locations:
+
+- **Create/List/Update Business** — Organize your delivery operations under business entities
+- **Create/List/Get/Update Store** — Manage store locations under businesses for pickup
+
+### Important Notes
+
+- DoorDash Drive is a **delivery-only** API — it does not support placing food/product orders
+- Order values and fees are in **cents** (e.g., `1999` = $19.99)
+- `pickupTime` and `dropoffTime` are **mutually exclusive** — set one or the other, not both
+- Delivery cancellation is only possible **before** a Dasher is assigned
+
+## Tools
+
+### `doordash_create_quote`
+
+Creates a delivery quote to validate coverage, pricing, and estimated delivery times.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `developerId` | string | Yes | DoorDash Developer ID |
+| `keyId` | string | Yes | DoorDash Key ID |
+| `signingSecret` | string | Yes | DoorDash Signing Secret |
+| `externalDeliveryId` | string | Yes | Unique delivery identifier |
+| `pickupAddress` | string | Yes | Pickup address \(e.g., "901 Market Street 6th Floor San Francisco, CA 94103"\) |
+| `pickupPhoneNumber` | string | Yes | Pickup phone number \(e.g., "+16505555555"\) |
+| `pickupBusinessName` | string | Yes | Pickup business name |
+| `dropoffAddress` | string | Yes | Dropoff address |
+| `dropoffPhoneNumber` | string | Yes | Dropoff phone number |
+| `dropoffBusinessName` | string | Yes | Dropoff contact or business name |
+| `orderValue` | string | Yes | Order value in cents \(e.g., "1999" for $19.99\) |
+| `pickupInstructions` | string | No | Instructions for pickup |
+| `dropoffInstructions` | string | No | Instructions for dropoff |
+| `tip` | string | No | Tip amount in cents |
+| `dropoffContactSendNotifications` | string | No | Send SMS notifications to recipient \(true/false\) |
+| `actionIfUndeliverable` | string | No | Action if undeliverable \(e.g., "return_to_pickup"\) |
+| `contactlessDropoff` | string | No | Contactless doorstep delivery with photo verification \(true/false\) |
+| `dropoffRequiresSignature` | string | No | Require signature at dropoff \(true/false\) |
+| `dropoffContactGivenName` | string | No | Recipient first name |
+| `dropoffContactFamilyName` | string | No | Recipient last name |
+| `pickupTime` | string | No | Scheduled pickup time \(ISO 8601, mutually exclusive with dropoffTime\) |
+| `dropoffTime` | string | No | Scheduled dropoff time \(ISO 8601, mutually exclusive with pickupTime\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `externalDeliveryId` | string | External delivery ID |
+| `deliveryStatus` | string | Delivery status |
+| `fee` | number | Delivery fee in cents |
+| `currency` | string | Fee currency code |
+| `pickupTimeEstimated` | string | Estimated pickup time |
+| `dropoffTimeEstimated` | string | Estimated dropoff time |
+
+### `doordash_accept_quote`
+
+Accepts a delivery quote to formally create the delivery. Must be called within 5 minutes of creating the quote.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `developerId` | string | Yes | DoorDash Developer ID |
+| `keyId` | string | Yes | DoorDash Key ID |
+| `signingSecret` | string | Yes | DoorDash Signing Secret |
+| `externalDeliveryId` | string | Yes | External delivery ID from the quote |
+| `tip` | string | No | Tip amount in cents |
+| `dropoffPhoneNumber` | string | No | Updated dropoff phone number |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `externalDeliveryId` | string | External delivery ID |
+| `deliveryStatus` | string | Delivery status |
+| `fee` | number | Delivery fee in cents |
+| `tip` | number | Tip amount in cents |
+| `orderValue` | number | Order value in cents |
+| `currency` | string | Fee currency code |
+| `trackingUrl` | string | Delivery tracking URL |
+| `supportReference` | string | Support reference ID |
+| `dasherName` | string | Assigned Dasher name |
+| `dasherId` | number | Assigned Dasher ID |
+| `contactlessDropoff` | boolean | Whether contactless dropoff was used |
+| `dropoffVerificationImageUrl` | string | Photo verification URL at dropoff |
+| `cancellationReason` | string | Reason for cancellation |
+| `pickupTimeEstimated` | string | Estimated pickup time |
+| `pickupTimeActual` | string | Actual pickup time |
+| `dropoffTimeEstimated` | string | Estimated dropoff time |
+| `dropoffTimeActual` | string | Actual dropoff time |
+| `pickupAddress` | string | Pickup address |
+| `dropoffAddress` | string | Dropoff address |
+| `updatedAt` | string | Last updated timestamp |
+
+### `doordash_create_delivery`
+
+Creates a delivery directly without a prior quote. Skips price confirmation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `developerId` | string | Yes | DoorDash Developer ID |
+| `keyId` | string | Yes | DoorDash Key ID |
+| `signingSecret` | string | Yes | DoorDash Signing Secret |
+| `externalDeliveryId` | string | Yes | Unique delivery identifier |
+| `pickupAddress` | string | Yes | Pickup address \(e.g., "901 Market Street 6th Floor San Francisco, CA 94103"\) |
+| `pickupPhoneNumber` | string | Yes | Pickup phone number \(e.g., "+16505555555"\) |
+| `pickupBusinessName` | string | Yes | Pickup business name |
+| `dropoffAddress` | string | Yes | Dropoff address |
+| `dropoffPhoneNumber` | string | Yes | Dropoff phone number |
+| `dropoffBusinessName` | string | Yes | Dropoff contact or business name |
+| `orderValue` | string | Yes | Order value in cents \(e.g., "1999" for $19.99\) |
+| `pickupInstructions` | string | No | Instructions for pickup |
+| `dropoffInstructions` | string | No | Instructions for dropoff |
+| `tip` | string | No | Tip amount in cents |
+| `dropoffContactSendNotifications` | string | No | Send SMS notifications to recipient \(true/false\) |
+| `actionIfUndeliverable` | string | No | Action if undeliverable \(e.g., "return_to_pickup"\) |
+| `contactlessDropoff` | string | No | Contactless doorstep delivery with photo verification \(true/false\) |
+| `dropoffRequiresSignature` | string | No | Require signature at dropoff \(true/false\) |
+| `dropoffContactGivenName` | string | No | Recipient first name |
+| `dropoffContactFamilyName` | string | No | Recipient last name |
+| `pickupTime` | string | No | Scheduled pickup time \(ISO 8601, mutually exclusive with dropoffTime\) |
+| `dropoffTime` | string | No | Scheduled dropoff time \(ISO 8601, mutually exclusive with pickupTime\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `externalDeliveryId` | string | External delivery ID |
+| `deliveryStatus` | string | Delivery status |
+| `fee` | number | Delivery fee in cents |
+| `tip` | number | Tip amount in cents |
+| `orderValue` | number | Order value in cents |
+| `currency` | string | Fee currency code |
+| `trackingUrl` | string | Delivery tracking URL |
+| `supportReference` | string | Support reference ID |
+| `dasherName` | string | Assigned Dasher name |
+| `dasherId` | number | Assigned Dasher ID |
+| `contactlessDropoff` | boolean | Whether contactless dropoff was used |
+| `dropoffVerificationImageUrl` | string | Photo verification URL at dropoff |
+| `cancellationReason` | string | Reason for cancellation |
+| `pickupTimeEstimated` | string | Estimated pickup time |
+| `pickupTimeActual` | string | Actual pickup time |
+| `dropoffTimeEstimated` | string | Estimated dropoff time |
+| `dropoffTimeActual` | string | Actual dropoff time |
+| `pickupAddress` | string | Pickup address |
+| `dropoffAddress` | string | Dropoff address |
+| `updatedAt` | string | Last updated timestamp |
+
+### `doordash_get_delivery`
+
+Retrieves the current status and details of a delivery.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `developerId` | string | Yes | DoorDash Developer ID |
+| `keyId` | string | Yes | DoorDash Key ID |
+| `signingSecret` | string | Yes | DoorDash Signing Secret |
+| `externalDeliveryId` | string | Yes | External delivery ID to look up |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `externalDeliveryId` | string | External delivery ID |
+| `deliveryStatus` | string | Delivery status |
+| `fee` | number | Delivery fee in cents |
+| `tip` | number | Tip amount in cents |
+| `orderValue` | number | Order value in cents |
+| `currency` | string | Fee currency code |
+| `trackingUrl` | string | Delivery tracking URL |
+| `supportReference` | string | Support reference ID |
+| `dasherName` | string | Assigned Dasher name |
+| `dasherId` | number | Assigned Dasher ID |
+| `contactlessDropoff` | boolean | Whether contactless dropoff was used |
+| `dropoffVerificationImageUrl` | string | Photo verification URL at dropoff |
+| `cancellationReason` | string | Reason for cancellation |
+| `pickupTimeEstimated` | string | Estimated pickup time |
+| `pickupTimeActual` | string | Actual pickup time |
+| `dropoffTimeEstimated` | string | Estimated dropoff time |
+| `dropoffTimeActual` | string | Actual dropoff time |
+| `pickupAddress` | string | Pickup address |
+| `dropoffAddress` | string | Dropoff address |
+| `updatedAt` | string | Last updated timestamp |
+
+### `doordash_update_delivery`
+
+Updates a delivery. Only tip and dropoff details can be modified after creation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `developerId` | string | Yes | DoorDash Developer ID |
+| `keyId` | string | Yes | DoorDash Key ID |
+| `signingSecret` | string | Yes | DoorDash Signing Secret |
+| `externalDeliveryId` | string | Yes | External delivery ID to update |
+| `tip` | string | No | Updated tip amount in cents |
+| `dropoffPhoneNumber` | string | No | Updated dropoff phone number |
+| `dropoffInstructions` | string | No | Updated dropoff instructions |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `externalDeliveryId` | string | External delivery ID |
+| `deliveryStatus` | string | Delivery status |
+| `fee` | number | Delivery fee in cents |
+| `tip` | number | Tip amount in cents |
+| `orderValue` | number | Order value in cents |
+| `currency` | string | Fee currency code |
+| `trackingUrl` | string | Delivery tracking URL |
+| `supportReference` | string | Support reference ID |
+| `dasherName` | string | Assigned Dasher name |
+| `dasherId` | number | Assigned Dasher ID |
+| `contactlessDropoff` | boolean | Whether contactless dropoff was used |
+| `dropoffVerificationImageUrl` | string | Photo verification URL at dropoff |
+| `cancellationReason` | string | Reason for cancellation |
+| `pickupTimeEstimated` | string | Estimated pickup time |
+| `pickupTimeActual` | string | Actual pickup time |
+| `dropoffTimeEstimated` | string | Estimated dropoff time |
+| `dropoffTimeActual` | string | Actual dropoff time |
+| `pickupAddress` | string | Pickup address |
+| `dropoffAddress` | string | Dropoff address |
+| `updatedAt` | string | Last updated timestamp |
+
+### `doordash_cancel_delivery`
+
+Cancels a delivery. Cannot be used after a Dasher has been assigned to the delivery.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `developerId` | string | Yes | DoorDash Developer ID |
+| `keyId` | string | Yes | DoorDash Key ID |
+| `signingSecret` | string | Yes | DoorDash Signing Secret |
+| `externalDeliveryId` | string | Yes | External delivery ID to cancel |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `externalDeliveryId` | string | External delivery ID |
+| `deliveryStatus` | string | Delivery status \(cancelled\) |
+
+### `doordash_create_business`
+
+Creates a new business entity for organizing delivery locations.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `developerId` | string | Yes | DoorDash Developer ID |
+| `keyId` | string | Yes | No description |
+| `signingSecret` | string | Yes | DoorDash Signing Secret |
+| `externalBusinessId` | string | Yes | Unique business identifier |
+| `name` | string | Yes | No description |
+| `description` | string | No | Business description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `externalBusinessId` | string | Business ID |
+| `name` | string | Business name |
+| `description` | string | Business description |
+| `activationStatus` | string | Activation status |
+
+### `doordash_list_businesses`
+
+Lists all businesses owned by the developer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `developerId` | string | Yes | DoorDash Developer ID |
+| `keyId` | string | Yes | No description |
+| `signingSecret` | string | Yes | DoorDash Signing Secret |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `businesses` | array | List of businesses |
+|   ↳ `externalBusinessId` | string | Business ID |
+|   ↳ `name` | string | Business name |
+|   ↳ `description` | string | Business description |
+|   ↳ `activationStatus` | string | Activation status |
+
+### `doordash_update_business`
+
+Updates a business entity name or description.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `developerId` | string | Yes | DoorDash Developer ID |
+| `keyId` | string | Yes | No description |
+| `signingSecret` | string | Yes | DoorDash Signing Secret |
+| `externalBusinessId` | string | Yes | Business ID to update |
+| `name` | string | No | Updated business name |
+| `description` | string | No | Updated business description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `externalBusinessId` | string | Business ID |
+| `name` | string | Business name |
+| `description` | string | Business description |
+| `activationStatus` | string | Activation status |
+
+### `doordash_create_store`
+
+Creates a store location under a business for delivery pickup.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `developerId` | string | Yes | DoorDash Developer ID |
+| `keyId` | string | Yes | No description |
+| `signingSecret` | string | Yes | DoorDash Signing Secret |
+| `externalBusinessId` | string | Yes | Parent business ID |
+| `externalStoreId` | string | Yes | Unique store identifier |
+| `name` | string | Yes | No description |
+| `phoneNumber` | string | Yes | Store phone number |
+| `address` | string | Yes | No description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `externalStoreId` | string | Store ID |
+| `name` | string | Store name |
+| `phoneNumber` | string | Store phone number |
+| `address` | string | Store address |
+
+### `doordash_list_stores`
+
+Lists all stores under a business.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `developerId` | string | Yes | DoorDash Developer ID |
+| `keyId` | string | Yes | No description |
+| `signingSecret` | string | Yes | DoorDash Signing Secret |
+| `externalBusinessId` | string | Yes | Business ID to list stores for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stores` | array | List of stores |
+|   ↳ `externalStoreId` | string | Store ID |
+|   ↳ `name` | string | Store name |
+|   ↳ `phoneNumber` | string | Store phone number |
+|   ↳ `address` | string | Store address |
+
+### `doordash_get_store`
+
+Retrieves details of a specific store.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `developerId` | string | Yes | DoorDash Developer ID |
+| `keyId` | string | Yes | No description |
+| `signingSecret` | string | Yes | DoorDash Signing Secret |
+| `externalBusinessId` | string | Yes | Parent business ID |
+| `externalStoreId` | string | Yes | Store ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `externalStoreId` | string | Store ID |
+| `name` | string | Store name |
+| `phoneNumber` | string | Store phone number |
+| `address` | string | Store address |
+
+### `doordash_update_store`
+
+Updates a store location name, phone number, or address.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `developerId` | string | Yes | DoorDash Developer ID |
+| `keyId` | string | Yes | No description |
+| `signingSecret` | string | Yes | DoorDash Signing Secret |
+| `externalBusinessId` | string | Yes | Parent business ID |
+| `externalStoreId` | string | Yes | Store ID to update |
+| `name` | string | No | Updated store name |
+| `phoneNumber` | string | No | Updated phone number |
+| `address` | string | No | Updated address |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `externalStoreId` | string | Store ID |
+| `name` | string | Store name |
+| `phoneNumber` | string | Store phone number |
+| `address` | string | Store address |
+
+

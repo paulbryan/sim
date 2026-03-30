@@ -1193,6 +1193,18 @@ export function DocuSignIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function DoordashIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 132 75' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <rect width='132' height='75' rx='8' fill='white' />
+      <path
+        d='M126.9 17.8C121 6.8 109.6 0 97.2 0H3.2C1.4 0 0 1.5 0 3.3c0 .8.3 1.7.9 2.3l20.5 20.6c1.8 1.8 4.3 2.8 6.8 2.8h66.3c4.7 0 8.6 3.7 8.6 8.5 0 4.7-3.7 8.6-8.5 8.6H49c-1.8 0-3.2 1.5-3.2 3.3 0 .9.3 1.7.9 2.3l20.5 20.6C69 74 71.5 75 74 75h20.7c26.9 0 47.2-28.7 32.2-57.2'
+        fill='#FF3008'
+      />
+    </svg>
+  )
+}
+
 export function DiscordIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
