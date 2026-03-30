@@ -22,8 +22,8 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { Input as UiInput } from '@/components/ui'
-import { cn } from '@/lib/core/utils/cn'
 import { useSession } from '@/lib/auth/auth-client'
+import { cn } from '@/lib/core/utils/cn'
 import {
   clearPendingCredentialCreateRequest,
   PENDING_CREDENTIAL_CREATE_REQUEST_EVENT,

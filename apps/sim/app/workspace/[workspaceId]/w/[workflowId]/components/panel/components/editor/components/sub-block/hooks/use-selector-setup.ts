@@ -83,7 +83,13 @@ export function useSelectorSetup(
     }
 
     return context
-  }, [resolvedDependencyValues, canonicalIndex, workflowId, subBlock.mimeType, impersonateUserEmail])
+  }, [
+    resolvedDependencyValues,
+    canonicalIndex,
+    workflowId,
+    subBlock.mimeType,
+    impersonateUserEmail,
+  ])
 
   return {
     selectorKey: (subBlock.selectorKey ?? null) as SelectorKey | null,
