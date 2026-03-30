@@ -992,6 +992,14 @@ export function IntegrationsManager() {
                     <p className='text-[12px] text-[var(--text-tertiary)]'>
                       {selectedOAuthService?.description || 'Paste or upload the JSON key file'}
                     </p>
+                    <a
+                      href='https://docs.sim.ai/credentials/google-service-account'
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='text-[12px] text-[var(--accent)] hover:underline'
+                    >
+                      View setup guide
+                    </a>
                   </div>
                 </div>
 

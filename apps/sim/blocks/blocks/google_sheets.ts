@@ -55,6 +55,19 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
+    {
+      id: 'isServiceAccount',
+      title: 'Is Service Account',
+      type: 'short-input',
+      hidden: true,
+    },
+    {
+      id: 'impersonateUserEmail',
+      title: 'Impersonated Account',
+      type: 'short-input',
+      placeholder: 'Email to impersonate (for service accounts)',
+      condition: { field: 'isServiceAccount', value: 'true' },
+    },
     // Spreadsheet Selector
     {
       id: 'spreadsheetId',
@@ -349,6 +362,19 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
       mode: 'advanced',
       placeholder: 'Enter credential ID',
       required: true,
+    },
+    {
+      id: 'isServiceAccount',
+      title: 'Is Service Account',
+      type: 'short-input',
+      hidden: true,
+    },
+    {
+      id: 'impersonateUserEmail',
+      title: 'Impersonated Account',
+      type: 'short-input',
+      placeholder: 'Email to impersonate (for service accounts)',
+      condition: { field: 'isServiceAccount', value: 'true' },
     },
     // Spreadsheet Selector (basic mode) - not for create operation
     {

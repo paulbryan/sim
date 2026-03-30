@@ -53,6 +53,19 @@ export const GoogleTasksBlock: BlockConfig<GoogleTasksResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
+    {
+      id: 'isServiceAccount',
+      title: 'Is Service Account',
+      type: 'short-input',
+      hidden: true,
+    },
+    {
+      id: 'impersonateUserEmail',
+      title: 'Impersonated Account',
+      type: 'short-input',
+      placeholder: 'Email to impersonate (for service accounts)',
+      condition: { field: 'isServiceAccount', value: 'true' },
+    },
 
     // Task List - shown for all task operations (not list_task_lists)
     {

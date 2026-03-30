@@ -65,6 +65,19 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
+    {
+      id: 'isServiceAccount',
+      title: 'Is Service Account',
+      type: 'short-input',
+      hidden: true,
+    },
+    {
+      id: 'impersonateUserEmail',
+      title: 'Impersonated Account',
+      type: 'short-input',
+      placeholder: 'Email to impersonate (for service accounts)',
+      condition: { field: 'isServiceAccount', value: 'true' },
+    },
     // Presentation selector (basic mode) - for operations that need an existing presentation
     {
       id: 'presentationId',
