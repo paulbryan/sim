@@ -1527,7 +1527,9 @@ export async function refreshOAuthToken(
       refreshToken: newRefreshToken || refreshToken, // Return new refresh token if available
     }
   } catch (error) {
-    logger.error('Error refreshing token:', { error })
+    logger.error('Error refreshing token:', {
+      error: error instanceof Error ? error.message : String(error),
+    })
     return null
   }
 }

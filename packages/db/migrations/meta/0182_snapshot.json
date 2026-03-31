@@ -1,5 +1,5 @@
 {
-  "id": "c4a5af80-588a-4c71-9656-8af63a35ca93",
+  "id": "012719b4-67bb-43a2-b971-6d50140a39b9",
   "prevId": "1f5e66c4-0cc0-4c93-a003-577da02c23fe",
   "version": "7",
   "dialect": "postgresql",
@@ -2575,12 +2575,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "encrypted_service_account_key": {
-          "name": "encrypted_service_account_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_by": {
           "name": "created_by",
           "type": "text",
@@ -2761,40 +2755,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "credential_workspace_service_account_unique": {
-          "name": "credential_workspace_service_account_unique",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "provider_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "display_name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "type = 'service_account'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -2850,10 +2810,6 @@
         "credential_personal_env_source_check": {
           "name": "credential_personal_env_source_check",
           "value": "(type <> 'env_personal') OR (env_key IS NOT NULL AND env_owner_user_id IS NOT NULL)"
-        },
-        "credential_service_account_source_check": {
-          "name": "credential_service_account_source_check",
-          "value": "(type <> 'service_account') OR (encrypted_service_account_key IS NOT NULL AND provider_id IS NOT NULL)"
         }
       },
       "isRLSEnabled": false
@@ -4472,7 +4428,7 @@
           "tableTo": "knowledge_connector",
           "columnsFrom": ["connector_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -14418,7 +14374,7 @@
     "public.credential_type": {
       "name": "credential_type",
       "schema": "public",
-      "values": ["oauth", "env_workspace", "env_personal", "service_account"]
+      "values": ["oauth", "env_workspace", "env_personal"]
     },
     "public.notification_delivery_status": {
       "name": "notification_delivery_status",

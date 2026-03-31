@@ -25,7 +25,7 @@ const BEARER_PREFIX = 'Bearer '
 export function hasExternalApiCredentials(headers: Headers): boolean {
   if (headers.has(API_KEY_HEADER)) return true
   const auth = headers.get('authorization')
-  return auth?.startsWith(BEARER_PREFIX)
+  return auth?.startsWith(BEARER_PREFIX) ?? false
 }
 
 export interface AuthResult {
@@ -154,7 +154,7 @@ export async function checkSessionOrInternalAuth(
 
     return {
       success: false,
-      error: 'Authentication required - provide session or internal JWT',
+      error: 'Unauthorized',
     }
   } catch (error) {
     logger.error('Error in session/internal authentication:', error)
@@ -225,7 +225,7 @@ export async function checkHybridAuth(
     // No authentication found
     return {
       success: false,
-      error: 'Authentication required - provide session, API key, or internal JWT',
+      error: 'Unauthorized',
     }
   } catch (error) {
     logger.error('Error in hybrid authentication:', error)

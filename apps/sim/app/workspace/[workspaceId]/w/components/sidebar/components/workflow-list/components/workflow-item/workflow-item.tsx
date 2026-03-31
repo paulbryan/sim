@@ -35,7 +35,7 @@ interface WorkflowItemProps {
   active: boolean
   level: number
   dragDisabled?: boolean
-  onWorkflowClick: (workflowId: string, shiftKey: boolean, metaKey: boolean) => void
+  onWorkflowClick: (workflowId: string, shiftKey: boolean) => void
   onDragStart?: () => void
   onDragEnd?: () => void
 }
@@ -368,13 +368,15 @@ export function WorkflowItem({
         return
       }
 
-      const isModifierClick = e.shiftKey || e.metaKey || e.ctrlKey
+      if (e.metaKey || e.ctrlKey) {
+        return
+      }
 
-      if (isModifierClick) {
+      if (e.shiftKey) {
         e.preventDefault()
       }
 
-      onWorkflowClick(workflow.id, e.shiftKey, e.metaKey || e.ctrlKey)
+      onWorkflowClick(workflow.id, e.shiftKey)
     },
     [shouldPreventClickRef, workflow.id, onWorkflowClick, isEditing]
   )
@@ -386,12 +388,13 @@ export function WorkflowItem({
         data-item-id={workflow.id}
         className={clsx(
           'group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2 text-sm',
-          (active || isContextMenuOpen) && 'bg-[var(--surface-active)]',
+          (active || isContextMenuOpen || (isSelected && selectedWorkflows.size > 1)) &&
+            'bg-[var(--surface-active)]',
           !active &&
             !isContextMenuOpen &&
+            !(isSelected && selectedWorkflows.size > 1) &&
             !isAnyDragActive &&
             'hover-hover:bg-[var(--surface-hover)]',
-          isSelected && selectedWorkflows.size > 1 && !active && 'bg-[var(--surface-active)]',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         draggable={!isEditing && !dragDisabled}
