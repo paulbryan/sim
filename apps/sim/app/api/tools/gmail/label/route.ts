@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
         resolved.accountId,
         accountRow.userId,
         requestId,
-        ['https://www.googleapis.com/auth/gmail.labels']
+        getScopesForService('gmail')
       )
     }
 

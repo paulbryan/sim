@@ -4,6 +4,7 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getScopesForService } from '@/lib/oauth/utils'
 import { refreshAccessTokenIfNeeded, ServiceAccountTokenError } from '@/app/api/auth/oauth/utils'
 export const dynamic = 'force-dynamic'
 
@@ -102,7 +103,7 @@ export async function GET(request: NextRequest) {
       credentialId!,
       authz.credentialOwnerUserId,
       requestId,
-      ['https://www.googleapis.com/auth/drive'],
+      getScopesForService('google-drive'),
       impersonateEmail
     )
 

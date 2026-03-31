@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getScopesForService } from '@/lib/oauth/utils'
 import { refreshAccessTokenIfNeeded, ServiceAccountTokenError } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('GoogleBigQueryTablesAPI')
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
       credential,
       authz.credentialOwnerUserId,
       requestId,
-      ['https://www.googleapis.com/auth/bigquery'],
+      getScopesForService('google-bigquery'),
       impersonateEmail
     )
     if (!accessToken) {
