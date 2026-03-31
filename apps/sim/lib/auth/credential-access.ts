@@ -99,6 +99,8 @@ export async function authorizeCredentialUse(
         if (requesterPerm === null) {
           return { ok: false, error: 'You do not have access to this workspace.' }
         }
+      } else if (!workflowContext) {
+        return { ok: false, error: 'workflowId is required' }
       }
 
       return {

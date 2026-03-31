@@ -1149,7 +1149,9 @@ export function IntegrationsManager() {
             onClick={handleConfirmDelete}
             disabled={disconnectOAuthService.isPending || deleteCredential.isPending}
           >
-            {disconnectOAuthService.isPending ? 'Disconnecting...' : 'Disconnect'}
+            {disconnectOAuthService.isPending || deleteCredential.isPending
+              ? 'Disconnecting...'
+              : 'Disconnect'}
           </Button>
         </ModalFooter>
       </ModalContent>

@@ -129,9 +129,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         const parsed = JSON.parse(parseResult.data.serviceAccountJson)
         if (
           parsed.type !== 'service_account' ||
-          !parsed.client_email ||
-          !parsed.private_key ||
-          !parsed.project_id
+          typeof parsed.client_email !== 'string' ||
+          typeof parsed.private_key !== 'string' ||
+          typeof parsed.project_id !== 'string'
         ) {
           return NextResponse.json({ error: 'Invalid service account JSON key' }, { status: 400 })
         }
@@ -166,6 +166,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const row = await getCredentialResponse(id, session.user.id)
     return NextResponse.json({ credential: row }, { status: 200 })
   } catch (error) {
+    if (error instanceof Error && error.message.includes('unique')) {
+      return NextResponse.json(
+        { error: 'A service account credential with this name already exists in the workspace' },
+        { status: 409 }
+      )
+    }
     logger.error('Failed to update credential', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

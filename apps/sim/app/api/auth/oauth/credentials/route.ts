@@ -164,11 +164,14 @@ export async function GET(request: NextRequest) {
 
       if (platformCredential) {
         if (platformCredential.type === 'service_account') {
-          if (workflowId) {
-            if (!effectiveWorkspaceId || platformCredential.workspaceId !== effectiveWorkspaceId) {
-              return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-            }
-          } else {
+          if (
+            workflowId &&
+            (!effectiveWorkspaceId || platformCredential.workspaceId !== effectiveWorkspaceId)
+          ) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+          }
+
+          if (!workflowId) {
             const [membership] = await db
               .select({ id: credentialMember.id })
               .from(credentialMember)

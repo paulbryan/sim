@@ -140,10 +140,9 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const defaultScopes = ['https://www.googleapis.com/auth/cloud-platform']
         const accessToken = await getServiceAccountToken(
           resolved.credentialId,
-          scopes && scopes.length > 0 ? scopes : defaultScopes,
+          scopes ?? [],
           impersonateEmail
         )
         return NextResponse.json({ accessToken }, { status: 200 })

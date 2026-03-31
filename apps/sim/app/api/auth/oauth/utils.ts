@@ -90,14 +90,24 @@ export async function resolveOAuthAccountId(
 }
 
 /**
- * Generates a short-lived access token for a Google service account credential
- * using the two-legged OAuth JWT flow (RFC 7523).
+ * Userinfo scopes are excluded because service accounts don't represent a user
+ * and cannot request user identity information. Google rejects token requests
+ * that include these scopes for service account credentials.
  */
 const SA_EXCLUDED_SCOPES = new Set([
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
 ])
 
+/**
+ * Generates a short-lived access token for a Google service account credential
+ * using the two-legged OAuth JWT flow (RFC 7523).
+ *
+ * @param impersonateEmail - Optional. Required for Google Workspace APIs (Gmail, Drive, Calendar, etc.)
+ *   where the service account must impersonate a domain user via domain-wide delegation.
+ *   Not needed for project-scoped APIs like BigQuery or Vertex AI where the service account
+ *   authenticates directly with its own IAM permissions.
+ */
 export async function getServiceAccountToken(
   credentialId: string,
   scopes: string[],
@@ -348,11 +358,11 @@ export async function refreshAccessTokenIfNeeded(
   }
 
   if (resolved.credentialType === 'service_account' && resolved.credentialId) {
-    const effectiveScopes = scopes?.length
-      ? scopes
-      : ['https://www.googleapis.com/auth/cloud-platform']
+    if (!scopes?.length) {
+      throw new Error('Scopes are required for service account credentials')
+    }
     logger.info(`[${requestId}] Using service account token for credential`)
-    return getServiceAccountToken(resolved.credentialId, effectiveScopes, impersonateEmail)
+    return getServiceAccountToken(resolved.credentialId, scopes, impersonateEmail)
   }
 
   // Get the credential directly using the getCredential helper

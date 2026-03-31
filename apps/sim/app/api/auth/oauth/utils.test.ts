@@ -160,6 +160,12 @@ describe('OAuth Utils', () => {
 
   describe('refreshAccessTokenIfNeeded', () => {
     it('should return valid access token without refresh if not expired', async () => {
+      const mockResolvedCredential = {
+        id: 'credential-id',
+        type: 'oauth',
+        accountId: 'account-id',
+        workspaceId: 'workspace-id',
+      }
       const mockCredentialRow = { type: 'oauth', accountId: 'account-id' }
       const mockAccountRow = {
         id: 'account-id',
@@ -169,6 +175,7 @@ describe('OAuth Utils', () => {
         providerId: 'google',
         userId: 'test-user-id',
       }
+      mockSelectChain([mockResolvedCredential])
       mockSelectChain([mockCredentialRow])
       mockSelectChain([mockAccountRow])
 
@@ -179,6 +186,12 @@ describe('OAuth Utils', () => {
     })
 
     it('should refresh token when expired', async () => {
+      const mockResolvedCredential = {
+        id: 'credential-id',
+        type: 'oauth',
+        accountId: 'account-id',
+        workspaceId: 'workspace-id',
+      }
       const mockCredentialRow = { type: 'oauth', accountId: 'account-id' }
       const mockAccountRow = {
         id: 'account-id',
@@ -188,6 +201,7 @@ describe('OAuth Utils', () => {
         providerId: 'google',
         userId: 'test-user-id',
       }
+      mockSelectChain([mockResolvedCredential])
       mockSelectChain([mockCredentialRow])
       mockSelectChain([mockAccountRow])
       mockUpdateChain()
@@ -215,6 +229,12 @@ describe('OAuth Utils', () => {
     })
 
     it('should return null if refresh fails', async () => {
+      const mockResolvedCredential = {
+        id: 'credential-id',
+        type: 'oauth',
+        accountId: 'account-id',
+        workspaceId: 'workspace-id',
+      }
       const mockCredentialRow = { type: 'oauth', accountId: 'account-id' }
       const mockAccountRow = {
         id: 'account-id',
@@ -224,6 +244,7 @@ describe('OAuth Utils', () => {
         providerId: 'google',
         userId: 'test-user-id',
       }
+      mockSelectChain([mockResolvedCredential])
       mockSelectChain([mockCredentialRow])
       mockSelectChain([mockAccountRow])
 

@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getScopesForService } from '@/lib/oauth/utils'
 import {
   getServiceAccountToken,
   refreshAccessTokenIfNeeded,
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
     if (resolved.credentialType === 'service_account' && resolved.credentialId) {
       accessToken = await getServiceAccountToken(
         resolved.credentialId,
-        ['https://www.googleapis.com/auth/gmail.labels'],
+        getScopesForService('gmail'),
         impersonateEmail
       )
     } else {
