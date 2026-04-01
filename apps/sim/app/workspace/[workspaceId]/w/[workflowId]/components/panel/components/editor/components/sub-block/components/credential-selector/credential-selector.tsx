@@ -250,6 +250,7 @@ export function CredentialSelector({
             ? `Connect another ${getProviderName(provider)} account`
             : `Connect ${getProviderName(provider)} account`,
         value: '__connect_account__',
+        iconElement: <ExternalLink className='h-3 w-3' />,
       })
 
       groups.push({
@@ -272,6 +273,7 @@ export function CredentialSelector({
           ? `Connect another ${getProviderName(provider)} account`
           : `Connect ${getProviderName(provider)} account`,
       value: '__connect_account__',
+      iconElement: <ExternalLink className='h-3 w-3' />,
     })
 
     return { comboboxOptions: options, comboboxGroups: undefined }
