@@ -98,8 +98,10 @@ export function CredentialSelector({
   )
   const provider = effectiveProviderId
 
+  const isTriggerMode = subBlock.mode === 'trigger'
+
   const {
-    data: credentials = [],
+    data: rawCredentials = [],
     isFetching: credentialsLoading,
     refetch: refetchCredentials,
   } = useOAuthCredentials(effectiveProviderId, {
@@ -108,13 +110,21 @@ export function CredentialSelector({
     workflowId: activeWorkflowId || undefined,
   })
 
+  const credentials = useMemo(
+    () =>
+      isTriggerMode
+        ? rawCredentials.filter((cred) => cred.type !== 'service_account')
+        : rawCredentials,
+    [rawCredentials, isTriggerMode]
+  )
+
   const selectedCredential = useMemo(
     () => credentials.find((cred) => cred.id === selectedId),
     [credentials, selectedId]
   )
 
   const isServiceAccount = useMemo(
-    () => selectedCredential?.provider?.endsWith('-service-account') ?? false,
+    () => selectedCredential?.type === 'service_account',
     [selectedCredential]
   )
 

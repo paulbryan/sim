@@ -100,6 +100,12 @@ export function useEditorSubblockLayout(
     const effectiveAdvanced = displayAdvancedMode
     const canonicalModeOverrides = blockData?.canonicalModes
 
+    // Expose canonical mode overrides to condition functions so they can
+    // react to basic/advanced credential toggles (e.g. SERVICE_ACCOUNT_SUBBLOCKS).
+    if (canonicalModeOverrides) {
+      rawValues.__canonicalModes = canonicalModeOverrides
+    }
+
     const visibleSubBlocks = (config.subBlocks || []).filter((block) => {
       if (block.hidden) return false
 

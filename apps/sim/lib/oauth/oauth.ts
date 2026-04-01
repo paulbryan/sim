@@ -168,7 +168,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/adwords',
         ],
-        serviceAccountProviderId: 'google-service-account',
       },
       'google-bigquery': {
         name: 'Google BigQuery',
@@ -258,7 +257,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/cloud-platform',
         ],
-        serviceAccountProviderId: 'google-service-account',
       },
     },
     defaultService: 'gmail',

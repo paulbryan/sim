@@ -20,13 +20,29 @@ export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
     title: 'Is Service Account',
     type: 'short-input',
     hidden: true,
+    mode: 'both',
   },
   {
     id: 'impersonateUserEmail',
     title: 'Impersonated Account',
     type: 'short-input',
     placeholder: 'Email to impersonate (for service accounts)',
-    condition: { field: 'isServiceAccount', value: 'true' },
+    paramVisibility: 'user-only',
+    condition: (values) => {
+      // In tool-input context (agent tools), __canonicalModes and isServiceAccount
+      // are absent — always show so users can configure impersonation.
+      const hasBlockEditorContext =
+        values?.__canonicalModes !== undefined || values?.isServiceAccount !== undefined
+      if (!hasBlockEditorContext) {
+        return { field: 'isServiceAccount', value: 'does-not-match', not: true }
+      }
+      const modes = values.__canonicalModes as Record<string, string> | undefined
+      if (modes?.oauthCredential === 'advanced') {
+        return { field: 'isServiceAccount', value: 'does-not-match', not: true }
+      }
+      return { field: 'isServiceAccount', value: 'true' }
+    },
+    mode: 'both',
   },
 ]
 

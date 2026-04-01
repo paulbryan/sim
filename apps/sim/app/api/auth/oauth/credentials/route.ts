@@ -39,7 +39,8 @@ function toCredentialResponse(
   displayName: string,
   providerId: string,
   updatedAt: Date,
-  scope: string | null
+  scope: string | null,
+  credentialType: 'oauth' | 'service_account' = 'oauth'
 ) {
   const storedScope = scope?.trim()
   // Some providers (e.g. Box) don't return scopes in their token response,
@@ -55,6 +56,7 @@ function toCredentialResponse(
     id,
     name: displayName,
     provider: providerId,
+    type: credentialType,
     lastUsed: updatedAt.toISOString(),
     isDefault: featureType === 'default',
     scopes,
@@ -197,7 +199,8 @@ export async function GET(request: NextRequest) {
                   platformCredential.displayName,
                   platformCredential.providerId || 'google-service-account',
                   platformCredential.updatedAt,
-                  null
+                  null,
+                  'service_account'
                 ),
               ],
             },
@@ -322,7 +325,8 @@ export async function GET(request: NextRequest) {
               sa.displayName,
               sa.providerId || saProviderId,
               sa.updatedAt,
-              null
+              null,
+              'service_account'
             )
           )
         }
