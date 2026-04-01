@@ -120,9 +120,11 @@ export function CredentialSelector({
 
   const [, setIsServiceAccount] = useSubBlockValue<string>(blockId, 'isServiceAccount')
 
+  const isAdvancedMode = subBlock.mode === 'advanced'
+
   useEffect(() => {
-    setIsServiceAccount(isServiceAccount ? 'true' : '')
-  }, [isServiceAccount, setIsServiceAccount])
+    setIsServiceAccount(isAdvancedMode || isServiceAccount ? 'true' : '')
+  }, [isServiceAccount, isAdvancedMode, setIsServiceAccount])
 
   const selectedCredentialSet = useMemo(
     () => credentialSets.find((cs) => cs.id === selectedCredentialSetId),
