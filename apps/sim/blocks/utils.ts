@@ -9,6 +9,28 @@ import {
 import { useProvidersStore } from '@/stores/providers/store'
 
 /**
+ * Standard subblocks for Google service account impersonation.
+ * The credential-selector writes `isServiceAccount` to the store when a service account
+ * credential is selected. The `impersonateUserEmail` field conditionally appears for
+ * domain-wide delegation to Google Workspace APIs.
+ */
+export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
+  {
+    id: 'isServiceAccount',
+    title: 'Is Service Account',
+    type: 'short-input',
+    hidden: true,
+  },
+  {
+    id: 'impersonateUserEmail',
+    title: 'Impersonated Account',
+    type: 'short-input',
+    placeholder: 'Email to impersonate (for service accounts)',
+    condition: { field: 'isServiceAccount', value: 'true' },
+  },
+]
+
+/**
  * Returns model options for combobox subblocks, combining all provider sources.
  */
 export function getModelOptions() {

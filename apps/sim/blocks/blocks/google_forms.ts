@@ -2,6 +2,7 @@ import { GoogleFormsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
+import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const GoogleFormsBlock: BlockConfig = {
@@ -54,19 +55,7 @@ export const GoogleFormsBlock: BlockConfig = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-    {
-      id: 'isServiceAccount',
-      title: 'Is Service Account',
-      type: 'short-input',
-      hidden: true,
-    },
-    {
-      id: 'impersonateUserEmail',
-      title: 'Impersonated Account',
-      type: 'short-input',
-      placeholder: 'Email to impersonate (for service accounts)',
-      condition: { field: 'isServiceAccount', value: 'true' },
-    },
+    ...SERVICE_ACCOUNT_SUBBLOCKS,
     // Form selector (basic mode)
     {
       id: 'formSelector',

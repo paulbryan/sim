@@ -2,6 +2,7 @@ import { GoogleGroupsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 
 export const GoogleGroupsBlock: BlockConfig = {
   type: 'google_groups',
@@ -61,19 +62,7 @@ export const GoogleGroupsBlock: BlockConfig = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-    {
-      id: 'isServiceAccount',
-      title: 'Is Service Account',
-      type: 'short-input',
-      hidden: true,
-    },
-    {
-      id: 'impersonateUserEmail',
-      title: 'Impersonated Account',
-      type: 'short-input',
-      placeholder: 'Email to impersonate (for service accounts)',
-      condition: { field: 'isServiceAccount', value: 'true' },
-    },
+    ...SERVICE_ACCOUNT_SUBBLOCKS,
 
     {
       id: 'customer',

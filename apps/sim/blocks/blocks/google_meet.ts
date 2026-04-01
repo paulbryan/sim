@@ -2,6 +2,7 @@ import { GoogleMeetIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleMeetResponse } from '@/tools/google_meet/types'
 
 export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
@@ -52,19 +53,7 @@ export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-    {
-      id: 'isServiceAccount',
-      title: 'Is Service Account',
-      type: 'short-input',
-      hidden: true,
-    },
-    {
-      id: 'impersonateUserEmail',
-      title: 'Impersonated Account',
-      type: 'short-input',
-      placeholder: 'Email to impersonate (for service accounts)',
-      condition: { field: 'isServiceAccount', value: 'true' },
-    },
+    ...SERVICE_ACCOUNT_SUBBLOCKS,
 
     // Create Space Fields
     {

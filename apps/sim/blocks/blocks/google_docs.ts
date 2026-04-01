@@ -2,6 +2,7 @@ import { GoogleDocsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleDocsResponse } from '@/tools/google_docs/types'
 
 export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
@@ -51,19 +52,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-    {
-      id: 'isServiceAccount',
-      title: 'Is Service Account',
-      type: 'short-input',
-      hidden: true,
-    },
-    {
-      id: 'impersonateUserEmail',
-      title: 'Impersonated Account',
-      type: 'short-input',
-      placeholder: 'Email to impersonate (for service accounts)',
-      condition: { field: 'isServiceAccount', value: 'true' },
-    },
+    ...SERVICE_ACCOUNT_SUBBLOCKS,
     // Document selector (basic mode)
     {
       id: 'documentId',

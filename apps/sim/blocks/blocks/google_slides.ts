@@ -3,7 +3,7 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleSlidesResponse } from '@/tools/google_slides/types'
 
 export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
@@ -65,19 +65,7 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-    {
-      id: 'isServiceAccount',
-      title: 'Is Service Account',
-      type: 'short-input',
-      hidden: true,
-    },
-    {
-      id: 'impersonateUserEmail',
-      title: 'Impersonated Account',
-      type: 'short-input',
-      placeholder: 'Email to impersonate (for service accounts)',
-      condition: { field: 'isServiceAccount', value: 'true' },
-    },
+    ...SERVICE_ACCOUNT_SUBBLOCKS,
     // Presentation selector (basic mode) - for operations that need an existing presentation
     {
       id: 'presentationId',
