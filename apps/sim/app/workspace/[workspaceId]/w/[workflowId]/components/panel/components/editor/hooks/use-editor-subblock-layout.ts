@@ -28,8 +28,7 @@ function useReactiveConditions(
   const reactiveSubBlock = useMemo(() => subBlocks.find((sb) => sb.reactiveCondition), [subBlocks])
   const reactiveCond = reactiveSubBlock?.reactiveCondition
 
-  // Subscribe to watched field values directly from the store (not via props,
-  // which would destabilize the selector on every parent render).
+  // Subscribe to watched field values directly from the store.
   const watchedCredentialId = useSubBlockStore(
     useCallback(
       (state) => {

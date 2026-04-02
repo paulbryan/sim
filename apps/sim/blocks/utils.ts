@@ -21,7 +21,7 @@ export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
     placeholder: 'Email to impersonate (for service accounts)',
     paramVisibility: 'user-only',
     reactiveCondition: {
-      watchFields: ['credential', 'oauthCredential', 'manualCredential'],
+      watchFields: ['manualCredential', 'credential', 'oauthCredential'],
       requiredType: 'service_account',
     },
     mode: 'both',
