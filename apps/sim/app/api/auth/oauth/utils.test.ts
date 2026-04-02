@@ -231,7 +231,6 @@ describe('OAuth Utils', () => {
         accountId: 'account-id',
         workspaceId: 'workspace-id',
       }
-      const mockCredentialRow = { type: 'oauth', accountId: 'account-id' }
       const mockAccountRow = {
         id: 'account-id',
         accessToken: 'expired-token',
@@ -241,7 +240,6 @@ describe('OAuth Utils', () => {
         userId: 'test-user-id',
       }
       mockSelectChain([mockResolvedCredential])
-      mockSelectChain([mockCredentialRow])
       mockSelectChain([mockAccountRow])
 
       mockRefreshOAuthToken.mockResolvedValueOnce(null)
