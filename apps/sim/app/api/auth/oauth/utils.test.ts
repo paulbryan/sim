@@ -166,7 +166,6 @@ describe('OAuth Utils', () => {
         accountId: 'account-id',
         workspaceId: 'workspace-id',
       }
-      const mockCredentialRow = { type: 'oauth', accountId: 'account-id' }
       const mockAccountRow = {
         id: 'account-id',
         accessToken: 'valid-token',
@@ -176,7 +175,6 @@ describe('OAuth Utils', () => {
         userId: 'test-user-id',
       }
       mockSelectChain([mockResolvedCredential])
-      mockSelectChain([mockCredentialRow])
       mockSelectChain([mockAccountRow])
 
       const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
@@ -192,7 +190,6 @@ describe('OAuth Utils', () => {
         accountId: 'account-id',
         workspaceId: 'workspace-id',
       }
-      const mockCredentialRow = { type: 'oauth', accountId: 'account-id' }
       const mockAccountRow = {
         id: 'account-id',
         accessToken: 'expired-token',
@@ -202,7 +199,6 @@ describe('OAuth Utils', () => {
         userId: 'test-user-id',
       }
       mockSelectChain([mockResolvedCredential])
-      mockSelectChain([mockCredentialRow])
       mockSelectChain([mockAccountRow])
       mockUpdateChain()
 
