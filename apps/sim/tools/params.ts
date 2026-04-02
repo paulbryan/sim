@@ -990,9 +990,9 @@ export function getSubBlocksForToolInput(
       if (visibility === 'hidden' || visibility === 'llm-only') continue
 
       // Evaluate condition against current values.
-      // Skip sync condition check for subblocks with credentialTypeCondition — visibility
-      // is handled at render time by the SubBlock component via React Query.
-      if (sb.condition && !sb.credentialTypeCondition) {
+      // Skip sync condition check for subblocks with reactiveCondition — visibility
+      // is handled at render time by the SubBlock component.
+      if (sb.condition && !sb.reactiveCondition) {
         const conditionMet = evaluateSubBlockCondition(
           sb.condition as SubBlockCondition,
           valuesWithOperation

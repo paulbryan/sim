@@ -7,10 +7,65 @@ import {
   isSubBlockVisibleForMode,
 } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
+import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+
+/**
+ * Evaluates reactive conditions for subblocks. Always calls the same hooks
+ * regardless of whether a reactive condition exists (Rules of Hooks).
+ *
+ * Returns a Set of subblock IDs that should be hidden.
+ */
+function useReactiveConditions(
+  subBlocks: SubBlockConfig[],
+  blockId: string,
+  activeWorkflowId: string | null,
+  blockSubBlockValues: Record<string, unknown>
+): Set<string> {
+  const reactiveSubBlock = useMemo(
+    () => subBlocks.find((sb) => sb.reactiveCondition),
+    [subBlocks]
+  )
+  const reactiveCond = reactiveSubBlock?.reactiveCondition
+
+  // Subscribe to watched field values — always called (stable hook count)
+  const watchedCredentialId = useSubBlockStore(
+    useCallback(
+      (state) => {
+        if (!reactiveCond || !activeWorkflowId) return ''
+        const blockValues = state.workflowValues[activeWorkflowId]?.[blockId] ?? {}
+        const merged = { ...blockSubBlockValues, ...blockValues }
+        for (const field of reactiveCond.watchFields) {
+          const val = merged[field]
+          if (val && typeof val === 'string') return val
+        }
+        return ''
+      },
+      [reactiveCond, activeWorkflowId, blockId, blockSubBlockValues]
+    )
+  )
+
+  // Always call useWorkspaceCredential (stable hook count), disable when not needed
+  const { data: credential } = useWorkspaceCredential(
+    watchedCredentialId || undefined,
+    Boolean(reactiveCond && watchedCredentialId)
+  )
+
+  return useMemo(() => {
+    const hidden = new Set<string>()
+    if (!reactiveSubBlock || !reactiveCond) return hidden
+
+    const conditionMet = credential?.type === reactiveCond.requiredType
+    if (!conditionMet) {
+      hidden.add(reactiveSubBlock.id)
+    }
+    return hidden
+  }, [reactiveSubBlock, reactiveCond, credential?.type])
+}
 
 /**
  * Custom hook for computing subblock layout in the editor panel.
@@ -38,6 +93,14 @@ export function useEditorSubblockLayout(
     useCallback((state) => state.blocks?.[blockId]?.data, [blockId])
   )
   const { config: permissionConfig } = usePermissionConfig()
+
+  // Evaluate reactive conditions (hooks-based, must be called before useMemo)
+  const hiddenByReactiveCondition = useReactiveConditions(
+    config?.subBlocks || [],
+    blockId,
+    activeWorkflowId,
+    blockSubBlockValues
+  )
 
   return useMemo(() => {
     // Guard against missing config or block selection
@@ -109,6 +172,9 @@ export function useEditorSubblockLayout(
     const visibleSubBlocks = (config.subBlocks || []).filter((block) => {
       if (block.hidden) return false
 
+      // Filter by reactive condition (evaluated via hooks before useMemo)
+      if (hiddenByReactiveCondition.has(block.id)) return false
+
       // Hide skill-input subblock when skills are disabled via permissions
       if (block.type === 'skill-input' && permissionConfig.disableSkills) return false
 
@@ -164,6 +230,7 @@ export function useEditorSubblockLayout(
     activeWorkflowId,
     isSnapshotView,
     blockDataFromStore,
+    hiddenByReactiveCondition,
     permissionConfig.disableSkills,
   ])
 }

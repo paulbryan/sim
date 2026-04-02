@@ -52,9 +52,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useWorkspaceCredential } from '@/hooks/queries/credentials'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
 
 const SLACK_OVERRIDES: SelectorOverrides = {
@@ -617,36 +614,6 @@ function SubBlockComponent({
     isPreview,
     previewContextValues: contextValues,
   })
-
-  // Credential-type visibility gate: reactively fetches the credential by ID
-  // and hides the field unless it matches the required type.
-  const credTypeCond = config.credentialTypeCondition
-  const activeWfId = useWorkflowRegistry((s) => (credTypeCond ? s.activeWorkflowId : null))
-
-  const watchedCredentialId = useSubBlockStore(
-    useCallback(
-      (state) => {
-        if (!credTypeCond || !activeWfId) return ''
-        const blockValues = state.workflowValues[activeWfId]?.[blockId] ?? {}
-        const merged = { ...(dependencyContext ?? {}), ...blockValues }
-        for (const field of credTypeCond.watchFields) {
-          const val = merged[field]
-          if (val && typeof val === 'string') return val
-        }
-        return ''
-      },
-      [credTypeCond, activeWfId, blockId, dependencyContext]
-    )
-  )
-
-  const { data: watchedCredential } = useWorkspaceCredential(
-    watchedCredentialId || undefined,
-    Boolean(credTypeCond && watchedCredentialId)
-  )
-
-  if (credTypeCond && watchedCredential?.type !== credTypeCond.requiredType) {
-    return <></> as unknown as JSX.Element
-  }
 
   const isDisabled = gatedDisabled
 

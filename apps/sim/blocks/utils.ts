@@ -10,9 +10,8 @@ import { useProvidersStore } from '@/stores/providers/store'
 
 /**
  * Standard subblocks for Google service account impersonation.
- * The `impersonateUserEmail` field fetches the credential by ID to check if it's
- * a service account, using `asyncCondition` so it works in both block editor and
- * agent tool-input contexts without cross-subblock state propagation.
+ * Uses a reactive condition that fetches the credential by ID to check if it's
+ * a service account — works in both block editor and agent tool-input contexts.
  */
 export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
   {
@@ -21,7 +20,7 @@ export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
     type: 'short-input',
     placeholder: 'Email to impersonate (for service accounts)',
     paramVisibility: 'user-only',
-    credentialTypeCondition: {
+    reactiveCondition: {
       watchFields: ['credential', 'oauthCredential', 'manualCredential'],
       requiredType: 'service_account',
     },

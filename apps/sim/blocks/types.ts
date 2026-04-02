@@ -357,16 +357,19 @@ export interface SubBlockConfig {
         }
       })
   /**
-   * Declarative credential-type visibility gate. The SubBlock watches the specified
-   * fields for a credential ID, fetches the credential via React Query, and hides
-   * the field unless the credential type matches.
+   * Reactive visibility condition evaluated via hooks at the layout level.
    *
-   * Works in both block editor and tool-input contexts without side effects.
+   * - `watchFields`: subblock IDs whose values to watch. The first non-empty string
+   *    value is used as a credential ID to look up via the workspace credentials API.
+   * - `requiredType`: the credential type that must match for the field to be visible
+   *    (e.g. `'service_account'`).
+   *
+   * The layout hook calls `useWorkspaceCredential` (always, for stable hook count)
+   * and filters the subblock out if the type doesn't match. The serializer skips
+   * this check — it always serializes the field if it has a value.
    */
-  credentialTypeCondition?: {
-    /** Subblock IDs (or canonical param IDs) to read the credential ID from, in priority order. */
+  reactiveCondition?: {
     watchFields: string[]
-    /** Required credential type for the field to be visible (e.g. 'service_account'). */
     requiredType: string
   }
   // Props specific to 'code' sub-block type
