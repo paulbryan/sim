@@ -990,8 +990,9 @@ export function getSubBlocksForToolInput(
       if (visibility === 'hidden' || visibility === 'llm-only') continue
 
       // Evaluate condition against current values.
-      // Skip sync condition check for subblocks with reactiveCondition — visibility
-      // is handled at render time by the SubBlock component.
+      // Subblocks with reactiveCondition are filtered at the UI layer via hooks
+      // (useReactiveConditions) — skipping here avoids evaluating a condition
+      // that has no sync field to check against.
       if (sb.condition && !sb.reactiveCondition) {
         const conditionMet = evaluateSubBlockCondition(
           sb.condition as SubBlockCondition,

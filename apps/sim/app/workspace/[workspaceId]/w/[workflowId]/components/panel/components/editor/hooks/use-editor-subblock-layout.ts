@@ -23,8 +23,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 function useReactiveConditions(
   subBlocks: SubBlockConfig[],
   blockId: string,
-  activeWorkflowId: string | null,
-  blockSubBlockValues: Record<string, unknown>
+  activeWorkflowId: string | null
 ): Set<string> {
   const reactiveSubBlock = useMemo(
     () => subBlocks.find((sb) => sb.reactiveCondition),
@@ -32,20 +31,20 @@ function useReactiveConditions(
   )
   const reactiveCond = reactiveSubBlock?.reactiveCondition
 
-  // Subscribe to watched field values — always called (stable hook count)
+  // Subscribe to watched field values directly from the store (not via props,
+  // which would destabilize the selector on every parent render).
   const watchedCredentialId = useSubBlockStore(
     useCallback(
       (state) => {
         if (!reactiveCond || !activeWorkflowId) return ''
         const blockValues = state.workflowValues[activeWorkflowId]?.[blockId] ?? {}
-        const merged = { ...blockSubBlockValues, ...blockValues }
         for (const field of reactiveCond.watchFields) {
-          const val = merged[field]
+          const val = blockValues[field]
           if (val && typeof val === 'string') return val
         }
         return ''
       },
-      [reactiveCond, activeWorkflowId, blockId, blockSubBlockValues]
+      [reactiveCond, activeWorkflowId, blockId]
     )
   )
 
@@ -98,8 +97,7 @@ export function useEditorSubblockLayout(
   const hiddenByReactiveCondition = useReactiveConditions(
     config?.subBlocks || [],
     blockId,
-    activeWorkflowId,
-    blockSubBlockValues
+    activeWorkflowId
   )
 
   return useMemo(() => {

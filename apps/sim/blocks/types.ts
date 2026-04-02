@@ -357,16 +357,12 @@ export interface SubBlockConfig {
         }
       })
   /**
-   * Reactive visibility condition evaluated via hooks at the layout level.
+   * Credential-type visibility gate. The first non-empty string value from
+   * `watchFields` is treated as a credential ID and fetched via the credentials
+   * API. The subblock is hidden unless `credential.type` matches `requiredType`.
    *
-   * - `watchFields`: subblock IDs whose values to watch. The first non-empty string
-   *    value is used as a credential ID to look up via the workspace credentials API.
-   * - `requiredType`: the credential type that must match for the field to be visible
-   *    (e.g. `'service_account'`).
-   *
-   * The layout hook calls `useWorkspaceCredential` (always, for stable hook count)
-   * and filters the subblock out if the type doesn't match. The serializer skips
-   * this check — it always serializes the field if it has a value.
+   * Only one subblock per block may use this. The serializer ignores it —
+   * the field is always serialized when it has a value.
    */
   reactiveCondition?: {
     watchFields: string[]
