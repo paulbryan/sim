@@ -67,6 +67,7 @@ import {
 import { useWorkflowState, useWorkflows } from '@/hooks/queries/workflows'
 import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
@@ -481,6 +482,16 @@ export const ToolInput = memo(function ToolInput({
     typeof value[0]?.type === 'string'
       ? (value as StoredTool[])
       : []
+
+  // Look up credential type for reactive condition filtering (e.g. service account detection)
+  const toolCredentialId = useMemo(() => {
+    for (const tool of selectedTools) {
+      const id = tool.params?.oauthCredential ?? tool.params?.credential
+      if (id && typeof id === 'string') return id
+    }
+    return undefined
+  }, [selectedTools])
+  const { data: toolCredential } = useWorkspaceCredential(toolCredentialId, Boolean(toolCredentialId))
 
   const hasReferenceOnlyCustomTools = selectedTools.some(
     (tool) => tool.type === 'custom-tool' && tool.customToolId && !tool.code
@@ -1637,7 +1648,11 @@ export const ToolInput = memo(function ToolInput({
               ? mcpToolParams
               : toolParams?.userInputParameters || []
           const displaySubBlocks: BlockSubBlockConfig[] = useSubBlocks
-            ? subBlocksResult!.subBlocks
+            ? subBlocksResult!.subBlocks.filter(
+                (sb) =>
+                  !sb.reactiveCondition ||
+                  toolCredential?.type === sb.reactiveCondition.requiredType
+              )
             : []
 
           const hasOperations = !isCustomTool && !isMcpTool && hasMultipleOperations(tool.type)
