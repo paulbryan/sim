@@ -356,6 +356,19 @@ export interface SubBlockConfig {
           not?: boolean
         }
       })
+  /**
+   * Declarative credential-type visibility gate. The SubBlock watches the specified
+   * fields for a credential ID, fetches the credential via React Query, and hides
+   * the field unless the credential type matches.
+   *
+   * Works in both block editor and tool-input contexts without side effects.
+   */
+  credentialTypeCondition?: {
+    /** Subblock IDs (or canonical param IDs) to read the credential ID from, in priority order. */
+    watchFields: string[]
+    /** Required credential type for the field to be visible (e.g. 'service_account'). */
+    requiredType: string
+  }
   // Props specific to 'code' sub-block type
   language?: 'javascript' | 'json' | 'python'
   generationType?: GenerationType

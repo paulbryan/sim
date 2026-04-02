@@ -1,6 +1,6 @@
 'use client'
 
-import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
+import { createElement, useCallback, useMemo, useState } from 'react'
 import { ExternalLink, Users } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
@@ -127,14 +127,6 @@ export function CredentialSelector({
     () => selectedCredential?.type === 'service_account',
     [selectedCredential]
   )
-
-  const [, setIsServiceAccount] = useSubBlockValue<string>(blockId, 'isServiceAccount')
-
-  const isAdvancedMode = subBlock.mode === 'advanced'
-
-  useEffect(() => {
-    setIsServiceAccount(isAdvancedMode || isServiceAccount ? 'true' : '')
-  }, [isServiceAccount, isAdvancedMode, setIsServiceAccount])
 
   const selectedCredentialSet = useMemo(
     () => credentialSets.find((cs) => cs.id === selectedCredentialSetId),

@@ -10,37 +10,20 @@ import { useProvidersStore } from '@/stores/providers/store'
 
 /**
  * Standard subblocks for Google service account impersonation.
- * The credential-selector writes `isServiceAccount` to the store when a service account
- * credential is selected. The `impersonateUserEmail` field conditionally appears for
- * domain-wide delegation to Google Workspace APIs.
+ * The `impersonateUserEmail` field fetches the credential by ID to check if it's
+ * a service account, using `asyncCondition` so it works in both block editor and
+ * agent tool-input contexts without cross-subblock state propagation.
  */
 export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
-  {
-    id: 'isServiceAccount',
-    title: 'Is Service Account',
-    type: 'short-input',
-    hidden: true,
-    mode: 'both',
-  },
   {
     id: 'impersonateUserEmail',
     title: 'Impersonated Account',
     type: 'short-input',
     placeholder: 'Email to impersonate (for service accounts)',
     paramVisibility: 'user-only',
-    condition: (values) => {
-      // In tool-input context (agent tools), __canonicalModes and isServiceAccount
-      // are absent — always show so users can configure impersonation.
-      const hasBlockEditorContext =
-        values?.__canonicalModes !== undefined || values?.isServiceAccount !== undefined
-      if (!hasBlockEditorContext) {
-        return { field: 'isServiceAccount', value: 'does-not-match', not: true }
-      }
-      const modes = values.__canonicalModes as Record<string, string> | undefined
-      if (modes?.oauthCredential === 'advanced') {
-        return { field: 'isServiceAccount', value: 'does-not-match', not: true }
-      }
-      return { field: 'isServiceAccount', value: 'true' }
+    credentialTypeCondition: {
+      watchFields: ['credential', 'oauthCredential', 'manualCredential'],
+      requiredType: 'service_account',
     },
     mode: 'both',
   },
