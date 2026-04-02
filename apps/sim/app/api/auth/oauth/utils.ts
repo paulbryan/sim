@@ -186,7 +186,12 @@ export async function getServiceAccountToken(
     try {
       const parsed = JSON.parse(errorBody) as { error_description?: string }
       if (parsed.error_description) {
-        description = parsed.error_description
+        const raw = parsed.error_description
+        if (raw.includes('SignatureException') || raw.includes('Invalid signature')) {
+          description = 'Invalid account credentials.'
+        } else {
+          description = raw
+        }
       }
     } catch {
       // use default description
