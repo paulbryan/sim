@@ -366,7 +366,7 @@ export interface SubBlockConfig {
    */
   reactiveCondition?: {
     watchFields: string[]
-    requiredType: string
+    requiredType: 'oauth' | 'service_account'
   }
   // Props specific to 'code' sub-block type
   language?: 'javascript' | 'json' | 'python'

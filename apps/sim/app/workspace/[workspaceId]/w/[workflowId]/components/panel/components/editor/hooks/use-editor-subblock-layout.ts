@@ -1,10 +1,12 @@
 import { useCallback, useMemo } from 'react'
+import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
   isSubBlockHiddenByHostedKey,
   isSubBlockVisibleForMode,
+  resolveDependencyValue,
 } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
@@ -23,24 +25,32 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 function useReactiveConditions(
   subBlocks: SubBlockConfig[],
   blockId: string,
-  activeWorkflowId: string | null
+  activeWorkflowId: string | null,
+  canonicalModeOverrides?: CanonicalModeOverrides
 ): Set<string> {
   const reactiveSubBlock = useMemo(() => subBlocks.find((sb) => sb.reactiveCondition), [subBlocks])
   const reactiveCond = reactiveSubBlock?.reactiveCondition
 
-  // Subscribe to watched field values directly from the store.
+  const canonicalIndex = useMemo(() => buildCanonicalIndex(subBlocks), [subBlocks])
+
+  // Resolve watchFields through canonical index to get the active credential value
   const watchedCredentialId = useSubBlockStore(
     useCallback(
       (state) => {
         if (!reactiveCond || !activeWorkflowId) return ''
         const blockValues = state.workflowValues[activeWorkflowId]?.[blockId] ?? {}
         for (const field of reactiveCond.watchFields) {
-          const val = blockValues[field]
+          const val = resolveDependencyValue(
+            field,
+            blockValues,
+            canonicalIndex,
+            canonicalModeOverrides
+          )
           if (val && typeof val === 'string') return val
         }
         return ''
       },
-      [reactiveCond, activeWorkflowId, blockId]
+      [reactiveCond, activeWorkflowId, blockId, canonicalIndex, canonicalModeOverrides]
     )
   )
 
@@ -93,7 +103,8 @@ export function useEditorSubblockLayout(
   const hiddenByReactiveCondition = useReactiveConditions(
     config?.subBlocks || [],
     blockId,
-    activeWorkflowId
+    activeWorkflowId,
+    blockDataFromStore?.canonicalModes
   )
 
   return useMemo(() => {

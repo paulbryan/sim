@@ -89,6 +89,7 @@ import {
   evaluateSubBlockCondition,
   isCanonicalPair,
   resolveCanonicalMode,
+  resolveDependencyValue,
   type SubBlockCondition,
 } from '@/tools/params-resolver'
 
@@ -483,14 +484,37 @@ export const ToolInput = memo(function ToolInput({
       ? (value as StoredTool[])
       : []
 
-  // Look up credential type for reactive condition filtering (e.g. service account detection)
+  // Look up credential type for reactive condition filtering (e.g. service account detection).
+  // Uses canonical resolution so the active field (basic vs advanced) is respected.
   const toolCredentialId = useMemo(() => {
+    const allBlocks = getAllBlocks()
     for (const tool of selectedTools) {
-      const id = tool.params?.oauthCredential ?? tool.params?.credential
-      if (id && typeof id === 'string') return id
+      const blockConfig = allBlocks.find((b: { type: string }) => b.type === tool.type)
+      if (!blockConfig?.subBlocks) continue
+      const toolCanonical = buildCanonicalIndex(blockConfig.subBlocks)
+      const scopedOverrides: CanonicalModeOverrides = {}
+      if (canonicalModeOverrides) {
+        for (const [key, val] of Object.entries(canonicalModeOverrides)) {
+          const prefix = `${tool.type}:`
+          if (key.startsWith(prefix) && val) {
+            scopedOverrides[key.slice(prefix.length)] = val as 'basic' | 'advanced'
+          }
+        }
+      }
+      const reactiveSubBlock = blockConfig.subBlocks.find(
+        (sb: { reactiveCondition?: unknown }) => sb.reactiveCondition
+      )
+      const reactiveCond = reactiveSubBlock?.reactiveCondition as
+        | { watchFields: string[]; requiredType: string }
+        | undefined
+      if (!reactiveCond) continue
+      for (const field of reactiveCond.watchFields) {
+        const val = resolveDependencyValue(field, tool.params || {}, toolCanonical, scopedOverrides)
+        if (val && typeof val === 'string') return val
+      }
     }
     return undefined
-  }, [selectedTools])
+  }, [selectedTools, canonicalModeOverrides])
   const { data: toolCredential } = useWorkspaceCredential(
     toolCredentialId,
     Boolean(toolCredentialId)

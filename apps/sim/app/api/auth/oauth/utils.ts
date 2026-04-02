@@ -135,7 +135,11 @@ export async function getServiceAccountToken(
   const filteredScopes = scopes.filter((s) => !SA_EXCLUDED_SCOPES.has(s))
 
   const now = Math.floor(Date.now() / 1000)
-  const tokenUri = keyData.token_uri || 'https://oauth2.googleapis.com/token'
+  const ALLOWED_TOKEN_URIS = new Set(['https://oauth2.googleapis.com/token'])
+  const tokenUri =
+    keyData.token_uri && ALLOWED_TOKEN_URIS.has(keyData.token_uri)
+      ? keyData.token_uri
+      : 'https://oauth2.googleapis.com/token'
 
   const header = { alg: 'RS256', typ: 'JWT' }
   const payload: Record<string, unknown> = {
