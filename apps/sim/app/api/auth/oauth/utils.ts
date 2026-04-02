@@ -227,19 +227,13 @@ export async function safeAccountInsert(
 }
 
 /**
- * Get a credential by ID and verify it belongs to the user
+ * Get a credential by resolved account ID and verify it belongs to the user.
  */
-export async function getCredential(requestId: string, credentialId: string, userId: string) {
-  const resolved = await resolveOAuthAccountId(credentialId)
-  if (!resolved) {
-    logger.warn(`[${requestId}] Credential is not an OAuth credential`)
-    return undefined
-  }
-
+async function getCredentialByAccountId(requestId: string, accountId: string, userId: string) {
   const credentials = await db
     .select()
     .from(account)
-    .where(and(eq(account.id, resolved.accountId), eq(account.userId, userId)))
+    .where(and(eq(account.id, accountId), eq(account.userId, userId)))
     .limit(1)
 
   if (!credentials.length) {
@@ -249,8 +243,20 @@ export async function getCredential(requestId: string, credentialId: string, use
 
   return {
     ...credentials[0],
-    resolvedCredentialId: resolved.accountId,
+    resolvedCredentialId: accountId,
   }
+}
+
+/**
+ * Get a credential by ID and verify it belongs to the user.
+ */
+export async function getCredential(requestId: string, credentialId: string, userId: string) {
+  const resolved = await resolveOAuthAccountId(credentialId)
+  if (!resolved) {
+    logger.warn(`[${requestId}] Credential is not an OAuth credential`)
+    return undefined
+  }
+  return getCredentialByAccountId(requestId, resolved.accountId, userId)
 }
 
 export async function getOAuthToken(userId: string, providerId: string): Promise<string | null> {
@@ -370,8 +376,8 @@ export async function refreshAccessTokenIfNeeded(
     return getServiceAccountToken(resolved.credentialId, scopes, impersonateEmail)
   }
 
-  // Get the credential directly using the getCredential helper
-  const credential = await getCredential(requestId, credentialId, userId)
+  // Use the already-resolved account ID to avoid a redundant resolveOAuthAccountId query
+  const credential = await getCredentialByAccountId(requestId, resolved.accountId, userId)
 
   if (!credential) {
     return null

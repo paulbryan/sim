@@ -125,21 +125,22 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       parseResult.data.serviceAccountJson !== undefined &&
       access.credential.type === 'service_account'
     ) {
+      let parsed: Record<string, unknown>
       try {
-        const parsed = JSON.parse(parseResult.data.serviceAccountJson)
-        if (
-          parsed.type !== 'service_account' ||
-          typeof parsed.client_email !== 'string' ||
-          typeof parsed.private_key !== 'string' ||
-          typeof parsed.project_id !== 'string'
-        ) {
-          return NextResponse.json({ error: 'Invalid service account JSON key' }, { status: 400 })
-        }
-        const { encrypted } = await encryptSecret(parseResult.data.serviceAccountJson)
-        updates.encryptedServiceAccountKey = encrypted
+        parsed = JSON.parse(parseResult.data.serviceAccountJson)
       } catch {
         return NextResponse.json({ error: 'Invalid JSON format' }, { status: 400 })
       }
+      if (
+        parsed.type !== 'service_account' ||
+        typeof parsed.client_email !== 'string' ||
+        typeof parsed.private_key !== 'string' ||
+        typeof parsed.project_id !== 'string'
+      ) {
+        return NextResponse.json({ error: 'Invalid service account JSON key' }, { status: 400 })
+      }
+      const { encrypted } = await encryptSecret(parseResult.data.serviceAccountJson)
+      updates.encryptedServiceAccountKey = encrypted
     }
 
     if (Object.keys(updates).length === 0) {
