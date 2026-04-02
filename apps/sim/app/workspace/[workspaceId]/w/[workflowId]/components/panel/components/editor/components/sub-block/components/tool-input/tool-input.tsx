@@ -51,6 +51,7 @@ import { getAllBlocks } from '@/blocks'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
 import { BUILT_IN_TOOL_TYPES } from '@/blocks/utils'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
+import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import {
   type CustomTool as CustomToolDefinition,
   useCustomTools,
@@ -67,7 +68,6 @@ import {
 import { useWorkflowState, useWorkflows } from '@/hooks/queries/workflows'
 import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { getProviderFromModel, supportsToolUsageControl } from '@/providers/utils'
@@ -491,7 +491,10 @@ export const ToolInput = memo(function ToolInput({
     }
     return undefined
   }, [selectedTools])
-  const { data: toolCredential } = useWorkspaceCredential(toolCredentialId, Boolean(toolCredentialId))
+  const { data: toolCredential } = useWorkspaceCredential(
+    toolCredentialId,
+    Boolean(toolCredentialId)
+  )
 
   const hasReferenceOnlyCustomTools = selectedTools.some(
     (tool) => tool.type === 'custom-tool' && tool.customToolId && !tool.code

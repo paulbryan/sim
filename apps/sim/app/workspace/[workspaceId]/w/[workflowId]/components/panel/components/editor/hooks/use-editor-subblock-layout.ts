@@ -25,10 +25,7 @@ function useReactiveConditions(
   blockId: string,
   activeWorkflowId: string | null
 ): Set<string> {
-  const reactiveSubBlock = useMemo(
-    () => subBlocks.find((sb) => sb.reactiveCondition),
-    [subBlocks]
-  )
+  const reactiveSubBlock = useMemo(() => subBlocks.find((sb) => sb.reactiveCondition), [subBlocks])
   const reactiveCond = reactiveSubBlock?.reactiveCondition
 
   // Subscribe to watched field values directly from the store (not via props,
