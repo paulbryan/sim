@@ -91,7 +91,12 @@ export const ResourceContent = memo(function ResourceContent({
   }, [streamingFile])
   const syntheticFile = useMemo(() => {
     const ext = getFileExtension(streamFileName)
-    const type = ext === 'pptx' ? 'text/x-pptxgenjs' : getMimeTypeFromExtension(ext)
+    const SOURCE_MIME_MAP: Record<string, string> = {
+      pptx: 'text/x-pptxgenjs',
+      docx: 'text/x-docxjs',
+      pdf: 'text/x-pdflibjs',
+    }
+    const type = SOURCE_MIME_MAP[ext] ?? getMimeTypeFromExtension(ext)
     return {
       id: 'streaming-file',
       workspaceId,

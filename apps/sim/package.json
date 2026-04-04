@@ -154,6 +154,8 @@
     "onedollarstats": "0.0.10",
     "openai": "^4.91.1",
     "papaparse": "5.5.3",
+    "docx": "^9.6.1",
+    "docx-preview": "^0.3.7",
     "pdf-lib": "1.17.1",
     "postgres": "^3.4.5",
     "posthog-js": "1.364.4",

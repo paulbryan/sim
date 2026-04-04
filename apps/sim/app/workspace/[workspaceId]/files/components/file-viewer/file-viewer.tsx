@@ -57,7 +57,7 @@ const TEXT_EDITABLE_EXTENSIONS = new Set([
   ...SUPPORTED_CODE_EXTENSIONS,
 ])
 
-const IFRAME_PREVIEWABLE_MIME_TYPES = new Set(['application/pdf'])
+const IFRAME_PREVIEWABLE_MIME_TYPES = new Set(['application/pdf', 'text/x-pdflibjs'])
 const IFRAME_PREVIEWABLE_EXTENSIONS = new Set(['pdf'])
 
 const IMAGE_PREVIEWABLE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
@@ -65,11 +65,13 @@ const IMAGE_PREVIEWABLE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp
 
 const PPTX_PREVIEWABLE_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/x-pptxgenjs',
 ])
 const PPTX_PREVIEWABLE_EXTENSIONS = new Set(['pptx'])
 
 const DOCX_PREVIEWABLE_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/x-docxjs',
 ])
 const DOCX_PREVIEWABLE_EXTENSIONS = new Set(['docx'])
 
@@ -91,8 +93,8 @@ function resolveFileCategory(mimeType: string | null, filename: string): FileCat
   if (mimeType && TEXT_EDITABLE_MIME_TYPES.has(mimeType)) return 'text-editable'
   if (mimeType && IFRAME_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'iframe-previewable'
   if (mimeType && IMAGE_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'image-previewable'
-  if (mimeType && PPTX_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'pptx-previewable'
   if (mimeType && DOCX_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'docx-previewable'
+  if (mimeType && PPTX_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'pptx-previewable'
   if (mimeType && XLSX_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'xlsx-previewable'
 
   const ext = getFileExtension(filename)
@@ -100,8 +102,8 @@ function resolveFileCategory(mimeType: string | null, filename: string): FileCat
   if (TEXT_EDITABLE_EXTENSIONS.has(nameKey)) return 'text-editable'
   if (IFRAME_PREVIEWABLE_EXTENSIONS.has(ext)) return 'iframe-previewable'
   if (IMAGE_PREVIEWABLE_EXTENSIONS.has(ext)) return 'image-previewable'
-  if (PPTX_PREVIEWABLE_EXTENSIONS.has(ext)) return 'pptx-previewable'
   if (DOCX_PREVIEWABLE_EXTENSIONS.has(ext)) return 'docx-previewable'
+  if (PPTX_PREVIEWABLE_EXTENSIONS.has(ext)) return 'pptx-previewable'
   if (XLSX_PREVIEWABLE_EXTENSIONS.has(ext)) return 'xlsx-previewable'
 
   return 'unsupported'
@@ -168,12 +170,12 @@ export function FileViewer({
     return <ImagePreview file={file} />
   }
 
-  if (category === 'pptx-previewable') {
-    return <PptxPreview file={file} workspaceId={workspaceId} streamingContent={streamingContent} />
-  }
-
   if (category === 'docx-previewable') {
     return <DocxPreview file={file} workspaceId={workspaceId} />
+  }
+
+  if (category === 'pptx-previewable') {
+    return <PptxPreview file={file} workspaceId={workspaceId} streamingContent={streamingContent} />
   }
 
   if (category === 'xlsx-previewable') {
@@ -219,7 +221,14 @@ function TextEditor({
     isLoading,
     error,
     dataUpdatedAt,
-  } = useWorkspaceFileContent(workspaceId, file.id, file.key, file.type === 'text/x-pptxgenjs')
+  } = useWorkspaceFileContent(
+    workspaceId,
+    file.id,
+    file.key,
+    file.type === 'text/x-pptxgenjs' ||
+      file.type === 'text/x-docxjs' ||
+      file.type === 'text/x-pdflibjs'
+  )
 
   const updateContent = useUpdateWorkspaceFileContent()
   const updateContentRef = useRef(updateContent)
@@ -603,6 +612,58 @@ const DOCUMENT_SKELETON = (
   </div>
 )
 
+const DocxPreview = memo(function DocxPreview({
+  file,
+  workspaceId,
+}: {
+  file: WorkspaceFileRecord
+  workspaceId: string
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const {
+    data: fileData,
+    isLoading,
+    error: fetchError,
+  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+  const [renderError, setRenderError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!containerRef.current || !fileData) return
+
+    let cancelled = false
+
+    async function render() {
+      try {
+        const { renderAsync } = await import('docx-preview')
+        if (cancelled || !containerRef.current) return
+        containerRef.current.innerHTML = ''
+        await renderAsync(fileData, containerRef.current, undefined, {
+          inWrapper: true,
+          ignoreWidth: false,
+          ignoreHeight: false,
+        })
+      } catch (err) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : 'Failed to render document'
+          logger.error('DOCX render failed', { error: msg })
+          setRenderError(msg)
+        }
+      }
+    }
+
+    render()
+    return () => {
+      cancelled = true
+    }
+  }, [fileData])
+
+  const error = resolvePreviewError(fetchError, renderError)
+  if (error) return <PreviewError label='document' error={error} />
+  if (isLoading) return DOCUMENT_SKELETON
+
+  return <div ref={containerRef} className='h-full w-full overflow-auto bg-white' />
+})
+
 const pptxSlideCache = new Map<string, string[]>()
 
 function pptxCacheKey(fileId: string, dataUpdatedAt: number, byteLength: number): string {
@@ -863,77 +924,6 @@ function toggleMarkdownCheckbox(markdown: string, targetIndex: number, checked: 
     if (currentIndex++ !== targetIndex) return match
     return `${prefix}[${checked ? 'x' : ' '}]`
   })
-}
-
-const DocxPreview = memo(function DocxPreview({
-  file,
-  workspaceId,
-}: {
-  file: WorkspaceFileRecord
-  workspaceId: string
-}) {
-  const {
-    data: fileData,
-    isLoading,
-    error: fetchError,
-  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
-
-  const [html, setHtml] = useState<string | null>(null)
-  const [renderError, setRenderError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!fileData) return
-    const data = fileData
-
-    let cancelled = false
-
-    async function convert() {
-      try {
-        setRenderError(null)
-        const mammoth = await import('mammoth')
-        const result = await mammoth.convertToHtml({ arrayBuffer: data })
-        if (!cancelled) setHtml(result.value)
-      } catch (err) {
-        if (!cancelled) {
-          const msg = err instanceof Error ? err.message : 'Failed to render document'
-          logger.error('DOCX render failed', { error: msg })
-          setRenderError(msg)
-        }
-      }
-    }
-
-    convert()
-    return () => {
-      cancelled = true
-    }
-  }, [fileData])
-
-  const error = resolvePreviewError(fetchError, renderError)
-  if (error) return <PreviewError label='document' error={error} />
-  if (isLoading || html === null) return DOCUMENT_SKELETON
-
-  return (
-    <div className='flex flex-1 overflow-hidden'>
-      <iframe
-        srcDoc={buildDocxPreviewHtml(html)}
-        sandbox=''
-        title={file.name}
-        className='h-full w-full border-0'
-      />
-    </div>
-  )
-})
-
-/** Wraps mammoth HTML output with base styles. Uses raw hex colors because iframes cannot inherit CSS variables from the parent document. */
-function buildDocxPreviewHtml(html: string): string {
-  return `<!DOCTYPE html><html><head><style>
-body { margin: 0; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.6; color: #e4e4e7; background: transparent; }
-table { border-collapse: collapse; width: 100%; margin: 12px 0; }
-td, th { border: 1px solid #3f3f46; padding: 6px 10px; }
-img { max-width: 100%; height: auto; }
-p { margin: 0 0 8px; }
-h1, h2, h3, h4, h5, h6 { margin: 16px 0 8px; }
-</style></head><body>${html}</body></html>`
 }
 
 const XLSX_MAX_ROWS = 1_000

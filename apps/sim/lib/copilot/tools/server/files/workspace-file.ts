@@ -6,7 +6,11 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import type { WorkspaceFileArgs, WorkspaceFileResult } from '@/lib/copilot/tools/shared/schemas'
-import { generatePptxFromCode } from '@/lib/execution/pptx-vm'
+import {
+  generateDocxFromCode,
+  generatePdfFromCode,
+  generatePptxFromCode,
+} from '@/lib/execution/doc-vm'
 import {
   deleteWorkspaceFile,
   downloadWorkspaceFile as downloadWsFile,
@@ -19,7 +23,11 @@ import {
 const logger = createLogger('WorkspaceFileServerTool')
 
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+const PDF_MIME = 'application/pdf'
 const PPTX_SOURCE_MIME = 'text/x-pptxgenjs'
+const DOCX_SOURCE_MIME = 'text/x-docxjs'
+const PDF_SOURCE_MIME = 'text/x-pdflibjs'
 
 const EXT_TO_MIME: Record<string, string> = {
   '.txt': 'text/plain',
@@ -28,6 +36,8 @@ const EXT_TO_MIME: Record<string, string> = {
   '.json': 'application/json',
   '.csv': 'text/csv',
   '.pptx': PPTX_MIME,
+  '.docx': DOCX_MIME,
+  '.pdf': PDF_MIME,
 }
 
 function inferContentType(fileName: string, explicitType?: string): string {
@@ -85,22 +95,35 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             return { success: false, message: fileNameValidationError }
           }
 
-          const isPptx = fileName.toLowerCase().endsWith('.pptx')
+          const lowerName = fileName.toLowerCase()
+          const isPptx = lowerName.endsWith('.pptx')
+          const isDocx = lowerName.endsWith('.docx')
+          const isPdf = lowerName.endsWith('.pdf')
           let contentType: string
 
-          if (isPptx) {
-            // Validate the code compiles before storing
+          if (isPptx || isDocx || isPdf) {
+            const formatName = isPptx ? 'PPTX' : isDocx ? 'DOCX' : 'PDF'
+            const generator = isPptx
+              ? generatePptxFromCode
+              : isDocx
+                ? generateDocxFromCode
+                : generatePdfFromCode
+            const sourceMime = isPptx
+              ? PPTX_SOURCE_MIME
+              : isDocx
+                ? DOCX_SOURCE_MIME
+                : PDF_SOURCE_MIME
             try {
-              await generatePptxFromCode(content, workspaceId)
+              await generator(content, workspaceId)
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err)
-              logger.error('PPTX code validation failed', { error: msg, fileName })
+              logger.error(`${formatName} code validation failed`, { error: msg, fileName })
               return {
                 success: false,
-                message: `PPTX generation failed: ${msg}. Fix the pptxgenjs code and retry.`,
+                message: `${formatName} generation failed: ${msg}. Fix the code and retry.`,
               }
             }
-            contentType = PPTX_SOURCE_MIME
+            contentType = sourceMime
           } else {
             contentType = inferContentType(fileName, explicitType)
           }
@@ -153,19 +176,37 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             return { success: false, message: `File with ID "${fileId}" not found` }
           }
 
-          const isPptxUpdate = fileRecord.name?.toLowerCase().endsWith('.pptx')
-          if (isPptxUpdate) {
+          const updateLowerName = fileRecord.name?.toLowerCase() ?? ''
+          const isPptxUpdate = updateLowerName.endsWith('.pptx')
+          const isDocxUpdate = updateLowerName.endsWith('.docx')
+          const isPdfUpdate = updateLowerName.endsWith('.pdf')
+          const isDocUpdate = isPptxUpdate || isDocxUpdate || isPdfUpdate
+
+          if (isDocUpdate) {
+            const formatName = isPptxUpdate ? 'PPTX' : isDocxUpdate ? 'DOCX' : 'PDF'
+            const generator = isPptxUpdate
+              ? generatePptxFromCode
+              : isDocxUpdate
+                ? generateDocxFromCode
+                : generatePdfFromCode
             try {
-              await generatePptxFromCode(content, workspaceId)
+              await generator(content, workspaceId)
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err)
               return {
                 success: false,
-                message: `PPTX generation failed: ${msg}. Fix the pptxgenjs code and retry.`,
+                message: `${formatName} generation failed: ${msg}. Fix the code and retry.`,
               }
             }
           }
 
+          const updateSourceMime = isPptxUpdate
+            ? PPTX_SOURCE_MIME
+            : isDocxUpdate
+              ? DOCX_SOURCE_MIME
+              : isPdfUpdate
+                ? PDF_SOURCE_MIME
+                : undefined
           const fileBuffer = Buffer.from(content, 'utf-8')
 
           assertServerToolNotAborted(context)
@@ -174,7 +215,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             fileId,
             context.userId,
             fileBuffer,
-            isPptxUpdate ? PPTX_SOURCE_MIME : undefined
+            updateSourceMime
           )
 
           logger.info('Workspace file updated via copilot', {
@@ -301,19 +342,37 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
               content.slice(firstIdx + edit.search.length)
           }
 
-          const isPptxPatch = fileRecord.name?.toLowerCase().endsWith('.pptx')
-          if (isPptxPatch) {
+          const patchLowerName = fileRecord.name?.toLowerCase() ?? ''
+          const isPptxPatch = patchLowerName.endsWith('.pptx')
+          const isDocxPatch = patchLowerName.endsWith('.docx')
+          const isPdfPatch = patchLowerName.endsWith('.pdf')
+          const isDocPatch = isPptxPatch || isDocxPatch || isPdfPatch
+
+          if (isDocPatch) {
+            const formatName = isPptxPatch ? 'PPTX' : isDocxPatch ? 'DOCX' : 'PDF'
+            const generator = isPptxPatch
+              ? generatePptxFromCode
+              : isDocxPatch
+                ? generateDocxFromCode
+                : generatePdfFromCode
             try {
-              await generatePptxFromCode(content, workspaceId)
+              await generator(content, workspaceId)
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err)
               return {
                 success: false,
-                message: `Patched PPTX code failed to compile: ${msg}. Fix the edits and retry.`,
+                message: `Patched ${formatName} code failed to compile: ${msg}. Fix the edits and retry.`,
               }
             }
           }
 
+          const patchSourceMime = isPptxPatch
+            ? PPTX_SOURCE_MIME
+            : isDocxPatch
+              ? DOCX_SOURCE_MIME
+              : isPdfPatch
+                ? PDF_SOURCE_MIME
+                : undefined
           const patchedBuffer = Buffer.from(content, 'utf-8')
           assertServerToolNotAborted(context)
           await updateWorkspaceFileContent(
@@ -321,7 +380,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             fileId,
             context.userId,
             patchedBuffer,
-            isPptxPatch ? PPTX_SOURCE_MIME : undefined
+            patchSourceMime
           )
 
           logger.info('Workspace file patched via copilot', {
