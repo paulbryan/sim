@@ -68,9 +68,8 @@ export function Tables() {
   const { data: tables = [], isLoading, error } = useTablesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
 
-  if (error) {
-    logger.error('Failed to load tables:', error)
-  }
+  if (error) logger.error('Failed to load tables:', error)
+
   const deleteTable = useDeleteTable(workspaceId)
   const createTable = useCreateTable(workspaceId)
   const uploadCsv = useUploadCsvToTable()

@@ -42,13 +42,9 @@ export interface RowModalProps {
 
 function createInitialRowData(columns: ColumnDefinition[]): Record<string, unknown> {
   const initial: Record<string, unknown> = {}
-  columns.forEach((col) => {
-    if (col.type === 'boolean') {
-      initial[col.name] = false
-    } else {
-      initial[col.name] = ''
-    }
-  })
+  for (const col of columns) {
+    initial[col.name] = col.type === 'boolean' ? false : ''
+  }
   return initial
 }
 
@@ -57,16 +53,13 @@ function cleanRowData(
   rowData: Record<string, unknown>
 ): Record<string, unknown> {
   const cleanData: Record<string, unknown> = {}
-
-  columns.forEach((col) => {
-    const value = rowData[col.name]
+  for (const col of columns) {
     try {
-      cleanData[col.name] = cleanCellValue(value, col)
+      cleanData[col.name] = cleanCellValue(rowData[col.name], col)
     } catch {
       throw new Error(`Invalid JSON for field: ${col.name}`)
     }
-  })
-
+  }
   return cleanData
 }
 
@@ -89,8 +82,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
   const workspaceId = params.workspaceId as string
   const tableId = table.id
 
-  const schema = table?.schema
-  const columns = schema?.columns || []
+  const columns = table.schema?.columns || []
 
   const [rowData, setRowData] = useState<Record<string, unknown>>(() =>
     getInitialRowData(mode, columns, row)

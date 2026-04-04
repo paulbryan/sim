@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { usePostHog } from 'posthog-js/react'
 import { toast } from '@/components/emcn'
 import { downloadFile, sanitizePathSegment } from '@/lib/core/utils/file-download'
@@ -29,12 +29,12 @@ export function useExportTable({
 }: UseExportTableParams) {
   const posthog = usePostHog()
   const [isExporting, setIsExporting] = useState(false)
+  const isExportingRef = useRef(false)
 
   const handleExportTable = useCallback(async () => {
-    if (!canExport || !workspaceId || !tableId || isExporting) {
-      return
-    }
+    if (!canExport || !workspaceId || !tableId || isExportingRef.current) return
 
+    isExportingRef.current = true
     setIsExporting(true)
 
     try {
@@ -63,12 +63,12 @@ export function useExportTable({
         duration: 5000,
       })
     } finally {
+      isExportingRef.current = false
       setIsExporting(false)
     }
   }, [
     canExport,
     columns,
-    isExporting,
     posthog,
     queryOptions.filter,
     queryOptions.sort,

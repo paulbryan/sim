@@ -237,6 +237,7 @@ export function Table({
   const ghostRef = useRef<HTMLDivElement>(null)
   const tableFilterRef = useRef<TableFilterHandle>(null)
   const isDraggingRef = useRef(false)
+  const dragEscapeCleanupRef = useRef<(() => void) | null>(null)
 
   const { tableData, isLoadingTable, rows, isLoadingRows } = useTableData({
     workspaceId,
@@ -715,7 +716,6 @@ export function Table({
       const scrollRect = scroll.getBoundingClientRect()
       const tableEl = element.closest('table')
 
-      // Position the ghost at the dragged column's location
       ghost.style.left = `${dragged.left}px`
       ghost.style.width = `${dragged.width}px`
       ghost.style.height = `${tableEl ? tableEl.offsetHeight : scroll.scrollHeight}px`
@@ -746,6 +746,7 @@ export function Table({
         element.removeEventListener('pointercancel', handleCancel)
         document.removeEventListener('keydown', handleKeyDown)
         element.releasePointerCapture(pointerId)
+        dragEscapeCleanupRef.current = null
         if (shouldCommit) commit()
         ghost.style.display = 'none'
         ghost.style.transform = 'translateX(0)'
@@ -758,7 +759,6 @@ export function Table({
         const delta = ev.clientX - startX
         ghost.style.transform = `translateX(${delta}px)`
 
-        // Determine which column the cursor is over
         const tableX = ev.clientX - scrollRect.left + scroll.scrollLeft
         let target = boundaries[boundaries.length - 1]
         let side: 'left' | 'right' = 'right'
@@ -771,7 +771,6 @@ export function Table({
         }
 
         if (target.name === columnName) {
-          // Hovering over self — suppress the indicator
           if (dropTargetColumnNameRef.current !== null) {
             setDropTargetColumnName(null)
           }
@@ -795,6 +794,7 @@ export function Table({
       element.addEventListener('pointerup', handleUp)
       element.addEventListener('pointercancel', handleCancel)
       document.addEventListener('keydown', handleKeyDown)
+      dragEscapeCleanupRef.current = () => cleanup(false)
     },
     []
   )
@@ -831,6 +831,12 @@ export function Table({
     }
     document.addEventListener('mouseup', handleMouseUp)
     return () => document.removeEventListener('mouseup', handleMouseUp)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      dragEscapeCleanupRef.current?.()
+    }
   }, [])
 
   useEffect(() => {
@@ -1466,10 +1472,10 @@ export function Table({
   }, [])
 
   const generateColumnName = useCallback(() => {
-    const existing = schemaColumnsRef.current.map((c) => c.name.toLowerCase())
+    const existing = new Set(schemaColumnsRef.current.map((c) => c.name.toLowerCase()))
     let name = 'untitled'
     let i = 2
-    while (existing.includes(name.toLowerCase())) {
+    while (existing.has(name)) {
       name = `untitled_${i}`
       i++
     }
@@ -2906,10 +2912,9 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   const renameInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (isRenaming && renameInputRef.current) {
-      renameInputRef.current.focus()
-      renameInputRef.current.select()
-    }
+    if (!isRenaming || !renameInputRef.current) return
+    renameInputRef.current.focus()
+    renameInputRef.current.select()
   }, [isRenaming])
 
   const handleResizePointerDown = useCallback(
@@ -2958,7 +2963,6 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   const handleThPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (isRenaming || e.button !== 0) return
-      if ((e.target as HTMLElement).closest('button')) return
       e.preventDefault()
 
       const th = e.currentTarget as HTMLElement
@@ -3042,24 +3046,25 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           )}
         </div>
       ) : (
-        <div className='flex h-full w-full min-w-0 items-center'>
+        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
+          <ColumnTypeIcon type={column.type} />
+          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
+            {column.name}
+          </span>
+          {sortDirection && (
+            <span className='ml-1 shrink-0'>
+              <SortDirectionIndicator direction={sortDirection} />
+            </span>
+          )}
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
               <button
                 type='button'
-                onClick={(e) => onColumnSelect?.(colIndex, e.shiftKey)}
-                className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-none'
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => onColumnSelect?.(colIndex, false)}
+                className='ml-1 flex shrink-0 cursor-pointer items-center opacity-0 outline-none transition-opacity group-hover:opacity-100'
               >
-                <ColumnTypeIcon type={column.type} />
-                <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
-                  {column.name}
-                </span>
-                {sortDirection && (
-                  <span className='ml-1 shrink-0'>
-                    <SortDirectionIndicator direction={sortDirection} />
-                  </span>
-                )}
-                <ChevronDown className='ml-1 h-[7px] w-[9px] shrink-0 text-[var(--text-muted)] opacity-0 transition-opacity group-hover:opacity-100' />
+                <ChevronDown className='h-[7px] w-[9px] text-[var(--text-muted)]' />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='start' sideOffset={0}>
