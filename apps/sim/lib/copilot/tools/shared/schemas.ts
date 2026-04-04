@@ -176,7 +176,7 @@ export type UserTableResult = z.infer<typeof UserTableResultSchema>
 
 // workspace_file - shared schema used by server tool and Go catalog
 export const WorkspaceFileArgsSchema = z.object({
-  operation: z.enum(['write', 'update', 'delete', 'rename', 'patch']),
+  operation: z.enum(['write', 'update', 'append', 'delete', 'rename', 'patch']),
   args: z
     .object({
       fileId: z.string().optional(),
