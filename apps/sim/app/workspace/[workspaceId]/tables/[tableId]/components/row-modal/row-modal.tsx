@@ -27,6 +27,7 @@ import {
   useDeleteTableRows,
   useUpdateTableRow,
 } from '@/hooks/queries/tables'
+import { useTableUndoStore } from '@/stores/table/store'
 
 const logger = createLogger('RowModal')
 
@@ -92,6 +93,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const deleteRowMutation = useDeleteTableRow({ workspaceId, tableId })
   const deleteRowsMutation = useDeleteTableRows({ workspaceId, tableId })
+  const pushToUndoStack = useTableUndoStore((s) => s.push)
   const isSubmitting =
     createRowMutation.isPending ||
     updateRowMutation.isPending ||
@@ -106,9 +108,24 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
       const cleanData = cleanRowData(columns, rowData)
 
       if (mode === 'add') {
-        await createRowMutation.mutateAsync({ data: cleanData })
+        const response = await createRowMutation.mutateAsync({ data: cleanData })
+        const createdRow = (response as { data?: { row?: { id?: string; position?: number } } })
+          ?.data?.row
+        if (createdRow?.id) {
+          pushToUndoStack(tableId, {
+            type: 'create-row',
+            rowId: createdRow.id,
+            position: createdRow.position ?? 0,
+            data: cleanData,
+          })
+        }
       } else if (mode === 'edit' && row) {
+        const oldData = row.data as Record<string, unknown>
         await updateRowMutation.mutateAsync({ rowId: row.id, data: cleanData })
+        pushToUndoStack(tableId, {
+          type: 'update-cells',
+          cells: [{ rowId: row.id, oldData, newData: cleanData }],
+        })
       }
 
       onSuccess()
@@ -124,8 +141,14 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
     const idsToDelete = rowIds ?? (row ? [row.id] : [])
 
     try {
-      if (idsToDelete.length === 1) {
+      if (idsToDelete.length === 1 && row) {
         await deleteRowMutation.mutateAsync(idsToDelete[0])
+        pushToUndoStack(tableId, {
+          type: 'delete-rows',
+          rows: [
+            { rowId: row.id, data: row.data as Record<string, unknown>, position: row.position },
+          ],
+        })
       } else {
         await deleteRowsMutation.mutateAsync(idsToDelete)
       }

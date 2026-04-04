@@ -114,6 +114,12 @@ export const useTableUndoStore = create<TableUndoState>()(
           if (action.type === 'create-row' && action.rowId === oldRowId) {
             return { ...entry, action: { ...action, rowId: newRowId } }
           }
+          if (action.type === 'create-rows') {
+            const patchedRows = action.rows.map((r) =>
+              r.rowId === oldRowId ? { ...r, rowId: newRowId } : r
+            )
+            return { ...entry, action: { ...action, rows: patchedRows } }
+          }
           return entry
         })
 

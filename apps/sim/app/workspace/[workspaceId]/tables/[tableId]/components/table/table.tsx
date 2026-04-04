@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { GripVertical } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
@@ -234,10 +235,8 @@ export function Table({
   const metadataSeededRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const ghostRef = useRef<HTMLDivElement>(null)
   const tableFilterRef = useRef<TableFilterHandle>(null)
   const isDraggingRef = useRef(false)
-  const dragEscapeCleanupRef = useRef<(() => void) | null>(null)
 
   const { tableData, isLoadingTable, rows, isLoadingRows } = useTableData({
     workspaceId,
@@ -690,127 +689,41 @@ export function Table({
     updateMetadataRef.current({ columnWidths: columnWidthsRef.current })
   }, [])
 
-  const handleColumnDragStart = useCallback(
-    (columnName: string, element: HTMLElement, pointerId: number, startX: number) => {
-      element.setPointerCapture(pointerId)
+  const handleColumnDragStart = useCallback((columnName: string) => {
+    setDragColumnName(columnName)
+  }, [])
 
-      setDragColumnName(columnName)
+  const handleColumnDragOver = useCallback((columnName: string, side: 'left' | 'right') => {
+    if (columnName === dropTargetColumnNameRef.current && side === dropSideRef.current) return
+    setDropTargetColumnName(columnName)
+    setDropSide(side)
+  }, [])
 
-      const scroll = scrollRef.current
-      const ghost = ghostRef.current
-      if (!scroll || !ghost) return
-
-      const cols = columnsRef.current
-      const widths = columnWidthsRef.current
-      let left = CHECKBOX_COL_WIDTH
-      const boundaries: Array<{ name: string; left: number; width: number }> = []
-      for (const col of cols) {
-        const w = widths[col.name] ?? COL_WIDTH
-        boundaries.push({ name: col.name, left, width: w })
-        left += w
-      }
-
-      const dragged = boundaries.find((b) => b.name === columnName)
-      if (!dragged) return
-
-      const scrollRect = scroll.getBoundingClientRect()
-      const tableEl = element.closest('table')
-
-      ghost.style.left = `${dragged.left}px`
-      ghost.style.width = `${dragged.width}px`
-      ghost.style.height = `${tableEl ? tableEl.offsetHeight : scroll.scrollHeight}px`
-      ghost.style.transform = 'translateX(0)'
-      ghost.style.display = 'block'
-
-      const commit = () => {
-        const dragedName = dragColumnNameRef.current
-        const target = dropTargetColumnNameRef.current
-        const side = dropSideRef.current
-        if (dragedName && target && dragedName !== target) {
-          const currentOrder = columnOrderRef.current ?? columnsRef.current.map((c) => c.name)
-          const newOrder = currentOrder.filter((n) => n !== dragedName)
-          let insertIndex = newOrder.indexOf(target)
-          if (side === 'right') insertIndex += 1
-          newOrder.splice(insertIndex, 0, dragedName)
-          setColumnOrder(newOrder)
-          updateMetadataRef.current({
-            columnWidths: columnWidthsRef.current,
-            columnOrder: newOrder,
-          })
-        }
-      }
-
-      const cleanup = (shouldCommit: boolean) => {
-        element.removeEventListener('pointermove', handleMove)
-        element.removeEventListener('pointerup', handleUp)
-        element.removeEventListener('pointercancel', handleCancel)
-        document.removeEventListener('keydown', handleKeyDown)
-        element.releasePointerCapture(pointerId)
-        dragEscapeCleanupRef.current = null
-        if (shouldCommit) commit()
-        ghost.style.display = 'none'
-        ghost.style.transform = 'translateX(0)'
-        setDragColumnName(null)
-        setDropTargetColumnName(null)
-        setDropSide('left')
-      }
-
-      const handleMove = (ev: PointerEvent) => {
-        const delta = ev.clientX - startX
-        ghost.style.transform = `translateX(${delta}px)`
-
-        const tableX = ev.clientX - scrollRect.left + scroll.scrollLeft
-        let target = boundaries[boundaries.length - 1]
-        let side: 'left' | 'right' = 'right'
-        for (const b of boundaries) {
-          if (tableX < b.left + b.width) {
-            target = b
-            side = tableX < b.left + b.width / 2 ? 'left' : 'right'
-            break
-          }
-        }
-
-        if (target.name === columnName) {
-          if (dropTargetColumnNameRef.current !== null) {
-            setDropTargetColumnName(null)
-          }
-        } else if (
-          target.name !== dropTargetColumnNameRef.current ||
-          side !== dropSideRef.current
-        ) {
-          setDropTargetColumnName(target.name)
-          setDropSide(side)
-        }
-      }
-
-      const handleKeyDown = (ev: KeyboardEvent) => {
-        if (ev.key === 'Escape') cleanup(false)
-      }
-
-      const handleUp = () => cleanup(true)
-      const handleCancel = () => cleanup(false)
-
-      element.addEventListener('pointermove', handleMove)
-      element.addEventListener('pointerup', handleUp)
-      element.addEventListener('pointercancel', handleCancel)
-      document.addEventListener('keydown', handleKeyDown)
-      dragEscapeCleanupRef.current = () => cleanup(false)
-    },
-    []
-  )
-
-  const handleColumnSelect = useCallback((colIndex: number, shiftKey: boolean) => {
-    setCheckedRows(clearCheckedRows)
-    lastCheckboxRowRef.current = null
-    setEditingCell(null)
-    if (shiftKey && selectionAnchorRef.current) {
-      setSelectionFocus({ rowIndex: 0, colIndex })
-    } else {
-      setSelectionAnchor({ rowIndex: 0, colIndex })
-      setSelectionFocus({ rowIndex: 0, colIndex })
+  const handleColumnDragEnd = useCallback(() => {
+    const dragged = dragColumnNameRef.current
+    if (!dragged) return
+    const target = dropTargetColumnNameRef.current
+    const side = dropSideRef.current
+    if (target && dragged !== target) {
+      const currentOrder = columnOrderRef.current ?? columnsRef.current.map((c) => c.name)
+      const newOrder = currentOrder.filter((n) => n !== dragged)
+      let insertIndex = newOrder.indexOf(target)
+      if (side === 'right') insertIndex += 1
+      newOrder.splice(insertIndex, 0, dragged)
+      setColumnOrder(newOrder)
+      updateMetadataRef.current({
+        columnWidths: columnWidthsRef.current,
+        columnOrder: newOrder,
+      })
     }
-    setIsColumnSelection(true)
-    scrollRef.current?.focus({ preventScroll: true })
+    setDragColumnName(null)
+    setDropTargetColumnName(null)
+    setDropSide('left')
+  }, [])
+
+  const handleColumnDragLeave = useCallback(() => {
+    dropTargetColumnNameRef.current = null
+    setDropTargetColumnName(null)
   }, [])
 
   useEffect(() => {
@@ -831,12 +744,6 @@ export function Table({
     }
     document.addEventListener('mouseup', handleMouseUp)
     return () => document.removeEventListener('mouseup', handleMouseUp)
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      dragEscapeCleanupRef.current?.()
-    }
   }, [])
 
   useEffect(() => {
@@ -907,6 +814,12 @@ export function Table({
     if (!el) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+        if (e.key === 'Escape') setIsColumnSelection(false)
+        return
+      }
+
       if (e.key === 'Escape') {
         e.preventDefault()
         isDraggingRef.current = false
@@ -917,9 +830,6 @@ export function Table({
         lastCheckboxRowRef.current = null
         return
       }
-
-      const tag = (e.target as HTMLElement).tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
 
       if ((e.metaKey || e.ctrlKey) && (e.key === 'z' || e.key === 'y')) {
         e.preventDefault()
@@ -1594,10 +1504,22 @@ export function Table({
   const handleDeleteColumnConfirm = useCallback(() => {
     if (!deletingColumn) return
     const columnToDelete = deletingColumn
+    const column = schemaColumnsRef.current.find((c) => c.name === columnToDelete)
+    const position = schemaColumnsRef.current.findIndex((c) => c.name === columnToDelete)
     const orderAtDelete = columnOrderRef.current
     setDeletingColumn(null)
     deleteColumnMutation.mutate(columnToDelete, {
       onSuccess: () => {
+        if (column && position !== -1) {
+          pushUndoRef.current({
+            type: 'delete-column',
+            columnName: columnToDelete,
+            columnType: column.type,
+            position,
+            unique: !!column.unique,
+            required: !!column.required,
+          })
+        }
         if (!orderAtDelete) return
         const newOrder = orderAtDelete.filter((n) => n !== columnToDelete)
         setColumnOrder(newOrder)
@@ -1908,11 +1830,10 @@ export function Table({
                     checked={isAllRowsSelected}
                     onCheckedChange={handleSelectAllToggle}
                   />
-                  {displayColumns.map((column, colIndex) => (
+                  {displayColumns.map((column) => (
                     <ColumnHeaderMenu
                       key={column.name}
                       column={column}
-                      colIndex={colIndex}
                       readOnly={!userPermissions.canEdit}
                       isRenaming={columnRename.editingId === column.name}
                       renameValue={
@@ -1932,12 +1853,9 @@ export function Table({
                       onResizeEnd={handleColumnResizeEnd}
                       isDragging={dragColumnName === column.name}
                       onDragStart={handleColumnDragStart}
-                      isColumnSelected={
-                        selectedColumnRange !== null &&
-                        colIndex >= selectedColumnRange.start &&
-                        colIndex <= selectedColumnRange.end
-                      }
-                      onColumnSelect={handleColumnSelect}
+                      onDragOver={handleColumnDragOver}
+                      onDragEnd={handleColumnDragEnd}
+                      onDragLeave={handleColumnDragLeave}
                       sortDirection={
                         activeSortState?.column === column.name ? activeSortState.direction : null
                       }
@@ -2024,11 +1942,6 @@ export function Table({
               style={{ left: dropIndicatorLeft }}
             />
           )}
-          <div
-            ref={ghostRef}
-            className='pointer-events-none absolute top-0 z-10 border border-blue-400/50 bg-blue-500/10'
-            style={{ display: 'none' }}
-          />
         </div>
         {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
           <AddRowButton onClick={handleAppendRow} />
@@ -2853,7 +2766,6 @@ const COLUMN_TYPE_OPTIONS: { type: string; label: string; icon: React.ElementTyp
 
 const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   column,
-  colIndex,
   readOnly,
   isRenaming,
   renameValue,
@@ -2871,15 +2783,15 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onResizeEnd,
   isDragging,
   onDragStart,
-  isColumnSelected,
-  onColumnSelect,
+  onDragOver,
+  onDragEnd,
+  onDragLeave,
   sortDirection,
   onSortAsc,
   onSortDesc,
   onFilterColumn,
 }: {
   column: ColumnDefinition
-  colIndex: number
   readOnly?: boolean
   isRenaming: boolean
   renameValue: string
@@ -2896,14 +2808,10 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onResize: (columnName: string, width: number) => void
   onResizeEnd: () => void
   isDragging?: boolean
-  onDragStart?: (
-    columnName: string,
-    element: HTMLElement,
-    pointerId: number,
-    startX: number
-  ) => void
-  isColumnSelected?: boolean
-  onColumnSelect?: (colIndex: number, shiftKey: boolean) => void
+  onDragStart?: (columnName: string) => void
+  onDragOver?: (columnName: string, side: 'left' | 'right') => void
+  onDragEnd?: () => void
+  onDragLeave?: () => void
   sortDirection?: SortDirection | null
   onSortAsc?: (columnName: string) => void
   onSortDesc?: (columnName: string) => void
@@ -2912,9 +2820,10 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   const renameInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (!isRenaming || !renameInputRef.current) return
-    renameInputRef.current.focus()
-    renameInputRef.current.select()
+    if (isRenaming && renameInputRef.current) {
+      renameInputRef.current.focus()
+      renameInputRef.current.select()
+    }
   }, [isRenaming])
 
   const handleResizePointerDown = useCallback(
@@ -2948,74 +2857,58 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     [column.name, onResizeStart, onResize, onResizeEnd]
   )
 
-  const [menuOpen, setMenuOpen] = useState(false)
-
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      if (readOnly || isRenaming) return
-      e.preventDefault()
-      onColumnSelect?.(colIndex, false)
-      setMenuOpen(true)
+  const handleDragStart = useCallback(
+    (e: React.DragEvent) => {
+      if (readOnly || isRenaming) {
+        e.preventDefault()
+        return
+      }
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.setData('text/plain', column.name)
+      onDragStart?.(column.name)
     },
-    [readOnly, isRenaming, colIndex, onColumnSelect]
+    [column.name, readOnly, isRenaming, onDragStart]
   )
 
-  const handleThPointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      if (isRenaming || e.button !== 0) return
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
       e.preventDefault()
-
-      const th = e.currentTarget as HTMLElement
-      const startX = e.clientX
-      const startY = e.clientY
-      const shiftKey = e.shiftKey
-      const pid = e.pointerId
-      th.setPointerCapture(pid)
-      let dragging = false
-
-      const onMove = (ev: PointerEvent) => {
-        if (dragging) return
-        if (!readOnly && Math.hypot(ev.clientX - startX, ev.clientY - startY) > 4) {
-          dragging = true
-          th.removeEventListener('pointermove', onMove)
-          th.removeEventListener('pointerup', onUp)
-          th.removeEventListener('pointercancel', onCancel)
-          onDragStart?.(column.name, th, pid, ev.clientX)
-        }
-      }
-
-      const onUp = () => {
-        th.removeEventListener('pointermove', onMove)
-        th.removeEventListener('pointerup', onUp)
-        th.removeEventListener('pointercancel', onCancel)
-        th.releasePointerCapture(pid)
-        if (!dragging) onColumnSelect?.(colIndex, shiftKey)
-      }
-
-      const onCancel = () => {
-        th.removeEventListener('pointermove', onMove)
-        th.removeEventListener('pointerup', onUp)
-        th.removeEventListener('pointercancel', onCancel)
-        th.releasePointerCapture(pid)
-      }
-
-      th.addEventListener('pointermove', onMove)
-      th.addEventListener('pointerup', onUp)
-      th.addEventListener('pointercancel', onCancel)
+      e.dataTransfer.dropEffect = 'move'
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      const midX = rect.left + rect.width / 2
+      const side = e.clientX < midX ? 'left' : 'right'
+      onDragOver?.(column.name, side)
     },
-    [column.name, colIndex, isRenaming, readOnly, onColumnSelect, onDragStart]
+    [column.name, onDragOver]
+  )
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+  }, [])
+
+  const handleDragEnd = useCallback(() => {
+    onDragEnd?.()
+  }, [onDragEnd])
+
+  const handleDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      const th = e.currentTarget as HTMLElement
+      const related = e.relatedTarget as Node | null
+      if (related && th.contains(related)) return
+      onDragLeave?.()
+    },
+    [onDragLeave]
   )
 
   return (
     <th
       className={cn(
-        'group relative border-[var(--border)] border-r border-b p-0 text-left align-middle transition-colors',
-        isColumnSelected ? 'bg-[rgba(37,99,235,0.08)]' : 'bg-[var(--bg)]',
-        isDragging && 'opacity-40',
-        !isRenaming && 'cursor-pointer'
+        'group relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle',
+        isDragging && 'opacity-40'
       )}
-      onPointerDown={handleThPointerDown}
-      onContextMenu={handleContextMenu}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onDragLeave={handleDragLeave}
     >
       {isRenaming ? (
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
@@ -3039,35 +2932,28 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
             {column.name}
           </span>
-          {sortDirection && (
-            <span className='ml-1 shrink-0'>
-              <SortDirectionIndicator direction={sortDirection} />
-            </span>
-          )}
         </div>
       ) : (
-        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
-          <ColumnTypeIcon type={column.type} />
-          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
-            {column.name}
-          </span>
-          {sortDirection && (
-            <span className='ml-1 shrink-0'>
-              <SortDirectionIndicator direction={sortDirection} />
-            </span>
-          )}
-          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <div className='flex h-full w-full min-w-0 items-center'>
+          <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
                 type='button'
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => onColumnSelect?.(colIndex, false)}
-                className='ml-1 flex shrink-0 cursor-pointer items-center opacity-0 outline-none transition-opacity group-hover:opacity-100'
+                className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-none'
               >
-                <ChevronDown className='h-[7px] w-[9px] text-[var(--text-muted)]' />
+                <ColumnTypeIcon type={column.type} />
+                <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
+                  {column.name}
+                </span>
+                {sortDirection && (
+                  <span className='ml-1 shrink-0'>
+                    <SortDirectionIndicator direction={sortDirection} />
+                  </span>
+                )}
+                <ChevronDown className='ml-1.5 h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align='start' sideOffset={0}>
+            <DropdownMenuContent align='start'>
               <DropdownMenuItem onSelect={() => onSortAsc?.(column.name)}>
                 <ArrowUp />
                 Sort ascending
@@ -3124,11 +3010,20 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <div
+            draggable
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            className='flex h-full cursor-grab items-center pr-1.5 pl-0.5 opacity-0 transition-opacity active:cursor-grabbing group-hover:opacity-100'
+          >
+            <GripVertical className='h-3 w-3 shrink-0 text-[var(--text-muted)]' />
+          </div>
         </div>
       )}
-
       <div
         className='-right-[3px] absolute top-0 z-[1] h-full w-[6px] cursor-col-resize'
+        draggable={false}
+        onDragStart={(e) => e.stopPropagation()}
         onPointerDown={handleResizePointerDown}
       />
     </th>

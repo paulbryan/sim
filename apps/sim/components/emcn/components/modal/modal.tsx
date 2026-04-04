@@ -166,7 +166,6 @@ const ModalContent = React.forwardRef<
         )}
         style={{
           left: isWorkflowPage
-<<<<<<< HEAD
             ? 'calc(50% + (var(--sidebar-width) - var(--panel-width)) / 2)'
             : 'calc(var(--sidebar-width) / 2 + 50%)',
           ...style,

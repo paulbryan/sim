@@ -191,6 +191,21 @@ export function useTableUndo({ workspaceId, tableId }: UseTableUndoProps) {
             break
           }
 
+          case 'delete-column': {
+            if (direction === 'undo') {
+              addColumnMutation.mutate({
+                name: action.columnName,
+                type: action.columnType,
+                position: action.position,
+                unique: action.unique,
+                required: action.required,
+              })
+            } else {
+              deleteColumnMutation.mutate(action.columnName)
+            }
+            break
+          }
+
           case 'rename-column': {
             if (direction === 'undo') {
               updateColumnMutation.mutate({

@@ -32,6 +32,14 @@ export type TableUndoAction =
     }
   | { type: 'delete-rows'; rows: DeletedRowSnapshot[] }
   | { type: 'create-column'; columnName: string; position: number }
+  | {
+      type: 'delete-column'
+      columnName: string
+      columnType: string
+      position: number
+      unique: boolean
+      required: boolean
+    }
   | { type: 'rename-column'; oldName: string; newName: string }
   | { type: 'update-column-type'; columnName: string; previousType: string; newType: string }
   | {
