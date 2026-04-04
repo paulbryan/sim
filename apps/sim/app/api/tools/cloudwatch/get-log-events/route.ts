@@ -2,10 +2,9 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { createCloudWatchLogsClient, getLogEvents } from '@/app/api/tools/cloudwatch/utils'
 
 const logger = createLogger('CloudWatchGetLogEvents')
-
-import { createCloudWatchLogsClient, getLogEvents } from '@/app/api/tools/cloudwatch/utils'
 
 const GetLogEventsSchema = z.object({
   region: z.string().min(1, 'AWS region is required'),
