@@ -402,7 +402,7 @@ export function Home({ chatId }: HomeProps = {}) {
         onCollapse={collapseResource}
         isCollapsed={isResourceCollapsed}
         streamingFile={streamingFile}
-        genericResourceData={genericResourceData}
+        genericResourceData={genericResourceData ?? undefined}
         className={skipResourceTransition ? '!transition-none' : undefined}
       />
 

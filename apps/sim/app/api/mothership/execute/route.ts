@@ -2,10 +2,9 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { createRunSegment } from '@/lib/copilot/async-runs/repository'
-import { buildIntegrationToolSchemas } from '@/lib/copilot/chat-payload'
-import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
-import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
+import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
+import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 import { generateId } from '@/lib/core/utils/uuid'
 import {
   assertActiveWorkspaceAccess,
@@ -73,34 +72,25 @@ export async function POST(req: NextRequest) {
       ...(userPermission ? { userPermission } : {}),
     }
 
-    const executionId = generateId()
-    const runId = generateId()
-
-    await createRunSegment({
-      id: runId,
-      executionId,
-      chatId: effectiveChatId,
-      userId,
-      workspaceId,
-      streamId: messageId,
-    }).catch(() => {})
-
-    const result = await orchestrateCopilotStream(requestPayload, {
+    const result = await runCopilotLifecycle(requestPayload, {
       userId,
       workspaceId,
       chatId: effectiveChatId,
-      executionId,
-      runId,
       goRoute: '/api/mothership/execute',
       autoExecuteTools: true,
       interactive: false,
     })
 
     if (!result.success) {
-      reqLogger.error('Mothership execute failed', {
-        error: result.error,
-        errors: result.errors,
-      })
+      logger.error(
+        messageId
+          ? `Mothership execute failed [messageId:${messageId}]`
+          : 'Mothership execute failed',
+        {
+          error: result.error,
+          errors: result.errors,
+        }
+      )
       return NextResponse.json(
         {
           error: result.error || 'Mothership execution failed',
@@ -136,9 +126,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    logger.withMetadata({ messageId }).error('Mothership execute error', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-    })
+    logger.error(
+      messageId ? `Mothership execute error [messageId:${messageId}]` : 'Mothership execute error',
+      {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }
+    )
 
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },

@@ -5,19 +5,26 @@ import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
-import { buildCopilotRequestPayload } from '@/lib/copilot/chat-payload'
+import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
+import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
+import {
+  buildPersistedAssistantMessage,
+  buildPersistedUserMessage,
+} from '@/lib/copilot/chat/persisted-message'
+import {
+  processContextsServer,
+  resolveActiveResourceContext,
+} from '@/lib/copilot/chat/process-contents'
+import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/request/http'
+import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/lifecycle/start'
 import {
   acquirePendingChatStream,
-  createSSEStream,
-  SSE_RESPONSE_HEADERS,
-} from '@/lib/copilot/chat-streaming'
-import type { OrchestratorResult } from '@/lib/copilot/orchestrator/types'
-import { processContextsServer, resolveActiveResourceContext } from '@/lib/copilot/process-contents'
-import { createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/request-helpers'
-import { taskPubSub } from '@/lib/copilot/task-events'
-import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
-import { generateId } from '@/lib/core/utils/uuid'
+  getPendingChatStreamId,
+  releasePendingChatStream,
+} from '@/lib/copilot/request/session'
+import type { OrchestratorResult } from '@/lib/copilot/request/types'
+import { taskPubSub } from '@/lib/copilot/tasks'
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
@@ -38,7 +45,6 @@ const FileAttachmentSchema = z.object({
 const ResourceAttachmentSchema = z.object({
   type: z.enum(['workflow', 'table', 'file', 'knowledgebase', 'folder']),
   id: z.string().min(1),
-  title: z.string().optional(),
   active: z.boolean().optional(),
 })
 
@@ -90,7 +96,9 @@ const MothershipMessageSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()
-  let userMessageIdForLogs: string | undefined
+  let lockChatId: string | undefined
+  let lockStreamId = ''
+  let chatStreamLockAcquired = false
 
   try {
     const session = await getSession()
@@ -112,28 +120,24 @@ export async function POST(req: NextRequest) {
       userTimezone,
     } = MothershipMessageSchema.parse(body)
 
-    const userMessageId = providedMessageId || generateId()
-    userMessageIdForLogs = userMessageId
-    const reqLogger = logger.withMetadata({
-      requestId: tracker.requestId,
-      messageId: userMessageId,
-    })
+    const userMessageId = providedMessageId || crypto.randomUUID()
+    lockStreamId = userMessageId
 
-    reqLogger.info('Received mothership chat start request', {
-      workspaceId,
-      chatId,
-      createNewChat,
-      hasContexts: Array.isArray(contexts) && contexts.length > 0,
-      contextsCount: Array.isArray(contexts) ? contexts.length : 0,
-      hasResourceAttachments: Array.isArray(resourceAttachments) && resourceAttachments.length > 0,
-      resourceAttachmentCount: Array.isArray(resourceAttachments) ? resourceAttachments.length : 0,
-      hasFileAttachments: Array.isArray(fileAttachments) && fileAttachments.length > 0,
-      fileAttachmentCount: Array.isArray(fileAttachments) ? fileAttachments.length : 0,
-    })
+    // Phase 1: workspace access + chat resolution in parallel
+    const [accessResult, chatResult] = await Promise.allSettled([
+      assertActiveWorkspaceAccess(workspaceId, authenticatedUserId),
+      chatId || createNewChat
+        ? resolveOrCreateChat({
+            chatId,
+            userId: authenticatedUserId,
+            workspaceId,
+            model: 'claude-opus-4-6',
+            type: 'mothership',
+          })
+        : null,
+    ])
 
-    try {
-      await assertActiveWorkspaceAccess(workspaceId, authenticatedUserId)
-    } catch {
+    if (accessResult.status === 'rejected') {
       return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 403 })
     }
 
@@ -141,18 +145,12 @@ export async function POST(req: NextRequest) {
     let conversationHistory: any[] = []
     let actualChatId = chatId
 
-    if (chatId || createNewChat) {
-      const chatResult = await resolveOrCreateChat({
-        chatId,
-        userId: authenticatedUserId,
-        workspaceId,
-        model: 'claude-opus-4-6',
-        type: 'mothership',
-      })
-      currentChat = chatResult.chat
-      actualChatId = chatResult.chatId || chatId
-      conversationHistory = Array.isArray(chatResult.conversationHistory)
-        ? chatResult.conversationHistory
+    if (chatResult.status === 'fulfilled' && chatResult.value) {
+      const resolved = chatResult.value
+      currentChat = resolved.chat
+      actualChatId = resolved.chatId || chatId
+      conversationHistory = Array.isArray(resolved.conversationHistory)
+        ? resolved.conversationHistory
         : []
 
       if (chatId && !currentChat) {
@@ -160,77 +158,74 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    let agentContexts: Array<{ type: string; content: string }> = []
-    if (Array.isArray(contexts) && contexts.length > 0) {
-      try {
-        agentContexts = await processContextsServer(
-          contexts as any,
-          authenticatedUserId,
-          message,
-          workspaceId,
-          actualChatId
+    if (actualChatId) {
+      chatStreamLockAcquired = await acquirePendingChatStream(actualChatId, userMessageId)
+      if (!chatStreamLockAcquired) {
+        const activeStreamId = await getPendingChatStreamId(actualChatId)
+        return NextResponse.json(
+          {
+            error: 'A response is already in progress for this chat.',
+            ...(activeStreamId ? { activeStreamId } : {}),
+          },
+          { status: 409 }
         )
-      } catch (e) {
-        reqLogger.error('Failed to process contexts', e)
       }
+      lockChatId = actualChatId
     }
 
-    if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0) {
-      const results = await Promise.allSettled(
-        resourceAttachments.map(async (r) => {
-          const ctx = await resolveActiveResourceContext(
-            r.type,
-            r.id,
-            workspaceId,
+    // Phase 2: contexts + workspace context + user message persistence in parallel
+    const contextPromise = (async () => {
+      let agentCtxs: Array<{ type: string; content: string }> = []
+      if (Array.isArray(contexts) && contexts.length > 0) {
+        try {
+          agentCtxs = await processContextsServer(
+            contexts as any,
             authenticatedUserId,
+            message,
+            workspaceId,
             actualChatId
           )
-          if (!ctx) return null
-          return {
-            ...ctx,
-            tag: r.active ? '@active_tab' : '@open_tab',
-          }
-        })
-      )
-      for (const result of results) {
-        if (result.status === 'fulfilled' && result.value) {
-          agentContexts.push(result.value)
-        } else if (result.status === 'rejected') {
-          reqLogger.error('Failed to resolve resource attachment', result.reason)
+        } catch (e) {
+          logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
         }
       }
     }
-
-    if (actualChatId) {
-      const userMsg = {
-        id: userMessageId,
-        role: 'user' as const,
-        content: message,
-        timestamp: new Date().toISOString(),
-        ...(fileAttachments &&
-          fileAttachments.length > 0 && {
-            fileAttachments: fileAttachments.map((f) => ({
-              id: f.id,
-              key: f.key,
-              filename: f.filename,
-              media_type: f.media_type,
-              size: f.size,
-            })),
-          }),
-        ...(contexts &&
-          contexts.length > 0 && {
-            contexts: contexts.map((c) => ({
-              kind: c.kind,
-              label: c.label,
-              ...(c.workflowId && { workflowId: c.workflowId }),
-              ...(c.knowledgeId && { knowledgeId: c.knowledgeId }),
-              ...(c.tableId && { tableId: c.tableId }),
-              ...(c.fileId && { fileId: c.fileId }),
-              ...(c.folderId && { folderId: c.folderId }),
-            })),
-          }),
+      if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0) {
+        const results = await Promise.allSettled(
+          resourceAttachments.map(async (r) => {
+            const ctx = await resolveActiveResourceContext(
+              r.type,
+              r.id,
+              workspaceId,
+              authenticatedUserId,
+              actualChatId
+            )
+            if (!ctx) return null
+            return { ...ctx, tag: r.active ? '@active_tab' : '@open_tab' }
+          })
+        )
+        for (const result of results) {
+          if (result.status === 'fulfilled' && result.value) {
+            agentCtxs.push(result.value)
+          } else if (result.status === 'rejected') {
+            logger.error(
+              `[${tracker.requestId}] Failed to resolve resource attachment`,
+              result.reason
+            )
+          }
+        }
       }
+      return agentCtxs
+    })()
 
+    const userMsgPromise = (async () => {
+      if (!actualChatId) return
+      const userMsg = buildPersistedUserMessage({
+        id: userMessageId,
+        content: message,
+        fileAttachments,
+        contexts,
+      })
       const [updated] = await db
         .update(copilotChats)
         .set({
@@ -246,11 +241,15 @@ export async function POST(req: NextRequest) {
         conversationHistory = freshMessages.filter((m: any) => m.id !== userMessageId)
         taskPubSub?.publishStatusChanged({ workspaceId, chatId: actualChatId, type: 'started' })
       }
-    }
+    })()
 
-    const [workspaceContext, userPermission] = await Promise.all([
-      generateWorkspaceContext(workspaceId, authenticatedUserId),
-      getUserEntityPermissions(authenticatedUserId, 'workspace', workspaceId).catch(() => null),
+    const [agentContexts, [workspaceContext, userPermission]] = await Promise.all([
+      contextPromise,
+      Promise.all([
+        generateWorkspaceContext(workspaceId, authenticatedUserId),
+        getUserEntityPermissions(authenticatedUserId, 'workspace', workspaceId).catch(() => null),
+      ]),
+      userMsgPromise,
     ])
 
     const requestPayload = await buildCopilotRequestPayload(
@@ -271,21 +270,8 @@ export async function POST(req: NextRequest) {
       { selectedModel: '' }
     )
 
-    if (actualChatId) {
-      const acquired = await acquirePendingChatStream(actualChatId, userMessageId)
-      if (!acquired) {
-        return NextResponse.json(
-          {
-            error:
-              'A response is already in progress for this chat. Wait for it to finish or use Stop.',
-          },
-          { status: 409 }
-        )
-      }
-    }
-
-    const executionId = generateId()
-    const runId = generateId()
+    const executionId = crypto.randomUUID()
+    const runId = crypto.randomUUID()
     const stream = createSSEStream({
       requestPayload,
       userId: authenticatedUserId,
@@ -299,7 +285,6 @@ export async function POST(req: NextRequest) {
       titleModel: 'claude-opus-4-6',
       requestId: tracker.requestId,
       workspaceId,
-      pendingChatStreamAlreadyRegistered: Boolean(actualChatId),
       orchestrateOptions: {
         userId: authenticatedUserId,
         workspaceId,
@@ -313,46 +298,7 @@ export async function POST(req: NextRequest) {
           if (!actualChatId) return
           if (!result.success) return
 
-          const assistantMessage: Record<string, unknown> = {
-            id: generateId(),
-            role: 'assistant' as const,
-            content: result.content,
-            timestamp: new Date().toISOString(),
-            ...(result.requestId ? { requestId: result.requestId } : {}),
-          }
-          if (result.toolCalls.length > 0) {
-            assistantMessage.toolCalls = result.toolCalls
-          }
-          if (result.contentBlocks.length > 0) {
-            assistantMessage.contentBlocks = result.contentBlocks.map((block) => {
-              const stored: Record<string, unknown> = { type: block.type }
-              if (block.content) stored.content = block.content
-              if (block.type === 'tool_call' && block.toolCall) {
-                const state =
-                  block.toolCall.result?.success !== undefined
-                    ? block.toolCall.result.success
-                      ? 'success'
-                      : 'error'
-                    : block.toolCall.status
-                const isSubagentTool = !!block.calledBy
-                const isNonTerminal =
-                  state === 'cancelled' || state === 'pending' || state === 'executing'
-                stored.toolCall = {
-                  id: block.toolCall.id,
-                  name: block.toolCall.name,
-                  state,
-                  ...(isSubagentTool && isNonTerminal ? {} : { result: block.toolCall.result }),
-                  ...(isSubagentTool && isNonTerminal
-                    ? {}
-                    : block.toolCall.params
-                      ? { params: block.toolCall.params }
-                      : {}),
-                  ...(block.calledBy ? { calledBy: block.calledBy } : {}),
-                }
-              }
-              return stored
-            })
-          }
+          const assistantMessage = buildPersistedAssistantMessage(result, result.requestId)
 
           try {
             const [row] = await db
@@ -385,7 +331,7 @@ export async function POST(req: NextRequest) {
               })
             }
           } catch (error) {
-            reqLogger.error('Failed to persist chat messages', {
+            logger.error(`[${tracker.requestId}] Failed to persist chat messages`, {
               chatId: actualChatId,
               error: error instanceof Error ? error.message : 'Unknown error',
             })
@@ -396,6 +342,9 @@ export async function POST(req: NextRequest) {
 
     return new Response(stream, { headers: SSE_RESPONSE_HEADERS })
   } catch (error) {
+    if (chatStreamLockAcquired && lockChatId && lockStreamId) {
+      await releasePendingChatStream(lockChatId, lockStreamId)
+    }
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Invalid request data', details: error.errors },
@@ -403,11 +352,9 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    logger
-      .withMetadata({ requestId: tracker.requestId, messageId: userMessageIdForLogs })
-      .error('Error handling mothership chat', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-      })
+    logger.error(`[${tracker.requestId}] Error handling mothership chat:`, {
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
 
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },

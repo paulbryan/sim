@@ -38,7 +38,7 @@ const {
   publishToolConfirmation: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request-helpers', () => ({
+vi.mock('@/lib/copilot/request/http', () => ({
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
   createInternalServerErrorResponse,
@@ -54,7 +54,7 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
   completeAsyncToolCall,
 }))
 
-vi.mock('@/lib/copilot/orchestrator/persistence', () => ({
+vi.mock('@/lib/copilot/persistence/tool-confirm', () => ({
   publishToolConfirmation,
 }))
 

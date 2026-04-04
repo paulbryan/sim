@@ -1,5 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { ChatContextKind, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
+import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 
 export interface TaskMetadata {
   id: string
@@ -9,72 +11,13 @@ export interface TaskMetadata {
   isUnread: boolean
 }
 
-export interface StreamSnapshot {
-  events: Array<{ eventId: number; streamId: string; event: Record<string, unknown> }>
-  status: string
-}
-
 export interface TaskChatHistory {
   id: string
   title: string | null
-  messages: TaskStoredMessage[]
+  messages: PersistedMessage[]
   activeStreamId: string | null
   resources: MothershipResource[]
-  streamSnapshot?: StreamSnapshot | null
-}
-
-export interface TaskStoredToolCall {
-  id: string
-  name: string
-  status: string
-  params?: Record<string, unknown>
-  result?: unknown
-  error?: string
-  durationMs?: number
-}
-
-export interface TaskStoredFileAttachment {
-  id: string
-  key: string
-  filename: string
-  media_type: string
-  size: number
-}
-
-export interface TaskStoredMessageContext {
-  kind: ChatContextKind
-  label: string
-  workflowId?: string
-  knowledgeId?: string
-  tableId?: string
-  fileId?: string
-  folderId?: string
-  chatId?: string
-}
-
-export interface TaskStoredMessage {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  requestId?: string
-  toolCalls?: TaskStoredToolCall[]
-  contentBlocks?: TaskStoredContentBlock[]
-  fileAttachments?: TaskStoredFileAttachment[]
-  contexts?: TaskStoredMessageContext[]
-}
-
-export interface TaskStoredContentBlock {
-  type: string
-  content?: string
-  toolCall?: {
-    id?: string
-    name?: string
-    state?: string
-    params?: Record<string, unknown>
-    result?: { success: boolean; output?: unknown; error?: string }
-    display?: { text?: string }
-    calledBy?: string
-  } | null
+  streamSnapshot?: { events: unknown[]; status: string } | null
 }
 
 export const taskKeys = {
@@ -89,7 +32,7 @@ interface TaskResponse {
   id: string
   title: string | null
   updatedAt: string
-  conversationId: string | null
+  activeStreamId: string | null
   lastSeenAt: string | null
 }
 
@@ -99,9 +42,9 @@ function mapTask(chat: TaskResponse): TaskMetadata {
     id: chat.id,
     name: chat.title ?? 'New task',
     updatedAt,
-    isActive: chat.conversationId !== null,
+    isActive: chat.activeStreamId !== null,
     isUnread:
-      chat.conversationId === null &&
+      chat.activeStreamId === null &&
       (chat.lastSeenAt === null || updatedAt > new Date(chat.lastSeenAt)),
   }
 }
@@ -161,10 +104,11 @@ export async function fetchChatHistory(
   return {
     id: chat.id,
     title: chat.title,
-    messages: Array.isArray(chat.messages) ? chat.messages : [],
-    activeStreamId: chat.conversationId || null,
+    messages: Array.isArray(chat.messages)
+      ? chat.messages.map((m: Record<string, unknown>) => normalizeMessage(m))
+      : [],
+    activeStreamId: chat.activeStreamId || null,
     resources: Array.isArray(chat.resources) ? chat.resources : [],
-    streamSnapshot: chat.streamSnapshot || null,
   }
 }
 

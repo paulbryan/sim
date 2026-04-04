@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -45,15 +46,16 @@ function validateFlatWorkspaceFileName(fileName: string): string | null {
 }
 
 export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, WorkspaceFileResult> = {
-  name: 'workspace_file',
+  name: WorkspaceFile.id,
   async execute(
     params: WorkspaceFileArgs,
     context?: ServerToolContext
   ): Promise<WorkspaceFileResult> {
-    const reqLogger = logger.withMetadata({ messageId: context?.messageId })
+    const withMessageId = (message: string) =>
+      context?.messageId ? `${message} [messageId:${context.messageId}]` : message
 
     if (!context?.userId) {
-      reqLogger.error('Unauthorized attempt to access workspace files')
+      logger.error('Unauthorized attempt to access workspace files')
       throw new Error('Authentication required')
     }
 
@@ -92,7 +94,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
               await generatePptxFromCode(content, workspaceId)
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err)
-              reqLogger.error('PPTX code validation failed', { error: msg, fileName })
+              logger.error('PPTX code validation failed', { error: msg, fileName })
               return {
                 success: false,
                 message: `PPTX generation failed: ${msg}. Fix the pptxgenjs code and retry.`,
@@ -114,7 +116,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             contentType
           )
 
-          reqLogger.info('Workspace file written via copilot', {
+          logger.info('Workspace file written via copilot', {
             fileId: result.id,
             name: fileName,
             size: fileBuffer.length,
@@ -175,7 +177,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             isPptxUpdate ? PPTX_SOURCE_MIME : undefined
           )
 
-          reqLogger.info('Workspace file updated via copilot', {
+          logger.info('Workspace file updated via copilot', {
             fileId,
             name: fileRecord.name,
             size: fileBuffer.length,
@@ -217,7 +219,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           assertServerToolNotAborted(context)
           await renameWorkspaceFile(workspaceId, fileId, newName)
 
-          reqLogger.info('Workspace file renamed via copilot', {
+          logger.info('Workspace file renamed via copilot', {
             fileId,
             oldName,
             newName,
@@ -245,7 +247,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           assertServerToolNotAborted(context)
           await deleteWorkspaceFile(workspaceId, fileId)
 
-          reqLogger.info('Workspace file deleted via copilot', {
+          logger.info('Workspace file deleted via copilot', {
             fileId,
             name: fileRecord.name,
             userId: context.userId,
@@ -322,7 +324,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             isPptxPatch ? PPTX_SOURCE_MIME : undefined
           )
 
-          reqLogger.info('Workspace file patched via copilot', {
+          logger.info('Workspace file patched via copilot', {
             fileId,
             name: fileRecord.name,
             editCount: edits.length,
@@ -348,7 +350,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      reqLogger.error('Error in workspace_file tool', {
+      logger.error('Error in workspace_file tool', {
         operation,
         error: errorMessage,
         userId: context.userId,
