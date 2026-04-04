@@ -1,69 +1,16 @@
 /**
  * @vitest-environment node
  */
+import { createEditWorkflowRegistryMock } from '@sim/testing'
+import { loggerMock } from '@sim/testing/mocks'
 import { describe, expect, it, vi } from 'vitest'
 import { applyOperationsToWorkflowState } from './engine'
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
-vi.mock('@/blocks/registry', () => ({
-  getAllBlocks: () => [
-    {
-      type: 'condition',
-      name: 'Condition',
-      subBlocks: [{ id: 'conditions', type: 'condition-input' }],
-    },
-    {
-      type: 'agent',
-      name: 'Agent',
-      subBlocks: [
-        { id: 'systemPrompt', type: 'long-input' },
-        { id: 'model', type: 'combobox' },
-      ],
-    },
-    {
-      type: 'function',
-      name: 'Function',
-      subBlocks: [
-        { id: 'code', type: 'code' },
-        { id: 'language', type: 'dropdown' },
-      ],
-    },
-  ],
-  getBlock: (type: string) => {
-    const blocks: Record<string, any> = {
-      condition: {
-        type: 'condition',
-        name: 'Condition',
-        subBlocks: [{ id: 'conditions', type: 'condition-input' }],
-      },
-      agent: {
-        type: 'agent',
-        name: 'Agent',
-        subBlocks: [
-          { id: 'systemPrompt', type: 'long-input' },
-          { id: 'model', type: 'combobox' },
-        ],
-      },
-      function: {
-        type: 'function',
-        name: 'Function',
-        subBlocks: [
-          { id: 'code', type: 'code' },
-          { id: 'language', type: 'dropdown' },
-        ],
-      },
-    }
-    return blocks[type] || undefined
-  },
-}))
+vi.mock('@/blocks/registry', () =>
+  createEditWorkflowRegistryMock(['condition', 'agent', 'function'])
+)
 
 function makeLoopWorkflow() {
   return {

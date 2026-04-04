@@ -52,6 +52,13 @@ const ANIMATION_CLASSES =
   'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
 
 /**
+ * Modal content animation classes.
+ * We keep only the slide animations (no zoom) to stabilize positioning while avoiding scale effects.
+ */
+const CONTENT_ANIMATION_CLASSES =
+  'data-[state=closed]:slide-out-to-top-[50%] data-[state=open]:slide-in-from-top-[50%] motion-reduce:animate-none'
+
+/**
  * Root modal component. Manages open state.
  */
 const Modal = DialogPrimitive.Root
@@ -159,8 +166,8 @@ const ModalContent = React.forwardRef<
         )}
         style={{
           left: isWorkflowPage
-            ? // --panel-width is always the rendered panel width on /w/ routes (panel is never hidden/collapsed)
-              'calc(50% + (var(--sidebar-width) - var(--panel-width)) / 2)'
+<<<<<<< HEAD
+            ? 'calc(50% + (var(--sidebar-width) - var(--panel-width)) / 2)'
             : 'calc(var(--sidebar-width) / 2 + 50%)',
           ...style,
         }}

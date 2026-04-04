@@ -16,7 +16,6 @@
  * ```
  */
 
-// API mocks
 export {
   mockCommonSchemas,
   mockConsoleLogger,
@@ -24,16 +23,13 @@ export {
   mockKnowledgeSchemas,
   setupCommonApiMocks,
 } from './api.mock'
-// Audit mocks
 export { auditMock } from './audit.mock'
-// Auth mocks
 export {
   defaultMockUser,
   type MockAuthResult,
   type MockUser,
   mockAuth,
 } from './auth.mock'
-// Blocks mocks
 export {
   blocksMock,
   createMockGetBlock,
@@ -42,18 +38,23 @@ export {
   mockToolConfigs,
   toolsUtilsMock,
 } from './blocks.mock'
-// Database mocks
 export {
   createMockDb,
+  createMockDeleteChain,
+  createMockSelectChain,
   createMockSql,
   createMockSqlOperators,
+  createMockUpdateChain,
   databaseMock,
   drizzleOrmMock,
 } from './database.mock'
-// Env mocks
+export { createEditWorkflowRegistryMock } from './edit-workflow.mock'
 export { createEnvMock, createMockGetEnv, defaultMockEnv, envMock } from './env.mock'
-// Executor mocks - use side-effect import: import '@sim/testing/mocks/executor'
-// Fetch mocks
+export {
+  createFeatureFlagsMock,
+  featureFlagsMock,
+  type MockFeatureFlags,
+} from './feature-flags.mock'
 export {
   createMockFetch,
   createMockResponse,
@@ -63,24 +64,21 @@ export {
   mockNextFetchResponse,
   setupGlobalFetchMock,
 } from './fetch.mock'
-// Hybrid auth mocks
 export { AuthTypeMock, type MockHybridAuthResult, mockHybridAuth } from './hybrid-auth.mock'
-// Logger mocks
 export { clearLoggerMocks, createMockLogger, getLoggerCalls, loggerMock } from './logger.mock'
-// Redis mocks
 export { clearRedisMocks, createMockRedis, type MockRedis } from './redis.mock'
-// Request mocks
-export { createMockFormDataRequest, createMockRequest, requestUtilsMock } from './request.mock'
-// Socket mocks
+export {
+  asyncRouteParams,
+  createMockFormDataRequest,
+  createMockRequest,
+  requestUtilsMock,
+} from './request.mock'
 export {
   createMockSocket,
   createMockSocketServer,
   type MockSocket,
   type MockSocketServer,
 } from './socket.mock'
-// Storage mocks
 export { clearStorageMocks, createMockStorage, setupGlobalStorageMocks } from './storage.mock'
-// Telemetry mocks
 export { telemetryMock } from './telemetry.mock'
-// UUID mocks
 export { mockCryptoUuid, mockUuid } from './uuid.mock'

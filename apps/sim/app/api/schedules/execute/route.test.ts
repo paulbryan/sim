@@ -3,14 +3,14 @@
  *
  * @vitest-environment node
  */
-import type { NextRequest } from 'next/server'
+import { createFeatureFlagsMock, createMockRequest } from '@sim/testing'
+import { drizzleOrmMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockVerifyCronAuth,
   mockExecuteScheduleJob,
   mockExecuteJobInline,
-  mockFeatureFlags,
   mockDbReturning,
   mockDbUpdate,
   mockEnqueue,
@@ -33,12 +33,6 @@ const {
     mockVerifyCronAuth: vi.fn().mockReturnValue(null),
     mockExecuteScheduleJob: vi.fn().mockResolvedValue(undefined),
     mockExecuteJobInline: vi.fn().mockResolvedValue(undefined),
-    mockFeatureFlags: {
-      isTriggerDevEnabled: false,
-      isHosted: false,
-      isProd: false,
-      isDev: true,
-    },
     mockDbReturning,
     mockDbUpdate,
     mockEnqueue,
@@ -47,6 +41,13 @@ const {
     mockCompleteJob,
     mockMarkJobFailed,
   }
+})
+
+const mockFeatureFlags = createFeatureFlagsMock({
+  isTriggerDevEnabled: false,
+  isHosted: false,
+  isProd: false,
+  isDev: true,
 })
 
 vi.mock('@/lib/auth/internal', () => ({
@@ -91,17 +92,7 @@ vi.mock('@/lib/workflows/utils', () => ({
   }),
 }))
 
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
-  ne: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'ne' })),
-  lte: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'lte' })),
-  lt: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'lt' })),
-  not: vi.fn((condition: unknown) => ({ type: 'not', condition })),
-  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
-  or: vi.fn((...conditions: unknown[]) => ({ type: 'or', conditions })),
-  sql: vi.fn((strings: unknown, ...values: unknown[]) => ({ type: 'sql', strings, values })),
-}))
+vi.mock('drizzle-orm', () => drizzleOrmMock)
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -177,18 +168,13 @@ const SINGLE_JOB = [
   },
 ]
 
-function createMockRequest(): NextRequest {
-  const mockHeaders = new Map([
-    ['authorization', 'Bearer test-cron-secret'],
-    ['content-type', 'application/json'],
-  ])
-
-  return {
-    headers: {
-      get: (key: string) => mockHeaders.get(key.toLowerCase()) || null,
-    },
-    url: 'http://localhost:3000/api/schedules/execute',
-  } as NextRequest
+function createCronRequest() {
+  return createMockRequest(
+    'GET',
+    undefined,
+    { Authorization: 'Bearer test-cron-secret' },
+    'http://localhost:3000/api/schedules/execute'
+  )
 }
 
 describe('Scheduled Workflow Execution API Route', () => {
@@ -204,7 +190,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   it('should execute scheduled workflows with Trigger.dev disabled', async () => {
     mockDbReturning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
+    const response = await GET(createCronRequest() as any)
 
     expect(response).toBeDefined()
     expect(response.status).toBe(200)
@@ -217,7 +203,7 @@ describe('Scheduled Workflow Execution API Route', () => {
     mockFeatureFlags.isTriggerDevEnabled = true
     mockDbReturning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
+    const response = await GET(createCronRequest() as any)
 
     expect(response).toBeDefined()
     expect(response.status).toBe(200)
@@ -228,7 +214,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   it('should handle case with no due schedules', async () => {
     mockDbReturning.mockReturnValueOnce([]).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
+    const response = await GET(createCronRequest() as any)
 
     expect(response.status).toBe(200)
     const data = await response.json()
@@ -239,7 +225,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   it('should execute multiple schedules in parallel', async () => {
     mockDbReturning.mockReturnValueOnce(MULTIPLE_SCHEDULES).mockReturnValueOnce([])
 
-    const response = await GET(createMockRequest())
+    const response = await GET(createCronRequest() as any)
 
     expect(response.status).toBe(200)
     const data = await response.json()
@@ -249,7 +235,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   it('should queue mothership jobs to BullMQ when available', async () => {
     mockDbReturning.mockReturnValueOnce([]).mockReturnValueOnce(SINGLE_JOB)
 
-    const response = await GET(createMockRequest())
+    const response = await GET(createCronRequest() as any)
 
     expect(response.status).toBe(200)
     expect(mockEnqueueWorkspaceDispatch).toHaveBeenCalledWith(
@@ -274,7 +260,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   it('should enqueue preassigned correlation metadata for schedules', async () => {
     mockDbReturning.mockReturnValue(SINGLE_SCHEDULE)
 
-    const response = await GET(createMockRequest())
+    const response = await GET(createCronRequest() as any)
 
     expect(response.status).toBe(200)
     expect(mockEnqueueWorkspaceDispatch).toHaveBeenCalledWith(

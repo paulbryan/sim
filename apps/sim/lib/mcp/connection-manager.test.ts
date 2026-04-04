@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
+import { createFeatureFlagsMock, loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 interface MockMcpClient {
@@ -38,7 +38,7 @@ const { MockMcpClientConstructor, mockOnToolsChanged, mockPublishToolsChanged } 
 )
 
 vi.mock('@sim/logger', () => loggerMock)
-vi.mock('@/lib/core/config/feature-flags', () => ({ isTest: false }))
+vi.mock('@/lib/core/config/feature-flags', () => createFeatureFlagsMock({ isTest: false }))
 vi.mock('@/lib/mcp/pubsub', () => ({
   mcpPubSub: {
     onToolsChanged: mockOnToolsChanged,

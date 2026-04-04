@@ -104,6 +104,38 @@ export function createMockDb() {
 }
 
 /**
+ * Creates a select chain that resolves from `where()`.
+ */
+export function createMockSelectChain<T>(result: T) {
+  return {
+    from: vi.fn().mockReturnThis(),
+    innerJoin: vi.fn().mockReturnThis(),
+    leftJoin: vi.fn().mockReturnThis(),
+    where: vi.fn().mockResolvedValue(result),
+  }
+}
+
+/**
+ * Creates an update chain that resolves from `where()`.
+ */
+export function createMockUpdateChain<T>(result: T = [] as T) {
+  return {
+    set: vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue(result),
+    }),
+  }
+}
+
+/**
+ * Creates a delete chain that resolves from `where()`.
+ */
+export function createMockDeleteChain<T>(result: T = [] as T) {
+  return {
+    where: vi.fn().mockResolvedValue(result),
+  }
+}
+
+/**
  * Mock module for @sim/db.
  * Use with vi.mock() to replace the real database.
  *

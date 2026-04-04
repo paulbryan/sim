@@ -1,11 +1,11 @@
-import { loggerMock } from '@sim/testing'
+import { createFeatureFlagsMock, loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { RateLimiter } from './rate-limiter'
 import type { ConsumeResult, RateLimitStorageAdapter, TokenStatus } from './storage'
 import { MANUAL_EXECUTION_LIMIT, RATE_LIMITS, RateLimitError } from './types'
 
 vi.mock('@sim/logger', () => loggerMock)
-vi.mock('@/lib/core/config/feature-flags', () => ({ isBillingEnabled: true }))
+vi.mock('@/lib/core/config/feature-flags', () => createFeatureFlagsMock({ isBillingEnabled: true }))
 
 interface MockAdapter {
   consumeTokens: Mock

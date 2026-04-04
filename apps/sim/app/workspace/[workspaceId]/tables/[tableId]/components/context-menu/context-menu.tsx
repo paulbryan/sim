@@ -6,7 +6,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { ArrowDown, ArrowUp, Duplicate, Pencil, Trash } from '@/components/emcn/icons'
-import type { ContextMenuState } from '../../types'
+import type { ContextMenuState } from '@/app/workspace/[workspaceId]/tables/[tableId]/types'
 
 interface ContextMenuProps {
   contextMenu: ContextMenuState

@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+import { createMockDeleteChain, createMockSelectChain, createMockUpdateChain } from '@sim/testing'
+import { loggerMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSelect, mockTransaction, mockArchiveWorkflowsForWorkspace, mockGetWorkspaceWithOwner } =
@@ -33,13 +35,7 @@ vi.mock('@sim/db/schema', () => ({
   workspaceNotificationSubscription: { active: 'workspace_notification_active' },
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/workflows/lifecycle', () => ({
   archiveWorkflowsForWorkspace: (...args: unknown[]) => mockArchiveWorkflowsForWorkspace(...args),
@@ -50,14 +46,6 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 import { archiveWorkspace } from './lifecycle'
-
-function createUpdateChain() {
-  return {
-    set: vi.fn().mockReturnValue({
-      where: vi.fn().mockResolvedValue([]),
-    }),
-  }
-}
 
 describe('workspace lifecycle', () => {
   beforeEach(() => {
@@ -72,22 +60,12 @@ describe('workspace lifecycle', () => {
       archivedAt: null,
     })
     mockArchiveWorkflowsForWorkspace.mockResolvedValue(2)
-    mockSelect.mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue([{ id: 'server-1' }]),
-      }),
-    })
+    mockSelect.mockReturnValue(createMockSelectChain([{ id: 'server-1' }]))
 
     const tx = {
-      select: vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ id: 'kb-1' }]),
-        }),
-      }),
-      update: vi.fn().mockImplementation(() => createUpdateChain()),
-      delete: vi.fn().mockImplementation(() => ({
-        where: vi.fn().mockResolvedValue([]),
-      })),
+      select: vi.fn().mockReturnValue(createMockSelectChain([{ id: 'kb-1' }])),
+      update: vi.fn().mockImplementation(() => createMockUpdateChain()),
+      delete: vi.fn().mockImplementation(() => createMockDeleteChain()),
     }
     mockTransaction.mockImplementation(async (callback: (trx: typeof tx) => Promise<void>) =>
       callback(tx)

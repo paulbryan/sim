@@ -1,6 +1,8 @@
 /**
  * @vitest-environment node
  */
+import { createMockSelectChain, createMockUpdateChain } from '@sim/testing'
+import { loggerMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -35,13 +37,7 @@ vi.mock('@sim/db/schema', () => ({
   workflowSchedule: { archivedAt: 'workflow_schedule_archived_at' },
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}))
+vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/workflows/utils', () => ({
   getWorkflowById: (...args: unknown[]) => mockGetWorkflowById(...args),
@@ -66,24 +62,6 @@ vi.mock('@/lib/core/telemetry', () => ({
 
 import { archiveWorkflow } from '@/lib/workflows/lifecycle'
 
-function createSelectChain<T>(result: T) {
-  const chain = {
-    from: vi.fn().mockReturnThis(),
-    innerJoin: vi.fn().mockReturnThis(),
-    where: vi.fn().mockResolvedValue(result),
-  }
-
-  return chain
-}
-
-function createUpdateChain() {
-  return {
-    set: vi.fn().mockReturnValue({
-      where: vi.fn().mockResolvedValue([]),
-    }),
-  }
-}
-
 describe('workflow lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -107,10 +85,10 @@ describe('workflow lifecycle', () => {
         archivedAt: new Date(),
       })
 
-    mockSelect.mockReturnValue(createSelectChain([]))
+    mockSelect.mockReturnValue(createMockSelectChain([]))
 
     const tx = {
-      update: vi.fn().mockImplementation(() => createUpdateChain()),
+      update: vi.fn().mockImplementation(() => createMockUpdateChain()),
     }
     mockTransaction.mockImplementation(async (callback: (trx: typeof tx) => Promise<void>) =>
       callback(tx)

@@ -1,7 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { GripVertical } from 'lucide-react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
@@ -24,11 +23,15 @@ import {
   Skeleton,
 } from '@/components/emcn'
 import {
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   Calendar as CalendarIcon,
   ChevronDown,
+  Download,
   Fingerprint,
+  ListFilter,
   Pencil,
   Plus,
   Table as TableIcon,
@@ -45,6 +48,26 @@ import type { ColumnDefinition, Filter, SortDirection, TableRow as TableRowType 
 import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
 import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { ContextMenu } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/context-menu'
+import { RowModal } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/row-modal'
+import type { TableFilterHandle } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-filter'
+import { TableFilter } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-filter'
+import {
+  useContextMenu,
+  useExportTable,
+  useTableData,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks'
+import type {
+  EditingCell,
+  QueryOptions,
+  SaveReason,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/types'
+import {
+  cleanCellValue,
+  displayToStorage,
+  formatValueForInput,
+  storageToDisplay,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/utils'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -60,17 +83,6 @@ import {
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
-import { useContextMenu, useTableData } from '../../hooks'
-import type { EditingCell, QueryOptions, SaveReason } from '../../types'
-import {
-  cleanCellValue,
-  displayToStorage,
-  formatValueForInput,
-  storageToDisplay,
-} from '../../utils'
-import { ContextMenu } from '../context-menu'
-import { RowModal } from '../row-modal'
-import { TableFilter } from '../table-filter'
 
 interface CellCoord {
   rowIndex: number
@@ -88,6 +100,7 @@ interface NormalizedSelection {
 
 const EMPTY_COLUMNS: never[] = []
 const EMPTY_CHECKED_ROWS = new Set<number>()
+const clearCheckedRows = (prev: Set<number>) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS)
 const COL_WIDTH = 160
 const COL_WIDTH_MIN = 80
 const CHECKBOX_COL_WIDTH = 40
@@ -196,6 +209,7 @@ export function Table({
   const [initialCharacter, setInitialCharacter] = useState<string | null>(null)
   const [selectionAnchor, setSelectionAnchor] = useState<CellCoord | null>(null)
   const [selectionFocus, setSelectionFocus] = useState<CellCoord | null>(null)
+  const [isColumnSelection, setIsColumnSelection] = useState(false)
   const [checkedRows, setCheckedRows] = useState(EMPTY_CHECKED_ROWS)
   const lastCheckboxRowRef = useRef<number | null>(null)
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
@@ -220,6 +234,8 @@ export function Table({
   const metadataSeededRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const ghostRef = useRef<HTMLDivElement>(null)
+  const tableFilterRef = useRef<TableFilterHandle>(null)
   const isDraggingRef = useRef(false)
 
   const { tableData, isLoadingTable, rows, isLoadingRows } = useTableData({
@@ -291,10 +307,11 @@ export function Table({
   const positionMapRef = useRef(positionMap)
   positionMapRef.current = positionMap
 
-  const normalizedSelection = useMemo(
-    () => computeNormalizedSelection(selectionAnchor, selectionFocus),
-    [selectionAnchor, selectionFocus]
-  )
+  const normalizedSelection = useMemo(() => {
+    const raw = computeNormalizedSelection(selectionAnchor, selectionFocus)
+    if (!raw || !isColumnSelection) return raw
+    return { ...raw, startRow: 0, endRow: Math.max(maxPosition, 0) }
+  }, [selectionAnchor, selectionFocus, isColumnSelection, maxPosition])
 
   const displayColCount = isLoadingTable ? SKELETON_COL_COUNT : displayColumns.length
   const tableWidth = useMemo(() => {
@@ -350,6 +367,7 @@ export function Table({
   const rowsRef = useRef(rows)
   const selectionAnchorRef = useRef(selectionAnchor)
   const selectionFocusRef = useRef(selectionFocus)
+  const normalizedSelectionRef = useRef(normalizedSelection)
 
   const checkedRowsRef = useRef(checkedRows)
   checkedRowsRef.current = checkedRows
@@ -359,6 +377,7 @@ export function Table({
   rowsRef.current = rows
   selectionAnchorRef.current = selectionAnchor
   selectionFocusRef.current = selectionFocus
+  normalizedSelectionRef.current = normalizedSelection
 
   const deleteTableMutation = useDeleteTable(workspaceId)
   const renameTableMutation = useRenameTable(workspaceId)
@@ -574,7 +593,8 @@ export function Table({
 
   const handleCellMouseDown = useCallback(
     (rowIndex: number, colIndex: number, shiftKey: boolean) => {
-      setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+      setCheckedRows(clearCheckedRows)
+      setIsColumnSelection(false)
       lastCheckboxRowRef.current = null
       if (shiftKey && selectionAnchorRef.current) {
         setSelectionFocus({ rowIndex, colIndex })
@@ -597,6 +617,7 @@ export function Table({
     setEditingCell(null)
     setSelectionAnchor(null)
     setSelectionFocus(null)
+    setIsColumnSelection(false)
 
     if (shiftKey && lastCheckboxRowRef.current !== null) {
       const from = Math.min(lastCheckboxRowRef.current, rowIndex)
@@ -627,7 +648,8 @@ export function Table({
   const handleClearSelection = useCallback(() => {
     setSelectionAnchor(null)
     setSelectionFocus(null)
-    setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    setIsColumnSelection(false)
+    setCheckedRows(clearCheckedRows)
     lastCheckboxRowRef.current = null
   }, [])
 
@@ -637,6 +659,7 @@ export function Table({
     setEditingCell(null)
     setSelectionAnchor(null)
     setSelectionFocus(null)
+    setIsColumnSelection(false)
     const all = new Set<number>()
     for (const row of rws) {
       all.add(row.position)
@@ -666,46 +689,128 @@ export function Table({
     updateMetadataRef.current({ columnWidths: columnWidthsRef.current })
   }, [])
 
-  const handleColumnDragStart = useCallback((columnName: string) => {
-    setDragColumnName(columnName)
-  }, [])
+  const handleColumnDragStart = useCallback(
+    (columnName: string, element: HTMLElement, pointerId: number, startX: number) => {
+      element.setPointerCapture(pointerId)
 
-  const handleColumnDragOver = useCallback((columnName: string, side: 'left' | 'right') => {
-    if (columnName === dropTargetColumnNameRef.current && side === dropSideRef.current) return
-    setDropTargetColumnName(columnName)
-    setDropSide(side)
-  }, [])
+      setDragColumnName(columnName)
 
-  const handleColumnDragEnd = useCallback(() => {
-    const dragged = dragColumnNameRef.current
-    if (!dragged) return
-    const target = dropTargetColumnNameRef.current
-    const side = dropSideRef.current
-    if (target && dragged !== target) {
+      const scroll = scrollRef.current
+      const ghost = ghostRef.current
+      if (!scroll || !ghost) return
+
       const cols = columnsRef.current
-      const currentOrder = columnOrderRef.current ?? cols.map((c) => c.name)
-      const fromIndex = currentOrder.indexOf(dragged)
-      const toIndex = currentOrder.indexOf(target)
-      if (fromIndex !== -1 && toIndex !== -1) {
-        const newOrder = currentOrder.filter((n) => n !== dragged)
-        let insertIndex = newOrder.indexOf(target)
-        if (side === 'right') insertIndex += 1
-        newOrder.splice(insertIndex, 0, dragged)
-        setColumnOrder(newOrder)
-        updateMetadataRef.current({
-          columnWidths: columnWidthsRef.current,
-          columnOrder: newOrder,
-        })
+      const widths = columnWidthsRef.current
+      let left = CHECKBOX_COL_WIDTH
+      const boundaries: Array<{ name: string; left: number; width: number }> = []
+      for (const col of cols) {
+        const w = widths[col.name] ?? COL_WIDTH
+        boundaries.push({ name: col.name, left, width: w })
+        left += w
       }
-    }
-    setDragColumnName(null)
-    setDropTargetColumnName(null)
-    setDropSide('left')
-  }, [])
 
-  const handleColumnDragLeave = useCallback(() => {
-    dropTargetColumnNameRef.current = null
-    setDropTargetColumnName(null)
+      const dragged = boundaries.find((b) => b.name === columnName)
+      if (!dragged) return
+
+      const scrollRect = scroll.getBoundingClientRect()
+      const tableEl = element.closest('table')
+
+      // Position the ghost at the dragged column's location
+      ghost.style.left = `${dragged.left}px`
+      ghost.style.width = `${dragged.width}px`
+      ghost.style.height = `${tableEl ? tableEl.offsetHeight : scroll.scrollHeight}px`
+      ghost.style.transform = 'translateX(0)'
+      ghost.style.display = 'block'
+
+      const commit = () => {
+        const dragedName = dragColumnNameRef.current
+        const target = dropTargetColumnNameRef.current
+        const side = dropSideRef.current
+        if (dragedName && target && dragedName !== target) {
+          const currentOrder = columnOrderRef.current ?? columnsRef.current.map((c) => c.name)
+          const newOrder = currentOrder.filter((n) => n !== dragedName)
+          let insertIndex = newOrder.indexOf(target)
+          if (side === 'right') insertIndex += 1
+          newOrder.splice(insertIndex, 0, dragedName)
+          setColumnOrder(newOrder)
+          updateMetadataRef.current({
+            columnWidths: columnWidthsRef.current,
+            columnOrder: newOrder,
+          })
+        }
+      }
+
+      const cleanup = (shouldCommit: boolean) => {
+        element.removeEventListener('pointermove', handleMove)
+        element.removeEventListener('pointerup', handleUp)
+        element.removeEventListener('pointercancel', handleCancel)
+        document.removeEventListener('keydown', handleKeyDown)
+        element.releasePointerCapture(pointerId)
+        if (shouldCommit) commit()
+        ghost.style.display = 'none'
+        ghost.style.transform = 'translateX(0)'
+        setDragColumnName(null)
+        setDropTargetColumnName(null)
+        setDropSide('left')
+      }
+
+      const handleMove = (ev: PointerEvent) => {
+        const delta = ev.clientX - startX
+        ghost.style.transform = `translateX(${delta}px)`
+
+        // Determine which column the cursor is over
+        const tableX = ev.clientX - scrollRect.left + scroll.scrollLeft
+        let target = boundaries[boundaries.length - 1]
+        let side: 'left' | 'right' = 'right'
+        for (const b of boundaries) {
+          if (tableX < b.left + b.width) {
+            target = b
+            side = tableX < b.left + b.width / 2 ? 'left' : 'right'
+            break
+          }
+        }
+
+        if (target.name === columnName) {
+          // Hovering over self — suppress the indicator
+          if (dropTargetColumnNameRef.current !== null) {
+            setDropTargetColumnName(null)
+          }
+        } else if (
+          target.name !== dropTargetColumnNameRef.current ||
+          side !== dropSideRef.current
+        ) {
+          setDropTargetColumnName(target.name)
+          setDropSide(side)
+        }
+      }
+
+      const handleKeyDown = (ev: KeyboardEvent) => {
+        if (ev.key === 'Escape') cleanup(false)
+      }
+
+      const handleUp = () => cleanup(true)
+      const handleCancel = () => cleanup(false)
+
+      element.addEventListener('pointermove', handleMove)
+      element.addEventListener('pointerup', handleUp)
+      element.addEventListener('pointercancel', handleCancel)
+      document.addEventListener('keydown', handleKeyDown)
+    },
+    []
+  )
+
+  const handleColumnSelect = useCallback((colIndex: number, shiftKey: boolean) => {
+    setCheckedRows(clearCheckedRows)
+    lastCheckboxRowRef.current = null
+    setEditingCell(null)
+    if (shiftKey && selectionAnchorRef.current) {
+      setSelectionFocus({ rowIndex: 0, colIndex })
+    } else {
+      setSelectionAnchor({ rowIndex: 0, colIndex })
+      setSelectionFocus({ rowIndex: 0, colIndex })
+    }
+    setIsColumnSelection(true)
+    scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
   useEffect(() => {
@@ -782,6 +887,9 @@ export function Table({
   const updateMetadataRef = useRef(updateMetadataMutation.mutate)
   updateMetadataRef.current = updateMetadataMutation.mutate
 
+  const addColumnAsyncRef = useRef(addColumnMutation.mutateAsync)
+  addColumnAsyncRef.current = addColumnMutation.mutateAsync
+
   const toggleBooleanCellRef = useRef(toggleBooleanCell)
   toggleBooleanCellRef.current = toggleBooleanCell
 
@@ -793,6 +901,17 @@ export function Table({
     if (!el) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        isDraggingRef.current = false
+        setSelectionAnchor(null)
+        setSelectionFocus(null)
+        setIsColumnSelection(false)
+        setCheckedRows(clearCheckedRows)
+        lastCheckboxRowRef.current = null
+        return
+      }
+
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
 
@@ -806,15 +925,6 @@ export function Table({
         return
       }
 
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        setSelectionAnchor(null)
-        setSelectionFocus(null)
-        setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
-        lastCheckboxRowRef.current = null
-        return
-      }
-
       if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
         e.preventDefault()
         const rws = rowsRef.current
@@ -822,6 +932,7 @@ export function Table({
           setEditingCell(null)
           setSelectionAnchor(null)
           setSelectionFocus(null)
+          setIsColumnSelection(false)
           const all = new Set<number>()
           for (const row of rws) {
             all.add(row.position)
@@ -835,6 +946,7 @@ export function Table({
         const a = selectionAnchorRef.current
         if (!a || editingCellRef.current) return
         e.preventDefault()
+        setIsColumnSelection(false)
         setSelectionFocus(null)
         setCheckedRows((prev) => {
           const next = new Set(prev)
@@ -887,6 +999,7 @@ export function Table({
         const row = positionMapRef.current.get(anchor.rowIndex)
         if (!row) return
         e.preventDefault()
+        setIsColumnSelection(false)
         const position = row.position + 1
         const colIndex = anchor.colIndex
         createRef.current(
@@ -908,12 +1021,12 @@ export function Table({
       if (e.key === 'Enter' || e.key === 'F2') {
         if (!canEditRef.current) return
         e.preventDefault()
+        setIsColumnSelection(false)
         const col = cols[anchor.colIndex]
         if (!col) return
 
         const row = positionMapRef.current.get(anchor.rowIndex)
         if (!row) return
-
         if (col.type === 'boolean') {
           toggleBooleanCellRef.current(row.id, col.name, row.data[col.name])
           return
@@ -935,7 +1048,8 @@ export function Table({
 
       if (e.key === 'Tab') {
         e.preventDefault()
-        setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        setCheckedRows(clearCheckedRows)
+        setIsColumnSelection(false)
         lastCheckboxRowRef.current = null
         setSelectionAnchor(moveCell(anchor, cols.length, totalRows, e.shiftKey ? -1 : 1))
         setSelectionFocus(null)
@@ -944,7 +1058,8 @@ export function Table({
 
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault()
-        setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        setCheckedRows(clearCheckedRows)
+        setIsColumnSelection(false)
         lastCheckboxRowRef.current = null
         const focus = selectionFocusRef.current ?? anchor
         const origin = e.shiftKey ? focus : anchor
@@ -979,7 +1094,7 @@ export function Table({
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (!canEditRef.current) return
         e.preventDefault()
-        const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
+        const sel = normalizedSelectionRef.current
         if (!sel) return
         const pMap = positionMapRef.current
         const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
@@ -1011,6 +1126,7 @@ export function Table({
         if (col.type === 'number' && !/[\d.-]/.test(e.key)) return
         if (col.type === 'date' && !/[\d\-/]/.test(e.key)) return
         e.preventDefault()
+        setIsColumnSelection(false)
 
         const row = positionMapRef.current.get(anchor.rowIndex)
         if (!row) return
@@ -1047,10 +1163,7 @@ export function Table({
         return
       }
 
-      const anchor = selectionAnchorRef.current
-      if (!anchor) return
-
-      const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
+      const sel = normalizedSelectionRef.current
       if (!sel) return
 
       e.preventDefault()
@@ -1106,10 +1219,7 @@ export function Table({
         }
         e.clipboardData?.setData('text/plain', lines.join('\n'))
       } else {
-        const anchor = selectionAnchorRef.current
-        if (!anchor) return
-
-        const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
+        const sel = normalizedSelectionRef.current
         if (!sel) return
 
         e.preventDefault()
@@ -1145,7 +1255,7 @@ export function Table({
       }
     }
 
-    const handlePaste = (e: ClipboardEvent) => {
+    const handlePaste = async (e: ClipboardEvent) => {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
       if (!canEditRef.current) return
@@ -1164,8 +1274,44 @@ export function Table({
 
       if (pasteRows.length === 0) return
 
-      const currentCols = columnsRef.current
+      let currentCols = columnsRef.current
       const pMap = positionMapRef.current
+      const maxPasteCols = Math.max(...pasteRows.map((pr) => pr.length))
+      const neededExtraCols = Math.max(
+        0,
+        currentAnchor.colIndex + maxPasteCols - currentCols.length
+      )
+
+      if (neededExtraCols > 0) {
+        // Generate unique names for the new columns without colliding with each other
+        const existingNames = new Set(currentCols.map((c) => c.name.toLowerCase()))
+        const newColNames: string[] = []
+        for (let i = 0; i < neededExtraCols; i++) {
+          let name = 'untitled'
+          let n = 2
+          while (existingNames.has(name.toLowerCase())) {
+            name = `untitled_${n}`
+            n++
+          }
+          existingNames.add(name.toLowerCase())
+          newColNames.push(name)
+        }
+
+        // Create columns sequentially so each invalidation completes before the next
+        try {
+          for (const name of newColNames) {
+            await addColumnAsyncRef.current({ name, type: 'string' })
+          }
+        } catch {
+          // If column creation fails, paste into whatever columns exist
+        }
+
+        // Build updated column list locally — React Query cache may not have refreshed yet
+        currentCols = [
+          ...currentCols,
+          ...newColNames.map((name) => ({ name, type: 'string' as const })),
+        ]
+      }
 
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
       const updateBatch: Array<{ rowId: string; data: Record<string, unknown> }> = []
@@ -1245,7 +1391,6 @@ export function Table({
         )
       }
 
-      const maxPasteCols = Math.max(...pasteRows.map((pr) => pr.length))
       setSelectionFocus({
         rowIndex: currentAnchor.rowIndex + pasteRows.length - 1,
         colIndex: Math.min(currentAnchor.colIndex + maxPasteCols - 1, currentCols.length - 1),
@@ -1429,7 +1574,10 @@ export function Table({
   }, [])
 
   const handleRenameColumn = useCallback(
-    (name: string) => columnRename.startRename(name, name),
+    (name: string) => {
+      isDraggingRef.current = false
+      columnRename.startRename(name, name)
+    },
     [columnRename.startRename]
   )
 
@@ -1468,13 +1616,28 @@ export function Table({
   }, [])
 
   const [filterOpen, setFilterOpen] = useState(false)
+  const [initialFilterColumn, setInitialFilterColumn] = useState<string | null>(null)
 
   const handleFilterToggle = useCallback(() => {
+    setInitialFilterColumn(null)
     setFilterOpen((prev) => !prev)
   }, [])
 
   const handleFilterClose = useCallback(() => {
     setFilterOpen(false)
+    setInitialFilterColumn(null)
+  }, [])
+
+  const filterOpenRef = useRef(filterOpen)
+  filterOpenRef.current = filterOpen
+
+  const handleFilterByColumn = useCallback((columnName: string) => {
+    if (filterOpenRef.current && tableFilterRef.current) {
+      tableFilterRef.current.addColumnRule(columnName)
+    } else {
+      setInitialFilterColumn(columnName)
+      setFilterOpen(true)
+    }
   }, [])
 
   const columnOptions = useMemo<ColumnOption[]>(
@@ -1555,6 +1718,27 @@ export function Table({
     [handleAddColumn, addColumnMutation.isPending]
   )
 
+  const { handleExportTable, isExporting } = useExportTable({
+    workspaceId,
+    tableId,
+    tableName: tableData?.name,
+    columns: displayColumns,
+    queryOptions,
+    canExport: userPermissions.canEdit,
+  })
+
+  const headerActions = useMemo(
+    () => [
+      {
+        label: isExporting ? 'Exporting...' : 'Export CSV',
+        icon: Download,
+        onClick: () => void handleExportTable(),
+        disabled: !userPermissions.canEdit || !hasTableData || isLoadingTable || isExporting,
+      },
+    ],
+    [handleExportTable, hasTableData, isExporting, isLoadingTable, userPermissions.canEdit]
+  )
+
   const activeSortState = useMemo(() => {
     if (!queryOptions.sort) return null
     const entries = Object.entries(queryOptions.sort)
@@ -1562,6 +1746,26 @@ export function Table({
     const [column, direction] = entries[0]
     return { column, direction }
   }, [queryOptions.sort])
+
+  const selectedColumnRange = useMemo(() => {
+    if (!isColumnSelection || !normalizedSelection) return null
+    return { start: normalizedSelection.startCol, end: normalizedSelection.endCol }
+  }, [isColumnSelection, normalizedSelection])
+
+  const draggingColIndex = useMemo(
+    () => (dragColumnName ? displayColumns.findIndex((c) => c.name === dragColumnName) : null),
+    [dragColumnName, displayColumns]
+  )
+
+  const handleSortAsc = useCallback(
+    (columnName: string) => handleSortChange(columnName, 'asc'),
+    [handleSortChange]
+  )
+
+  const handleSortDesc = useCallback(
+    (columnName: string) => handleSortChange(columnName, 'desc'),
+    [handleSortChange]
+  )
 
   const sortConfig = useMemo<SortConfig>(
     () => ({
@@ -1619,7 +1823,12 @@ export function Table({
     <div ref={containerRef} className='flex h-full flex-col overflow-hidden'>
       {!embedded && (
         <>
-          <ResourceHeader icon={TableIcon} breadcrumbs={breadcrumbs} create={createAction} />
+          <ResourceHeader
+            icon={TableIcon}
+            breadcrumbs={breadcrumbs}
+            actions={headerActions}
+            create={createAction}
+          />
 
           <ResourceOptionsBar
             sort={sortConfig}
@@ -1628,10 +1837,12 @@ export function Table({
           />
           {filterOpen && (
             <TableFilter
+              ref={tableFilterRef}
               columns={displayColumns}
               filter={queryOptions.filter}
               onApply={handleFilterApply}
               onClose={handleFilterClose}
+              initialColumn={initialFilterColumn}
             />
           )}
         </>
@@ -1691,10 +1902,11 @@ export function Table({
                     checked={isAllRowsSelected}
                     onCheckedChange={handleSelectAllToggle}
                   />
-                  {displayColumns.map((column) => (
+                  {displayColumns.map((column, colIndex) => (
                     <ColumnHeaderMenu
                       key={column.name}
                       column={column}
+                      colIndex={colIndex}
                       readOnly={!userPermissions.canEdit}
                       isRenaming={columnRename.editingId === column.name}
                       renameValue={
@@ -1714,9 +1926,18 @@ export function Table({
                       onResizeEnd={handleColumnResizeEnd}
                       isDragging={dragColumnName === column.name}
                       onDragStart={handleColumnDragStart}
-                      onDragOver={handleColumnDragOver}
-                      onDragEnd={handleColumnDragEnd}
-                      onDragLeave={handleColumnDragLeave}
+                      isColumnSelected={
+                        selectedColumnRange !== null &&
+                        colIndex >= selectedColumnRange.start &&
+                        colIndex <= selectedColumnRange.end
+                      }
+                      onColumnSelect={handleColumnSelect}
+                      sortDirection={
+                        activeSortState?.column === column.name ? activeSortState.direction : null
+                      }
+                      onSortAsc={handleSortAsc}
+                      onSortDesc={handleSortDesc}
+                      onFilterColumn={handleFilterByColumn}
                     />
                   ))}
                   {userPermissions.canEdit && (
@@ -1744,6 +1965,7 @@ export function Table({
                             startPosition={prevPosition + 1}
                             columns={displayColumns}
                             normalizedSelection={normalizedSelection}
+                            draggingColIndex={draggingColIndex}
                             checkedRows={checkedRows}
                             firstRowUnderHeader={prevPosition === -1}
                             onCellMouseDown={handleCellMouseDown}
@@ -1766,6 +1988,7 @@ export function Table({
                               : null
                           }
                           normalizedSelection={normalizedSelection}
+                          draggingColIndex={draggingColIndex}
                           onClick={handleCellClick}
                           onDoubleClick={handleCellDoubleClick}
                           onSave={handleInlineSave}
@@ -1795,6 +2018,11 @@ export function Table({
               style={{ left: dropIndicatorLeft }}
             />
           )}
+          <div
+            ref={ghostRef}
+            className='pointer-events-none absolute top-0 z-10 border border-blue-400/50 bg-blue-500/10'
+            style={{ display: 'none' }}
+          />
         </div>
         {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
           <AddRowButton onClick={handleAppendRow} />
@@ -1917,6 +2145,7 @@ interface PositionGapRowsProps {
   startPosition: number
   columns: ColumnDefinition[]
   normalizedSelection: NormalizedSelection | null
+  draggingColIndex: number | null
   checkedRows: Set<number>
   firstRowUnderHeader?: boolean
   onCellMouseDown: (rowIndex: number, colIndex: number, shiftKey: boolean) => void
@@ -1930,6 +2159,7 @@ const PositionGapRows = React.memo(
     startPosition,
     columns,
     normalizedSelection,
+    draggingColIndex,
     checkedRows,
     firstRowUnderHeader = false,
     onCellMouseDown,
@@ -1995,7 +2225,11 @@ const PositionGapRows = React.memo(
                     key={col.name}
                     data-row={position}
                     data-col={colIndex}
-                    className={cn(CELL, (isHighlighted || isAnchor) && 'relative')}
+                    className={cn(
+                      CELL,
+                      (isHighlighted || isAnchor) && 'relative',
+                      draggingColIndex === colIndex && 'opacity-40'
+                    )}
                     onMouseDown={(e) => {
                       if (e.button !== 0) return
                       onCellMouseDown(position, colIndex, e.shiftKey)
@@ -2040,6 +2274,7 @@ const PositionGapRows = React.memo(
       prev.startPosition !== next.startPosition ||
       prev.columns !== next.columns ||
       prev.normalizedSelection !== next.normalizedSelection ||
+      prev.draggingColIndex !== next.draggingColIndex ||
       prev.firstRowUnderHeader !== next.firstRowUnderHeader ||
       prev.onCellMouseDown !== next.onCellMouseDown ||
       prev.onCellMouseEnter !== next.onCellMouseEnter ||
@@ -2082,6 +2317,7 @@ interface DataRowProps {
   initialCharacter: string | null
   pendingCellValue: Record<string, unknown> | null
   normalizedSelection: NormalizedSelection | null
+  draggingColIndex: number | null
   onClick: (rowId: string, columnName: string) => void
   onDoubleClick: (rowId: string, columnName: string) => void
   onSave: (rowId: string, columnName: string, value: unknown, reason: SaveReason) => void
@@ -2132,6 +2368,7 @@ function dataRowPropsAreEqual(prev: DataRowProps, next: DataRowProps): boolean {
     prev.isFirstRow !== next.isFirstRow ||
     prev.editingColumnName !== next.editingColumnName ||
     prev.pendingCellValue !== next.pendingCellValue ||
+    prev.draggingColIndex !== next.draggingColIndex ||
     prev.onClick !== next.onClick ||
     prev.onDoubleClick !== next.onDoubleClick ||
     prev.onSave !== next.onSave ||
@@ -2168,6 +2405,7 @@ const DataRow = React.memo(function DataRow({
   initialCharacter,
   pendingCellValue,
   normalizedSelection,
+  draggingColIndex,
   isRowChecked,
   onClick,
   onDoubleClick,
@@ -2235,7 +2473,11 @@ const DataRow = React.memo(function DataRow({
             key={column.name}
             data-row={rowIndex}
             data-col={colIndex}
-            className={cn(CELL, (isHighlighted || isAnchor || isEditing) && 'relative')}
+            className={cn(
+              CELL,
+              (isHighlighted || isAnchor || isEditing) && 'relative',
+              draggingColIndex === colIndex && 'opacity-40'
+            )}
             onMouseDown={(e) => {
               if (e.button !== 0 || isEditing) return
               onCellMouseDown(rowIndex, colIndex, e.shiftKey)
@@ -2605,6 +2847,7 @@ const COLUMN_TYPE_OPTIONS: { type: string; label: string; icon: React.ElementTyp
 
 const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   column,
+  colIndex,
   readOnly,
   isRenaming,
   renameValue,
@@ -2622,11 +2865,15 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onResizeEnd,
   isDragging,
   onDragStart,
-  onDragOver,
-  onDragEnd,
-  onDragLeave,
+  isColumnSelected,
+  onColumnSelect,
+  sortDirection,
+  onSortAsc,
+  onSortDesc,
+  onFilterColumn,
 }: {
   column: ColumnDefinition
+  colIndex: number
   readOnly?: boolean
   isRenaming: boolean
   renameValue: string
@@ -2643,14 +2890,22 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onResize: (columnName: string, width: number) => void
   onResizeEnd: () => void
   isDragging?: boolean
-  onDragStart?: (columnName: string) => void
-  onDragOver?: (columnName: string, side: 'left' | 'right') => void
-  onDragEnd?: () => void
-  onDragLeave?: () => void
+  onDragStart?: (
+    columnName: string,
+    element: HTMLElement,
+    pointerId: number,
+    startX: number
+  ) => void
+  isColumnSelected?: boolean
+  onColumnSelect?: (colIndex: number, shiftKey: boolean) => void
+  sortDirection?: SortDirection | null
+  onSortAsc?: (columnName: string) => void
+  onSortDesc?: (columnName: string) => void
+  onFilterColumn?: (columnName: string) => void
 }) {
   const renameInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isRenaming && renameInputRef.current) {
       renameInputRef.current.focus()
       renameInputRef.current.select()
@@ -2688,58 +2943,74 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     [column.name, onResizeStart, onResize, onResizeEnd]
   )
 
-  const handleDragStart = useCallback(
-    (e: React.DragEvent) => {
-      if (readOnly || isRenaming) {
-        e.preventDefault()
-        return
-      }
-      e.dataTransfer.effectAllowed = 'move'
-      e.dataTransfer.setData('text/plain', column.name)
-      onDragStart?.(column.name)
-    },
-    [column.name, readOnly, isRenaming, onDragStart]
-  )
+  const [menuOpen, setMenuOpen] = useState(false)
 
-  const handleDragOver = useCallback(
-    (e: React.DragEvent) => {
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (readOnly || isRenaming) return
       e.preventDefault()
-      e.dataTransfer.dropEffect = 'move'
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-      const midX = rect.left + rect.width / 2
-      const side = e.clientX < midX ? 'left' : 'right'
-      onDragOver?.(column.name, side)
+      onColumnSelect?.(colIndex, false)
+      setMenuOpen(true)
     },
-    [column.name, onDragOver]
+    [readOnly, isRenaming, colIndex, onColumnSelect]
   )
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-  }, [])
+  const handleThPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (isRenaming || e.button !== 0) return
+      e.preventDefault()
 
-  const handleDragEnd = useCallback(() => {
-    onDragEnd?.()
-  }, [onDragEnd])
-
-  const handleDragLeave = useCallback(
-    (e: React.DragEvent) => {
       const th = e.currentTarget as HTMLElement
-      const related = e.relatedTarget as Node | null
-      if (related && th.contains(related)) return
-      onDragLeave?.()
+      const startX = e.clientX
+      const startY = e.clientY
+      const shiftKey = e.shiftKey
+      const pid = e.pointerId
+      th.setPointerCapture(pid)
+      let dragging = false
+
+      const onMove = (ev: PointerEvent) => {
+        if (dragging) return
+        if (!readOnly && Math.hypot(ev.clientX - startX, ev.clientY - startY) > 4) {
+          dragging = true
+          th.removeEventListener('pointermove', onMove)
+          th.removeEventListener('pointerup', onUp)
+          th.removeEventListener('pointercancel', onCancel)
+          onDragStart?.(column.name, th, pid, ev.clientX)
+        }
+      }
+
+      const onUp = () => {
+        th.removeEventListener('pointermove', onMove)
+        th.removeEventListener('pointerup', onUp)
+        th.removeEventListener('pointercancel', onCancel)
+        th.releasePointerCapture(pid)
+        if (!dragging) onColumnSelect?.(colIndex, shiftKey)
+      }
+
+      const onCancel = () => {
+        th.removeEventListener('pointermove', onMove)
+        th.removeEventListener('pointerup', onUp)
+        th.removeEventListener('pointercancel', onCancel)
+        th.releasePointerCapture(pid)
+      }
+
+      th.addEventListener('pointermove', onMove)
+      th.addEventListener('pointerup', onUp)
+      th.addEventListener('pointercancel', onCancel)
     },
-    [onDragLeave]
+    [column.name, colIndex, isRenaming, readOnly, onColumnSelect, onDragStart]
   )
 
   return (
     <th
       className={cn(
-        'group relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle',
-        isDragging && 'opacity-40'
+        'group relative border-[var(--border)] border-r border-b p-0 text-left align-middle transition-colors',
+        isColumnSelected ? 'bg-[rgba(37,99,235,0.08)]' : 'bg-[var(--bg)]',
+        isDragging && 'opacity-40',
+        !isRenaming && 'cursor-pointer'
       )}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      onDragLeave={handleDragLeave}
+      onPointerDown={handleThPointerDown}
+      onContextMenu={handleContextMenu}
     >
       {isRenaming ? (
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
@@ -2760,26 +3031,59 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       ) : readOnly ? (
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
           <ColumnTypeIcon type={column.type} />
-          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
+          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
             {column.name}
           </span>
+          {sortDirection && (
+            <span className='ml-1 shrink-0'>
+              <SortDirectionIndicator direction={sortDirection} />
+            </span>
+          )}
         </div>
       ) : (
-        <div className='flex h-full w-full min-w-0 items-center'>
-          <DropdownMenu>
+        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
+          <ColumnTypeIcon type={column.type} />
+          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
+            {column.name}
+          </span>
+          {sortDirection && (
+            <span className='ml-1 shrink-0'>
+              <SortDirectionIndicator direction={sortDirection} />
+            </span>
+          )}
+          <button
+            type='button'
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              onColumnSelect?.(colIndex, false)
+              setMenuOpen((o) => !o)
+            }}
+            className='ml-1 flex shrink-0 cursor-pointer items-center opacity-0 outline-none transition-opacity group-hover:opacity-100'
+          >
+            <ChevronDown className='h-[7px] w-[9px] text-[var(--text-muted)]' />
+          </button>
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
-              <button
-                type='button'
-                className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-none'
-              >
-                <ColumnTypeIcon type={column.type} />
-                <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
-                  {column.name}
-                </span>
-                <ChevronDown className='ml-1.5 h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
-              </button>
+              <div className='pointer-events-none absolute inset-0' />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align='start'>
+            <DropdownMenuContent
+              align='start'
+              sideOffset={0}
+              onCloseAutoFocus={(e) => e.preventDefault()}
+            >
+              <DropdownMenuItem onSelect={() => onSortAsc?.(column.name)}>
+                <ArrowUp />
+                Sort ascending
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onSortDesc?.(column.name)}>
+                <ArrowDown />
+                Sort descending
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onFilterColumn?.(column.name)}>
+                <ListFilter />
+                Filter by this column
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => onRenameColumn(column.name)}>
                 <Pencil />
                 Rename column
@@ -2823,20 +3127,11 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <div
-            draggable
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            className='flex h-full cursor-grab items-center pr-1.5 pl-0.5 opacity-0 transition-opacity active:cursor-grabbing group-hover:opacity-100'
-          >
-            <GripVertical className='h-3 w-3 shrink-0 text-[var(--text-muted)]' />
-          </div>
         </div>
       )}
+
       <div
         className='-right-[3px] absolute top-0 z-[1] h-full w-[6px] cursor-col-resize'
-        draggable={false}
-        onDragStart={(e) => e.stopPropagation()}
         onPointerDown={handleResizePointerDown}
       />
     </th>
@@ -2899,4 +3194,12 @@ const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: ()
 function ColumnTypeIcon({ type }: { type: string }) {
   const Icon = COLUMN_TYPE_ICONS[type] ?? TypeText
   return <Icon className='h-3 w-3 shrink-0 text-[var(--text-icon)]' />
+}
+
+function SortDirectionIndicator({ direction }: { direction: SortDirection }) {
+  return direction === 'asc' ? (
+    <ArrowUp className='h-[10px] w-[10px] text-[var(--text-muted)]' />
+  ) : (
+    <ArrowDown className='h-[10px] w-[10px] text-[var(--text-muted)]' />
+  )
 }

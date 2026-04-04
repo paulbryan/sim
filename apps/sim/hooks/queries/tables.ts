@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
 import type { Filter, RowData, Sort, TableDefinition, TableMetadata, TableRow } from '@/lib/table'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 
 const logger = createLogger('TableQueries')
 
@@ -23,7 +24,7 @@ export const tableKeys = {
     [...tableKeys.rowsRoot(tableId), paramsKey] as const,
 }
 
-interface TableRowsParams {
+export interface TableRowsParams {
   workspaceId: string
   tableId: string
   limit: number
@@ -32,7 +33,7 @@ interface TableRowsParams {
   sort?: Sort | null
 }
 
-interface TableRowsResponse {
+export interface TableRowsResponse {
   rows: TableRow[]
   totalCount: number
 }
@@ -83,7 +84,7 @@ async function fetchTable(
   return (data as { table: TableDefinition }).table
 }
 
-async function fetchTableRows({
+export async function fetchTableRows({
   workspaceId,
   tableId,
   limit,
@@ -122,6 +123,48 @@ async function fetchTableRows({
   return {
     rows: (data.rows || []) as TableRow[],
     totalCount: data.totalCount || 0,
+  }
+}
+
+export async function fetchAllTableRows({
+  workspaceId,
+  tableId,
+  filter,
+  sort,
+  pageSize = TABLE_LIMITS.MAX_QUERY_LIMIT,
+  signal,
+}: Pick<TableRowsParams, 'workspaceId' | 'tableId' | 'filter' | 'sort'> & {
+  pageSize?: number
+  signal?: AbortSignal
+}): Promise<TableRowsResponse> {
+  const rows: TableRow[] = []
+  let totalCount = Number.POSITIVE_INFINITY
+  let offset = 0
+
+  while (rows.length < totalCount) {
+    const response = await fetchTableRows({
+      workspaceId,
+      tableId,
+      limit: pageSize,
+      offset,
+      filter,
+      sort,
+      signal,
+    })
+
+    rows.push(...response.rows)
+    totalCount = response.totalCount
+
+    if (response.rows.length === 0) {
+      break
+    }
+
+    offset += response.rows.length
+  }
+
+  return {
+    rows,
+    totalCount: Number.isFinite(totalCount) ? totalCount : rows.length,
   }
 }
 

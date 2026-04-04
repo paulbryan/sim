@@ -1,30 +1,11 @@
 /**
  * @vitest-environment node
  */
+import { createEditWorkflowRegistryMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 import { createBlockFromParams } from './builders'
 
-const agentBlockConfig = {
-  type: 'agent',
-  name: 'Agent',
-  outputs: {
-    content: { type: 'string', description: 'Default content output' },
-  },
-  subBlocks: [{ id: 'responseFormat', type: 'response-format' }],
-}
-
-const conditionBlockConfig = {
-  type: 'condition',
-  name: 'Condition',
-  outputs: {},
-  subBlocks: [{ id: 'conditions', type: 'condition-input' }],
-}
-
-vi.mock('@/blocks/registry', () => ({
-  getAllBlocks: () => [agentBlockConfig, conditionBlockConfig],
-  getBlock: (type: string) =>
-    type === 'agent' ? agentBlockConfig : type === 'condition' ? conditionBlockConfig : undefined,
-}))
+vi.mock('@/blocks/registry', () => createEditWorkflowRegistryMock(['agent', 'condition']))
 
 describe('createBlockFromParams', () => {
   it('derives agent outputs from responseFormat when outputs are not provided', () => {

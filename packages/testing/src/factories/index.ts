@@ -118,6 +118,15 @@ export {
   type SerializedConnection,
   type SerializedWorkflow,
 } from './serialized-block.factory'
+export {
+  createTableColumn,
+  createTableRow,
+  type TableColumnFactoryOptions,
+  type TableColumnFixture,
+  type TableColumnType,
+  type TableRowFactoryOptions,
+  type TableRowFixture,
+} from './table.factory'
 // Tool mock responses
 export {
   mockDriveResponses,
@@ -178,3 +187,10 @@ export {
   type WorkflowFactoryOptions,
   type WorkflowStateFixture,
 } from './workflow.factory'
+export {
+  createWorkflowVariable,
+  createWorkflowVariablesMap,
+  type WorkflowVariableFactoryOptions,
+  type WorkflowVariableFixture,
+  type WorkflowVariableType,
+} from './workflow-variable.factory'

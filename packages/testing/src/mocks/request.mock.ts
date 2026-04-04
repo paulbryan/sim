@@ -60,6 +60,13 @@ export function createMockFormDataRequest(
 }
 
 /**
+ * Creates the async `params` object used by App Router route handlers.
+ */
+export function asyncRouteParams<T extends Record<string, unknown>>(params: T): Promise<T> {
+  return Promise.resolve(params)
+}
+
+/**
  * Pre-configured mock for @/lib/core/utils/request module.
  *
  * @example

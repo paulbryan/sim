@@ -1,10 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { createTableColumn } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { TABLE_LIMITS } from '../constants'
 import {
-  type ColumnDefinition,
   getUniqueColumns,
   type TableSchema,
   validateColumnDefinition,
@@ -66,12 +66,12 @@ describe('Validation', () => {
 
   describe('validateColumnDefinition', () => {
     it('should accept valid column definition', () => {
-      const column: ColumnDefinition = {
+      const column = createTableColumn({
         name: 'email',
         type: 'string',
         required: true,
         unique: true,
-      }
+      })
       const result = validateColumnDefinition(column)
       expect(result.valid).toBe(true)
     })
@@ -80,19 +80,20 @@ describe('Validation', () => {
       const types = ['string', 'number', 'boolean', 'date', 'json'] as const
 
       for (const type of types) {
-        const result = validateColumnDefinition({ name: 'test', type })
+        const result = validateColumnDefinition(createTableColumn({ name: 'test', type }))
         expect(result.valid).toBe(true)
       }
     })
 
     it('should reject empty column name', () => {
-      const result = validateColumnDefinition({ name: '', type: 'string' })
+      const result = validateColumnDefinition(createTableColumn({ name: '', type: 'string' }))
       expect(result.valid).toBe(false)
       expect(result.errors).toContain('Column name is required')
     })
 
     it('should reject invalid column type', () => {
       const result = validateColumnDefinition({
+        ...createTableColumn({ name: 'test' }),
         name: 'test',
         type: 'invalid' as any,
       })
@@ -102,7 +103,7 @@ describe('Validation', () => {
 
     it('should reject column name exceeding max length', () => {
       const longName = 'a'.repeat(TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH + 1)
-      const result = validateColumnDefinition({ name: longName, type: 'string' })
+      const result = validateColumnDefinition(createTableColumn({ name: longName, type: 'string' }))
       expect(result.valid).toBe(false)
       expect(result.errors[0]).toContain('exceeds maximum length')
     })
@@ -112,9 +113,9 @@ describe('Validation', () => {
     it('should accept valid schema', () => {
       const schema: TableSchema = {
         columns: [
-          { name: 'id', type: 'string', required: true, unique: true },
-          { name: 'name', type: 'string', required: true },
-          { name: 'age', type: 'number' },
+          createTableColumn({ name: 'id', type: 'string', required: true, unique: true }),
+          createTableColumn({ name: 'name', type: 'string', required: true }),
+          createTableColumn({ name: 'age', type: 'number' }),
         ],
       }
       const result = validateTableSchema(schema)
@@ -131,8 +132,8 @@ describe('Validation', () => {
     it('should reject duplicate column names', () => {
       const schema: TableSchema = {
         columns: [
-          { name: 'id', type: 'string' },
-          { name: 'ID', type: 'number' },
+          createTableColumn({ name: 'id', type: 'string' }),
+          createTableColumn({ name: 'ID', type: 'number' }),
         ],
       }
       const result = validateTableSchema(schema)
@@ -153,10 +154,9 @@ describe('Validation', () => {
     })
 
     it('should reject schema exceeding max columns', () => {
-      const columns = Array.from({ length: TABLE_LIMITS.MAX_COLUMNS_PER_TABLE + 1 }, (_, i) => ({
-        name: `col_${i}`,
-        type: 'string' as const,
-      }))
+      const columns = Array.from({ length: TABLE_LIMITS.MAX_COLUMNS_PER_TABLE + 1 }, (_, i) =>
+        createTableColumn({ name: `col_${i}`, type: 'string' })
+      )
       const result = validateTableSchema({ columns })
       expect(result.valid).toBe(false)
       expect(result.errors[0]).toContain('exceeds maximum columns')
@@ -182,11 +182,11 @@ describe('Validation', () => {
   describe('validateRowAgainstSchema', () => {
     const schema: TableSchema = {
       columns: [
-        { name: 'name', type: 'string', required: true },
-        { name: 'age', type: 'number' },
-        { name: 'active', type: 'boolean' },
-        { name: 'created', type: 'date' },
-        { name: 'metadata', type: 'json' },
+        createTableColumn({ name: 'name', type: 'string', required: true }),
+        createTableColumn({ name: 'age', type: 'number' }),
+        createTableColumn({ name: 'active', type: 'boolean' }),
+        createTableColumn({ name: 'created', type: 'date' }),
+        createTableColumn({ name: 'metadata', type: 'json' }),
       ],
     }
 
@@ -281,10 +281,10 @@ describe('Validation', () => {
     it('should return only columns with unique=true', () => {
       const schema: TableSchema = {
         columns: [
-          { name: 'id', type: 'string', unique: true },
-          { name: 'email', type: 'string', unique: true },
-          { name: 'name', type: 'string' },
-          { name: 'count', type: 'number', unique: false },
+          createTableColumn({ name: 'id', type: 'string', unique: true }),
+          createTableColumn({ name: 'email', type: 'string', unique: true }),
+          createTableColumn({ name: 'name', type: 'string' }),
+          createTableColumn({ name: 'count', type: 'number', unique: false }),
         ],
       }
       const result = getUniqueColumns(schema)
@@ -295,8 +295,8 @@ describe('Validation', () => {
     it('should return empty array when no unique columns', () => {
       const schema: TableSchema = {
         columns: [
-          { name: 'name', type: 'string' },
-          { name: 'value', type: 'number' },
+          createTableColumn({ name: 'name', type: 'string' }),
+          createTableColumn({ name: 'value', type: 'number' }),
         ],
       }
       const result = getUniqueColumns(schema)
@@ -307,9 +307,9 @@ describe('Validation', () => {
   describe('validateUniqueConstraints', () => {
     const schema: TableSchema = {
       columns: [
-        { name: 'id', type: 'string', unique: true },
-        { name: 'email', type: 'string', unique: true },
-        { name: 'name', type: 'string' },
+        createTableColumn({ name: 'id', type: 'string', unique: true }),
+        createTableColumn({ name: 'email', type: 'string', unique: true }),
+        createTableColumn({ name: 'name', type: 'string' }),
       ],
     }
 

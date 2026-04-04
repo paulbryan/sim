@@ -18,12 +18,15 @@ import {
 } from '@/components/emcn'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 import {
+  cleanCellValue,
+  formatValueForInput,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/utils'
+import {
   useCreateTableRow,
   useDeleteTableRow,
   useDeleteTableRows,
   useUpdateTableRow,
 } from '@/hooks/queries/tables'
-import { cleanCellValue, formatValueForInput } from '../../utils'
 
 const logger = createLogger('RowModal')
 

@@ -1,6 +1,14 @@
 'use client'
 
-import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import {
+  forwardRef,
+  memo,
+  useCallback,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { X } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import {
@@ -19,21 +27,41 @@ const OPERATOR_LABELS = Object.fromEntries(
   COMPARISON_OPERATORS.map((op) => [op.value, op.label])
 ) as Record<string, string>
 
+export interface TableFilterHandle {
+  addColumnRule: (columnName: string) => void
+}
+
 interface TableFilterProps {
   columns: Array<{ name: string; type: string }>
   filter: Filter | null
   onApply: (filter: Filter | null) => void
   onClose: () => void
+  initialColumn?: string | null
 }
 
-export function TableFilter({ columns, filter, onApply, onClose }: TableFilterProps) {
+export const TableFilter = forwardRef<TableFilterHandle, TableFilterProps>(function TableFilter(
+  { columns, filter, onApply, onClose, initialColumn },
+  ref
+) {
   const [rules, setRules] = useState<FilterRule[]>(() => {
     const fromFilter = filterToRules(filter)
-    return fromFilter.length > 0 ? fromFilter : [createRule(columns)]
+    if (fromFilter.length > 0) return fromFilter
+    const rule = createRule(columns)
+    return [initialColumn ? { ...rule, column: initialColumn } : rule]
   })
 
   const rulesRef = useRef(rules)
   rulesRef.current = rules
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      addColumnRule: (columnName: string) => {
+        setRules((prev) => [...prev, { ...createRule(columns), column: columnName }])
+      },
+    }),
+    [columns]
+  )
 
   const columnOptions = useMemo(
     () => columns.map((col) => ({ value: col.name, label: col.name })),
@@ -125,7 +153,7 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
       </div>
     </div>
   )
-}
+})
 
 interface FilterRuleRowProps {
   rule: FilterRule

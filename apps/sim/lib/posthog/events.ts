@@ -317,6 +317,15 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  table_exported: {
+    workspace_id: string
+    table_id: string
+    row_count: number
+    column_count: number
+    has_filter: boolean
+    has_sort: boolean
+  }
+
   custom_tool_saved: {
     tool_id: string
     workspace_id: string

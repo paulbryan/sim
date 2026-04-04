@@ -1,32 +1,12 @@
 /**
  * @vitest-environment node
  */
+import { createEditWorkflowRegistryMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 import { normalizeConditionRouterIds } from './builders'
 import { validateInputsForBlock } from './validation'
 
-const conditionBlockConfig = {
-  type: 'condition',
-  name: 'Condition',
-  outputs: {},
-  subBlocks: [{ id: 'conditions', type: 'condition-input' }],
-}
-
-const routerBlockConfig = {
-  type: 'router_v2',
-  name: 'Router',
-  outputs: {},
-  subBlocks: [{ id: 'routes', type: 'router-input' }],
-}
-
-vi.mock('@/blocks/registry', () => ({
-  getBlock: (type: string) =>
-    type === 'condition'
-      ? conditionBlockConfig
-      : type === 'router_v2'
-        ? routerBlockConfig
-        : undefined,
-}))
+vi.mock('@/blocks/registry', () => createEditWorkflowRegistryMock(['condition', 'router_v2']))
 
 describe('validateInputsForBlock', () => {
   it('accepts condition-input arrays with arbitrary item ids', () => {

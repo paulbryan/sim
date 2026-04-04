@@ -1,6 +1,7 @@
 import type { TableDefinition, TableRow } from '@/lib/table'
+import { TABLE_LIMITS } from '@/lib/table/constants'
+import type { QueryOptions } from '@/app/workspace/[workspaceId]/tables/[tableId]/types'
 import { useTable, useTableRows } from '@/hooks/queries/tables'
-import type { QueryOptions } from '../types'
 
 interface UseTableDataParams {
   workspaceId: string
@@ -30,7 +31,7 @@ export function useTableData({
   } = useTableRows({
     workspaceId,
     tableId,
-    limit: 1000,
+    limit: TABLE_LIMITS.MAX_QUERY_LIMIT,
     offset: 0,
     filter: queryOptions.filter,
     sort: queryOptions.sort,

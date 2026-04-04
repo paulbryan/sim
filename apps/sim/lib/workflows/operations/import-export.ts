@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { sanitizePathSegment } from '@/lib/core/utils/file-download'
 import {
   type ExportWorkflowState,
   sanitizeForExport,
@@ -7,6 +8,8 @@ import { regenerateWorkflowIds } from '@/stores/workflows/utils'
 import type { Variable, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowImportExport')
+
+export { downloadFile, sanitizePathSegment } from '@/lib/core/utils/file-download'
 
 async function getJSZip() {
   const { default: JSZip } = await import('jszip')
@@ -41,36 +44,6 @@ export interface WorkspaceExportStructure {
   }
   workflows: WorkflowExportData[]
   folders: FolderExportData[]
-}
-
-/**
- * Sanitizes a string for use as a path segment in a ZIP file.
- */
-export function sanitizePathSegment(name: string): string {
-  return name.replace(/[^a-z0-9-_]/gi, '-')
-}
-
-/**
- * Downloads a file to the user's device.
- */
-export function downloadFile(
-  content: Blob | string,
-  filename: string,
-  mimeType = 'application/json'
-): void {
-  try {
-    const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  } catch (error) {
-    logger.error('Failed to download file:', error)
-  }
 }
 
 /**
