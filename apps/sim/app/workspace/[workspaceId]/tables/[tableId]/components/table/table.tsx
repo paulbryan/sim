@@ -707,8 +707,14 @@ export function Table({
     if (target && dragged !== target) {
       const currentOrder = columnOrderRef.current ?? columnsRef.current.map((c) => c.name)
       const newOrder = currentOrder.filter((n) => n !== dragged)
-      let insertIndex = newOrder.indexOf(target)
-      if (side === 'right') insertIndex += 1
+      const targetIndex = newOrder.indexOf(target)
+      if (targetIndex === -1) {
+        setDragColumnName(null)
+        setDropTargetColumnName(null)
+        setDropSide('left')
+        return
+      }
+      const insertIndex = side === 'right' ? targetIndex + 1 : targetIndex
       newOrder.splice(insertIndex, 0, dragged)
       setColumnOrder(newOrder)
       updateMetadataRef.current({
@@ -1214,19 +1220,23 @@ export function Table({
         }
 
         // Create columns sequentially so each invalidation completes before the next
+        const createdColNames: string[] = []
         try {
           for (const name of newColNames) {
             await addColumnAsyncRef.current({ name, type: 'string' })
+            createdColNames.push(name)
           }
         } catch {
-          // If column creation fails, paste into whatever columns exist
+          // If column creation fails partway, paste into whatever columns were created
         }
 
         // Build updated column list locally — React Query cache may not have refreshed yet
-        currentCols = [
-          ...currentCols,
-          ...newColNames.map((name) => ({ name, type: 'string' as const })),
-        ]
+        if (createdColNames.length > 0) {
+          currentCols = [
+            ...currentCols,
+            ...createdColNames.map((name) => ({ name, type: 'string' as const })),
+          ]
+        }
       }
 
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
@@ -1685,6 +1695,12 @@ export function Table({
     [dragColumnName, displayColumns]
   )
 
+  const handleColumnSelect = useCallback((colIndex: number) => {
+    setSelectionAnchor({ rowIndex: 0, colIndex })
+    setSelectionFocus({ rowIndex: 0, colIndex })
+    setIsColumnSelection(true)
+  }, [])
+
   const handleSortAsc = useCallback(
     (columnName: string) => handleSortChange(columnName, 'asc'),
     [handleSortChange]
@@ -1830,10 +1846,11 @@ export function Table({
                     checked={isAllRowsSelected}
                     onCheckedChange={handleSelectAllToggle}
                   />
-                  {displayColumns.map((column) => (
+                  {displayColumns.map((column, colIndex) => (
                     <ColumnHeaderMenu
                       key={column.name}
                       column={column}
+                      colIndex={colIndex}
                       readOnly={!userPermissions.canEdit}
                       isRenaming={columnRename.editingId === column.name}
                       renameValue={
@@ -1862,6 +1879,7 @@ export function Table({
                       onSortAsc={handleSortAsc}
                       onSortDesc={handleSortDesc}
                       onFilterColumn={handleFilterByColumn}
+                      onColumnSelect={handleColumnSelect}
                     />
                   ))}
                   {userPermissions.canEdit && (
@@ -2766,6 +2784,7 @@ const COLUMN_TYPE_OPTIONS: { type: string; label: string; icon: React.ElementTyp
 
 const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   column,
+  colIndex,
   readOnly,
   isRenaming,
   renameValue,
@@ -2790,8 +2809,10 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onSortAsc,
   onSortDesc,
   onFilterColumn,
+  onColumnSelect,
 }: {
   column: ColumnDefinition
+  colIndex: number
   readOnly?: boolean
   isRenaming: boolean
   renameValue: string
@@ -2816,6 +2837,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onSortAsc?: (columnName: string) => void
   onSortDesc?: (columnName: string) => void
   onFilterColumn?: (columnName: string) => void
+  onColumnSelect?: (colIndex: number) => void
 }) {
   const renameInputRef = useRef<HTMLInputElement>(null)
 
@@ -2940,6 +2962,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               <button
                 type='button'
                 className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-none'
+                onClick={() => onColumnSelect?.(colIndex)}
               >
                 <ColumnTypeIcon type={column.type} />
                 <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
