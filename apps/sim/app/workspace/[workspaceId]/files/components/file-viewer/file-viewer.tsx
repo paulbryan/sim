@@ -163,7 +163,7 @@ export function FileViewer({
   }
 
   if (category === 'iframe-previewable') {
-    return <IframePreview file={file} />
+    return <IframePreview file={file} workspaceId={workspaceId} />
   }
 
   if (category === 'image-previewable') {
@@ -454,13 +454,36 @@ function TextEditor({
   )
 }
 
-const IframePreview = memo(function IframePreview({ file }: { file: WorkspaceFileRecord }) {
-  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
+const IframePreview = memo(function IframePreview({
+  file,
+  workspaceId,
+}: {
+  file: WorkspaceFileRecord
+  workspaceId: string
+}) {
+  const { data: fileData, isLoading } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!fileData) return
+    const blob = new Blob([fileData], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    setBlobUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [fileData])
+
+  if (isLoading || !blobUrl) {
+    return (
+      <div className='flex h-full items-center justify-center'>
+        <Skeleton className='h-[200px] w-[80%]' />
+      </div>
+    )
+  }
 
   return (
     <div className='flex flex-1 overflow-hidden'>
       <iframe
-        src={serveUrl}
+        src={blobUrl}
         className='h-full w-full border-0'
         title={file.name}
         onError={() => {

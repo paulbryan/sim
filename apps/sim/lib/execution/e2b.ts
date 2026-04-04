@@ -6,6 +6,7 @@ import { CodeLanguage } from '@/lib/execution/languages'
 export interface SandboxFile {
   path: string
   content: string
+  encoding?: 'base64'
 }
 
 export interface E2BExecutionRequest {
@@ -49,7 +50,15 @@ export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecuti
 
   if (req.sandboxFiles?.length) {
     for (const file of req.sandboxFiles) {
-      await sandbox.files.write(file.path, file.content)
+      if (file.encoding === 'base64') {
+        const buf = Buffer.from(file.content, 'base64')
+        await sandbox.files.write(
+          file.path,
+          buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+        )
+      } else {
+        await sandbox.files.write(file.path, file.content)
+      }
     }
     logger.info('Wrote sandbox input files', {
       sandboxId,
@@ -125,9 +134,30 @@ export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecuti
       }
     }
 
-    const exportedFileContent = outputSandboxPath
-      ? await sandbox.files.read(outputSandboxPath)
-      : undefined
+    let exportedFileContent: string | undefined
+    if (outputSandboxPath) {
+      const ext = outputSandboxPath.slice(outputSandboxPath.lastIndexOf('.')).toLowerCase()
+      const binaryExts = new Set([
+        '.png',
+        '.jpg',
+        '.jpeg',
+        '.gif',
+        '.webp',
+        '.pdf',
+        '.zip',
+        '.mp3',
+        '.mp4',
+        '.docx',
+        '.pptx',
+        '.xlsx',
+      ])
+      if (binaryExts.has(ext)) {
+        const b64Result = await sandbox.commands.run(`base64 -w0 "${outputSandboxPath}"`)
+        exportedFileContent = b64Result.stdout
+      } else {
+        exportedFileContent = await sandbox.files.read(outputSandboxPath)
+      }
+    }
 
     return {
       result,
@@ -164,7 +194,15 @@ export async function executeShellInE2B(
 
   if (req.sandboxFiles?.length) {
     for (const file of req.sandboxFiles) {
-      await sandbox.files.write(file.path, file.content)
+      if (file.encoding === 'base64') {
+        const buf = Buffer.from(file.content, 'base64')
+        await sandbox.files.write(
+          file.path,
+          buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+        )
+      } else {
+        await sandbox.files.write(file.path, file.content)
+      }
     }
     logger.info('Wrote sandbox input files', {
       sandboxId,
@@ -237,9 +275,32 @@ export async function executeShellInE2B(
       cleanedStdout = filteredLines.join('\n')
     }
 
-    const exportedFileContent = outputSandboxPath
-      ? await sandbox.files.read(outputSandboxPath)
-      : undefined
+    let exportedFileContent: string | undefined
+    if (outputSandboxPath) {
+      const ext = outputSandboxPath.slice(outputSandboxPath.lastIndexOf('.')).toLowerCase()
+      const binaryExts = new Set([
+        '.png',
+        '.jpg',
+        '.jpeg',
+        '.gif',
+        '.webp',
+        '.pdf',
+        '.zip',
+        '.mp3',
+        '.mp4',
+        '.docx',
+        '.pptx',
+        '.xlsx',
+      ])
+      if (binaryExts.has(ext)) {
+        const b64Result = await sandbox.commands.run(`base64 -w0 "${outputSandboxPath}"`, {
+          user: 'root',
+        })
+        exportedFileContent = b64Result.stdout
+      } else {
+        exportedFileContent = await sandbox.files.read(outputSandboxPath)
+      }
+    }
 
     return { result: parsed, stdout: cleanedStdout, sandboxId, exportedFileContent }
   } finally {

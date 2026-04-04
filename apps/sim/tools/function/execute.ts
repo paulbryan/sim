@@ -35,29 +35,36 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
     outputPath: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'hidden',
       description:
         'Write the tool result back to a workspace file, e.g. "files/result.json" or "files/report.csv". Use for text/JSON/CSV/markdown/html outputs.',
     },
     outputFormat: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'hidden',
       description: 'Optional format override for outputPath (json, csv, txt, md, html).',
     },
     outputTable: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'hidden',
       description:
         'Overwrite a workspace table with the code result. The code must return an array of objects.',
     },
     outputSandboxPath: {
       type: 'string',
       required: false,
-      visibility: 'user-or-llm',
+      visibility: 'hidden',
       description:
         'Export a file created inside the sandbox to the workspace. Provide the sandbox file path here and also set outputPath to the workspace destination.',
+    },
+    outputMimeType: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description:
+        'MIME type for the exported file. Required for binary files (e.g. "image/png", "application/pdf"). If omitted, inferred from outputPath extension for text formats.',
     },
     envVars: {
       type: 'object',
@@ -115,6 +122,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         outputFormat: params.outputFormat,
         outputTable: params.outputTable,
         outputSandboxPath: params.outputSandboxPath,
+        outputMimeType: params.outputMimeType,
         envVars: params.envVars || {},
         workflowVariables: params.workflowVariables || {},
         blockData: params.blockData || {},

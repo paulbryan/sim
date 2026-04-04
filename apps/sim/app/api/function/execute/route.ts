@@ -593,6 +593,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
   workspaceId?: string
   outputPath?: string
   outputFormat?: string
+  outputMimeType?: string
   outputSandboxPath?: string
   exportedFileContent?: string
   stdout: string
@@ -604,6 +605,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
     workspaceId,
     outputPath,
     outputFormat,
+    outputMimeType,
     outputSandboxPath,
     exportedFileContent,
     stdout,
@@ -650,14 +652,23 @@ async function maybeExportSandboxFileToWorkspace(args: {
   }
 
   const fileName = normalizeOutputWorkspaceFileName(outputPath)
-  const format = resolveOutputFormat(fileName, outputFormat)
-  const contentType = FORMAT_TO_CONTENT_TYPE[format]
+
+  const TEXT_MIMES = new Set(Object.values(FORMAT_TO_CONTENT_TYPE))
+  const resolvedMimeType =
+    outputMimeType ||
+    FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, outputFormat)] ||
+    'application/octet-stream'
+  const isBinary = !TEXT_MIMES.has(resolvedMimeType)
+  const fileBuffer = isBinary
+    ? Buffer.from(exportedFileContent, 'base64')
+    : Buffer.from(exportedFileContent, 'utf-8')
+
   const uploaded = await uploadWorkspaceFile(
     resolvedWorkspaceId,
     authUserId,
-    Buffer.from(exportedFileContent, 'utf-8'),
+    fileBuffer,
     fileName,
-    contentType
+    resolvedMimeType
   )
 
   return NextResponse.json({
@@ -702,6 +713,7 @@ export async function POST(req: NextRequest) {
       language = DEFAULT_CODE_LANGUAGE,
       outputPath,
       outputFormat,
+      outputMimeType,
       outputSandboxPath,
       envVars = {},
       blockData = {},
@@ -815,6 +827,7 @@ export async function POST(req: NextRequest) {
           workspaceId,
           outputPath,
           outputFormat,
+          outputMimeType,
           outputSandboxPath,
           exportedFileContent,
           stdout: shellStdout,
@@ -938,6 +951,7 @@ export async function POST(req: NextRequest) {
             workspaceId,
             outputPath,
             outputFormat,
+            outputMimeType,
             outputSandboxPath,
             exportedFileContent,
             stdout,
@@ -1019,6 +1033,7 @@ export async function POST(req: NextRequest) {
           workspaceId,
           outputPath,
           outputFormat,
+          outputMimeType,
           outputSandboxPath,
           exportedFileContent,
           stdout,

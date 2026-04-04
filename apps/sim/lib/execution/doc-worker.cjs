@@ -39,7 +39,16 @@ const FORMATS = {
     async setup() {
       const PDFLib = require('pdf-lib')
       const pdf = await PDFLib.PDFDocument.create()
-      return { globals: { PDFLib, pdf }, pdf }
+
+      async function embedImage(dataUri) {
+        const base64 = dataUri.split(',')[1]
+        const bytes = Buffer.from(base64, 'base64')
+        const mime = dataUri.split(';')[0].split(':')[1] || ''
+        if (mime.includes('png')) return pdf.embedPng(bytes)
+        return pdf.embedJpg(bytes)
+      }
+
+      return { globals: { PDFLib, pdf, embedImage }, pdf }
     },
     async serialize(ctx) {
       const pdf = ctx.globals.pdf

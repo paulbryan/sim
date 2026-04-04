@@ -11,6 +11,7 @@ export interface CodeExecutionInput {
   outputFormat?: 'json' | 'csv' | 'txt' | 'md' | 'html'
   outputTable?: string
   outputSandboxPath?: string
+  outputMimeType?: string
   envVars?: Record<string, string>
   workflowVariables?: Record<string, unknown>
   blockData?: Record<string, unknown>
