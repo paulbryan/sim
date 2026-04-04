@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
@@ -2905,7 +2905,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
 }) {
   const renameInputRef = useRef<HTMLInputElement>(null)
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (isRenaming && renameInputRef.current) {
       renameInputRef.current.focus()
       renameInputRef.current.select()
@@ -2958,6 +2958,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   const handleThPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (isRenaming || e.button !== 0) return
+      if ((e.target as HTMLElement).closest('button')) return
       e.preventDefault()
 
       const th = e.currentTarget as HTMLElement
@@ -3041,36 +3042,27 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           )}
         </div>
       ) : (
-        <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
-          <ColumnTypeIcon type={column.type} />
-          <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
-            {column.name}
-          </span>
-          {sortDirection && (
-            <span className='ml-1 shrink-0'>
-              <SortDirectionIndicator direction={sortDirection} />
-            </span>
-          )}
-          <button
-            type='button'
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => {
-              onColumnSelect?.(colIndex, false)
-              setMenuOpen((o) => !o)
-            }}
-            className='ml-1 flex shrink-0 cursor-pointer items-center opacity-0 outline-none transition-opacity group-hover:opacity-100'
-          >
-            <ChevronDown className='h-[7px] w-[9px] text-[var(--text-muted)]' />
-          </button>
+        <div className='flex h-full w-full min-w-0 items-center'>
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
-              <div className='pointer-events-none absolute inset-0' />
+              <button
+                type='button'
+                onClick={(e) => onColumnSelect?.(colIndex, e.shiftKey)}
+                className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-none'
+              >
+                <ColumnTypeIcon type={column.type} />
+                <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
+                  {column.name}
+                </span>
+                {sortDirection && (
+                  <span className='ml-1 shrink-0'>
+                    <SortDirectionIndicator direction={sortDirection} />
+                  </span>
+                )}
+                <ChevronDown className='ml-1 h-[7px] w-[9px] shrink-0 text-[var(--text-muted)] opacity-0 transition-opacity group-hover:opacity-100' />
+              </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align='start'
-              sideOffset={0}
-              onCloseAutoFocus={(e) => e.preventDefault()}
-            >
+            <DropdownMenuContent align='start' sideOffset={0}>
               <DropdownMenuItem onSelect={() => onSortAsc?.(column.name)}>
                 <ArrowUp />
                 Sort ascending
