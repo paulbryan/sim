@@ -86,6 +86,7 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url)
   const streamId = url.searchParams.get('streamId') || ''
   const afterCursor = url.searchParams.get('after') || ''
+  const batchMode = url.searchParams.get('batch') === 'true'
 
   if (!streamId) {
     return NextResponse.json({ error: 'streamId is required' }, { status: 400 })
@@ -101,11 +102,33 @@ export async function GET(request: NextRequest) {
   logger.info('[Resume] Stream lookup', {
     streamId,
     afterCursor,
+    batchMode,
     hasRun: !!run,
     runStatus: run?.status,
   })
   if (!run) {
     return NextResponse.json({ error: 'Stream not found' }, { status: 404 })
+  }
+
+  if (batchMode) {
+    const afterSeq = afterCursor || '0'
+    const events = await readEvents(streamId, afterSeq)
+    const batchEvents = events.map((envelope) => ({
+      eventId: envelope.seq,
+      streamId: envelope.stream.streamId,
+      event: envelope,
+    }))
+    logger.info('[Resume] Batch response', {
+      streamId,
+      afterCursor: afterSeq,
+      eventCount: batchEvents.length,
+      runStatus: run.status,
+    })
+    return NextResponse.json({
+      success: true,
+      events: batchEvents,
+      status: run.status,
+    })
   }
 
   const startTime = Date.now()
