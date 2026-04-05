@@ -108,7 +108,9 @@ const DEPLOY_TOOL_NAMES: Set<string> = new Set([
 ])
 const RECONNECT_TAIL_ERROR =
   'Live reconnect failed before the stream finished. The latest response may be incomplete.'
-const RECOVERY_RETRY_DELAYS_MS = [250, 500, 1000, 2000] as const
+const MAX_RECONNECT_ATTEMPTS = 10
+const RECONNECT_BASE_DELAY_MS = 1000
+const RECONNECT_MAX_DELAY_MS = 30_000
 
 const logger = createLogger('useChat')
 
@@ -1278,9 +1280,27 @@ export function useChat(
       setIsReconnecting(true)
 
       try {
-        for (let attempt = 0; attempt <= RECOVERY_RETRY_DELAYS_MS.length; attempt++) {
+        for (let attempt = 0; attempt <= MAX_RECONNECT_ATTEMPTS; attempt++) {
           if (abortController.signal.aborted || isStale()) {
             return { attached: false, hadStreamError: false, aborted: true }
+          }
+
+          if (attempt > 0) {
+            const delayMs = Math.min(
+              RECONNECT_BASE_DELAY_MS * 2 ** (attempt - 1),
+              RECONNECT_MAX_DELAY_MS
+            )
+            logger.warn('Reconnect attempt', {
+              streamId,
+              attempt,
+              maxAttempts: MAX_RECONNECT_ATTEMPTS,
+              delayMs,
+            })
+            setIsReconnecting(true)
+            await waitForRetry(delayMs)
+            if (abortController.signal.aborted || isStale()) {
+              return { attached: false, hadStreamError: false, aborted: true }
+            }
           }
 
           if (!streamId && chatId) {
@@ -1340,12 +1360,12 @@ export function useChat(
               }
             }
           }
-
-          if (attempt < RECOVERY_RETRY_DELAYS_MS.length) {
-            await waitForRetry(RECOVERY_RETRY_DELAYS_MS[attempt] ?? 1000)
-          }
         }
 
+        logger.error('All reconnect attempts exhausted', {
+          streamId,
+          maxAttempts: MAX_RECONNECT_ATTEMPTS,
+        })
         setError(lastError)
         return { attached: false, hadStreamError: true, aborted: false }
       } finally {
