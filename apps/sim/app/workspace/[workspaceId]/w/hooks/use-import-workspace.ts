@@ -1,11 +1,11 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { sanitizePathSegment } from '@/lib/core/utils/file-download'
 import {
   extractWorkflowName,
   extractWorkflowsFromZip,
   parseWorkflowJson,
-  sanitizePathSegment,
 } from '@/lib/workflows/operations/import-export'
 import { useCreateFolder } from '@/hooks/queries/folders'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
