@@ -1,11 +1,10 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { downloadFile, sanitizePathSegment } from '@/lib/core/utils/file-download'
 import {
-  downloadFile,
   exportWorkspaceToZip,
   type FolderExportData,
   fetchWorkflowForExport,
-  sanitizePathSegment,
   type WorkflowExportData,
 } from '@/lib/workflows/operations/import-export'
 

@@ -9,8 +9,6 @@ import type { Variable, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowImportExport')
 
-export { downloadFile, sanitizePathSegment } from '@/lib/core/utils/file-download'
-
 async function getJSZip() {
   const { default: JSZip } = await import('jszip')
   return JSZip

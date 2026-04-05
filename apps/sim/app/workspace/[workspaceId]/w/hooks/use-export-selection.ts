@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import { downloadFile } from '@/lib/core/utils/file-download'
 import {
-  downloadFile,
   exportWorkflowsToZip,
   type FolderExportData,
   fetchWorkflowForExport,

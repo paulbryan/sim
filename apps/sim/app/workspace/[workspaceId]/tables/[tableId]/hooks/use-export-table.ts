@@ -30,10 +30,18 @@ export function useExportTable({
   const posthog = usePostHog()
   const [isExporting, setIsExporting] = useState(false)
   const isExportingRef = useRef(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort()
+    }
+  }, [])
 
   const handleExportTable = useCallback(async () => {
     if (!canExport || !workspaceId || !tableId || isExportingRef.current) return
 
+    abortControllerRef.current = new AbortController()
     isExportingRef.current = true
     setIsExporting(true)
 
@@ -43,6 +51,7 @@ export function useExportTable({
         tableId,
         filter: queryOptions.filter,
         sort: queryOptions.sort,
+        signal: abortControllerRef.current.signal,
       })
 
       const filename = `${sanitizePathSegment(tableName?.trim() || 'table')}.csv`

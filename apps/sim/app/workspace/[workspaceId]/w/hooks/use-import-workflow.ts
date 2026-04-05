@@ -3,12 +3,12 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { sanitizePathSegment } from '@/lib/core/utils/file-download'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   extractWorkflowsFromFiles,
   extractWorkflowsFromZip,
   persistImportedWorkflow,
-  sanitizePathSegment,
 } from '@/lib/workflows/operations/import-export'
 import { useCreateFolder } from '@/hooks/queries/folders'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'

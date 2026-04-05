@@ -2,13 +2,12 @@ import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { downloadFile, sanitizePathSegment } from '@/lib/core/utils/file-download'
 import { captureEvent } from '@/lib/posthog/client'
 import {
-  downloadFile,
   exportWorkflowsToZip,
   exportWorkflowToJson,
   fetchWorkflowForExport,
-  sanitizePathSegment,
 } from '@/lib/workflows/operations/import-export'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useFolderStore } from '@/stores/folders/store'

@@ -1,13 +1,12 @@
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import { downloadFile, sanitizePathSegment } from '@/lib/core/utils/file-download'
 import { getFolderById } from '@/lib/folders/tree'
 import {
-  downloadFile,
   exportFolderToZip,
   type FolderExportData,
   fetchWorkflowForExport,
-  sanitizePathSegment,
   type WorkflowExportData,
 } from '@/lib/workflows/operations/import-export'
 import { useFolderMap } from '@/hooks/queries/folders'

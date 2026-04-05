@@ -20,7 +20,7 @@ import { createLogger } from '@sim/logger'
 import { inArray } from 'drizzle-orm'
 import JSZip from 'jszip'
 import { NextResponse } from 'next/server'
-import { sanitizePathSegment } from '@/lib/workflows/operations/import-export'
+import { sanitizePathSegment } from '@/lib/core/utils/file-download'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
