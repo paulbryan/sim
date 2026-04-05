@@ -1880,6 +1880,9 @@ export function Table({
                       onResize={handleColumnResize}
                       onResizeEnd={handleColumnResizeEnd}
                       isDragging={dragColumnName === column.name}
+                      isDropTarget={
+                        dropTargetColumnName === column.name && dropIndicatorLeft !== null
+                      }
                       onDragStart={handleColumnDragStart}
                       onDragOver={handleColumnDragOver}
                       onDragEnd={handleColumnDragEnd}
@@ -2812,6 +2815,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onResize,
   onResizeEnd,
   isDragging,
+  isDropTarget,
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -2840,6 +2844,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onResize: (columnName: string, width: number) => void
   onResizeEnd: () => void
   isDragging?: boolean
+  isDropTarget?: boolean
   onDragStart?: (columnName: string) => void
   onDragOver?: (columnName: string, side: 'left' | 'right') => void
   onDragEnd?: () => void
@@ -2937,7 +2942,8 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     <th
       className={cn(
         'group relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle',
-        isDragging && 'opacity-40'
+        isDragging && 'opacity-40',
+        isDropTarget && 'bg-[var(--selection)]/10'
       )}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
