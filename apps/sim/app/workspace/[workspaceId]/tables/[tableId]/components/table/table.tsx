@@ -332,7 +332,18 @@ export function Table({
   }, [resizingColumn, displayColumns, columnWidths])
 
   const dropIndicatorLeft = useMemo(() => {
-    if (!dropTargetColumnName) return null
+    if (!dropTargetColumnName || !dragColumnName) return null
+
+    const dragIdx = displayColumns.findIndex((c) => c.name === dragColumnName)
+    const targetIdx = displayColumns.findIndex((c) => c.name === dropTargetColumnName)
+
+    if (dragIdx !== -1 && targetIdx !== -1) {
+      // Suppress when drop would be a no-op (same effective position)
+      if (targetIdx === dragIdx) return null
+      if (dropSide === 'right' && targetIdx === dragIdx - 1) return null
+      if (dropSide === 'left' && targetIdx === dragIdx + 1) return null
+    }
+
     let left = CHECKBOX_COL_WIDTH
     for (const col of displayColumns) {
       if (dropSide === 'left' && col.name === dropTargetColumnName) return left
@@ -340,7 +351,7 @@ export function Table({
       if (dropSide === 'right' && col.name === dropTargetColumnName) return left
     }
     return null
-  }, [dropTargetColumnName, dropSide, displayColumns, columnWidths])
+  }, [dropTargetColumnName, dropSide, displayColumns, columnWidths, dragColumnName])
 
   const isAllRowsSelected = useMemo(() => {
     if (checkedRows.size > 0 && rows.length > 0 && checkedRows.size >= rows.length) {
