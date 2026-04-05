@@ -1,4 +1,12 @@
-const editWorkflowBlockConfigs: Record<string, any> = {
+const editWorkflowBlockConfigs: Record<
+  string,
+  {
+    type: string
+    name: string
+    outputs: Record<string, unknown>
+    subBlocks: { id: string; type: string }[]
+  }
+> = {
   condition: {
     type: 'condition',
     name: 'Condition',

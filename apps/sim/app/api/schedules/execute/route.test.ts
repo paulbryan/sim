@@ -3,8 +3,10 @@
  *
  * @vitest-environment node
  */
+
 import { createFeatureFlagsMock, createMockRequest } from '@sim/testing'
 import { drizzleOrmMock } from '@sim/testing/mocks'
+import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -190,7 +192,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   it('should execute scheduled workflows with Trigger.dev disabled', async () => {
     mockDbReturning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
-    const response = await GET(createCronRequest() as any)
+    const response = await GET(createCronRequest() as unknown as NextRequest)
 
     expect(response).toBeDefined()
     expect(response.status).toBe(200)
@@ -203,7 +205,7 @@ describe('Scheduled Workflow Execution API Route', () => {
     mockFeatureFlags.isTriggerDevEnabled = true
     mockDbReturning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
-    const response = await GET(createCronRequest() as any)
+    const response = await GET(createCronRequest() as unknown as NextRequest)
 
     expect(response).toBeDefined()
     expect(response.status).toBe(200)
@@ -214,7 +216,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   it('should handle case with no due schedules', async () => {
     mockDbReturning.mockReturnValueOnce([]).mockReturnValueOnce([])
 
-    const response = await GET(createCronRequest() as any)
+    const response = await GET(createCronRequest() as unknown as NextRequest)
 
     expect(response.status).toBe(200)
     const data = await response.json()
@@ -225,7 +227,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   it('should execute multiple schedules in parallel', async () => {
     mockDbReturning.mockReturnValueOnce(MULTIPLE_SCHEDULES).mockReturnValueOnce([])
 
-    const response = await GET(createCronRequest() as any)
+    const response = await GET(createCronRequest() as unknown as NextRequest)
 
     expect(response.status).toBe(200)
     const data = await response.json()
@@ -235,7 +237,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   it('should queue mothership jobs to BullMQ when available', async () => {
     mockDbReturning.mockReturnValueOnce([]).mockReturnValueOnce(SINGLE_JOB)
 
-    const response = await GET(createCronRequest() as any)
+    const response = await GET(createCronRequest() as unknown as NextRequest)
 
     expect(response.status).toBe(200)
     expect(mockEnqueueWorkspaceDispatch).toHaveBeenCalledWith(
@@ -260,7 +262,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   it('should enqueue preassigned correlation metadata for schedules', async () => {
     mockDbReturning.mockReturnValue(SINGLE_SCHEDULE)
 
-    const response = await GET(createCronRequest() as any)
+    const response = await GET(createCronRequest() as unknown as NextRequest)
 
     expect(response.status).toBe(200)
     expect(mockEnqueueWorkspaceDispatch).toHaveBeenCalledWith(

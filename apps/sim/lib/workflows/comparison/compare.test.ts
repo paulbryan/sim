@@ -1,6 +1,8 @@
 /**
  * Tests for workflow change detection comparison logic
  */
+
+import type { WorkflowVariableFixture } from '@sim/testing'
 import {
   createBlock as createTestBlock,
   createWorkflowState as createTestWorkflowState,
@@ -47,7 +49,9 @@ function createBlock(id: string, overrides: Record<string, any> = {}): any {
   })
 }
 
-function createVariablesMap(...variables: Parameters<typeof createWorkflowVariablesMap>[0]): any {
+function createVariablesMap(
+  ...variables: Parameters<typeof createWorkflowVariablesMap>[0]
+): Record<string, WorkflowVariableFixture> {
   return createWorkflowVariablesMap(variables)
 }
 
@@ -2871,30 +2875,26 @@ describe('hasWorkflowChanged', () => {
   describe('Variables (UI-only fields should not trigger change)', () => {
     it.concurrent('should not detect change when validationError differs', () => {
       const deployedState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1'),
-        },
-      })
-      ;(deployedState as any).variables = createVariablesMap({
-        id: 'var1',
-        workflowId: 'workflow1',
-        name: 'myVar',
-        type: 'plain',
-        value: 'test',
+        blocks: { block1: createBlock('block1') },
+        variables: createVariablesMap({
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'plain',
+          value: 'test',
+        }),
       })
 
       const currentState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1'),
-        },
-      })
-      ;(currentState as any).variables = createVariablesMap({
-        id: 'var1',
-        workflowId: 'workflow1',
-        name: 'myVar',
-        type: 'plain',
-        value: 'test',
-        validationError: undefined,
+        blocks: { block1: createBlock('block1') },
+        variables: createVariablesMap({
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'plain',
+          value: 'test',
+          validationError: undefined,
+        }),
       })
 
       expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
@@ -2902,30 +2902,26 @@ describe('hasWorkflowChanged', () => {
 
     it.concurrent('should not detect change when validationError has value vs missing', () => {
       const deployedState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1'),
-        },
-      })
-      ;(deployedState as any).variables = createVariablesMap({
-        id: 'var1',
-        workflowId: 'workflow1',
-        name: 'myVar',
-        type: 'number',
-        value: 'invalid',
+        blocks: { block1: createBlock('block1') },
+        variables: createVariablesMap({
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'number',
+          value: 'invalid',
+        }),
       })
 
       const currentState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1'),
-        },
-      })
-      ;(currentState as any).variables = createVariablesMap({
-        id: 'var1',
-        workflowId: 'workflow1',
-        name: 'myVar',
-        type: 'number',
-        value: 'invalid',
-        validationError: 'Not a valid number',
+        blocks: { block1: createBlock('block1') },
+        variables: createVariablesMap({
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'number',
+          value: 'invalid',
+          validationError: 'Not a valid number',
+        }),
       })
 
       expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
@@ -2933,30 +2929,25 @@ describe('hasWorkflowChanged', () => {
 
     it.concurrent('should detect change when variable value differs', () => {
       const deployedState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1'),
-        },
-      })
-      ;(deployedState as any).variables = createVariablesMap({
-        id: 'var1',
-        workflowId: 'workflow1',
-        name: 'myVar',
-        type: 'plain',
-        value: 'old value',
+        blocks: { block1: createBlock('block1') },
+        variables: createVariablesMap({
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'plain',
+          value: 'old value',
+        }),
       })
 
       const currentState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1'),
-        },
-      })
-      ;(currentState as any).variables = createVariablesMap({
-        id: 'var1',
-        workflowId: 'workflow1',
-        name: 'myVar',
-        type: 'plain',
-        value: 'new value',
-        validationError: undefined,
+        blocks: { block1: createBlock('block1') },
+        variables: createVariablesMap({
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'plain',
+          value: 'new value',
+        }),
       })
 
       expect(hasWorkflowChanged(currentState, deployedState)).toBe(true)
@@ -2964,23 +2955,19 @@ describe('hasWorkflowChanged', () => {
 
     it.concurrent('should detect change when variable is added', () => {
       const deployedState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1'),
-        },
+        blocks: { block1: createBlock('block1') },
+        variables: {},
       })
-      ;(deployedState as any).variables = {}
 
       const currentState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1'),
-        },
-      })
-      ;(currentState as any).variables = createVariablesMap({
-        id: 'var1',
-        workflowId: 'workflow1',
-        name: 'myVar',
-        type: 'plain',
-        value: 'test',
+        blocks: { block1: createBlock('block1') },
+        variables: createVariablesMap({
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'plain',
+          value: 'test',
+        }),
       })
 
       expect(hasWorkflowChanged(currentState, deployedState)).toBe(true)
@@ -2988,42 +2975,35 @@ describe('hasWorkflowChanged', () => {
 
     it.concurrent('should detect change when variable is removed', () => {
       const deployedState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1'),
-        },
-      })
-      ;(deployedState as any).variables = createVariablesMap({
-        id: 'var1',
-        workflowId: 'workflow1',
-        name: 'myVar',
-        type: 'plain',
-        value: 'test',
+        blocks: { block1: createBlock('block1') },
+        variables: createVariablesMap({
+          id: 'var1',
+          workflowId: 'workflow1',
+          name: 'myVar',
+          type: 'plain',
+          value: 'test',
+        }),
       })
 
       const currentState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1'),
-        },
+        blocks: { block1: createBlock('block1') },
+        variables: {},
       })
-      ;(currentState as any).variables = {}
 
       expect(hasWorkflowChanged(currentState, deployedState)).toBe(true)
     })
 
     it.concurrent('should not detect change when empty array vs empty object', () => {
       const deployedState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1'),
-        },
+        blocks: { block1: createBlock('block1') },
       })
-      ;(deployedState as any).variables = []
+      // Intentional type violation to test robustness with malformed data
+      ;(deployedState as unknown as Record<string, unknown>).variables = []
 
       const currentState = createWorkflowState({
-        blocks: {
-          block1: createBlock('block1'),
-        },
+        blocks: { block1: createBlock('block1') },
+        variables: {},
       })
-      ;(currentState as any).variables = {}
 
       expect(hasWorkflowChanged(currentState, deployedState)).toBe(false)
     })
