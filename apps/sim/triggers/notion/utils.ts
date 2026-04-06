@@ -60,16 +60,6 @@ export function buildNotionExtraFields(triggerId: string): SubBlockConfig[] {
 }
 
 /**
- * Shared author output schema for Notion webhook payloads.
- */
-function buildAuthorOutputs(): Record<string, TriggerOutput> {
-  return {
-    id: { type: 'string', description: 'Author user ID' },
-    type: { type: 'string', description: 'Author type (person or bot)' },
-  }
-}
-
-/**
  * Base webhook outputs common to all Notion triggers.
  */
 function buildBaseOutputs(): Record<string, TriggerOutput> {
@@ -94,7 +84,7 @@ function buildBaseOutputs(): Record<string, TriggerOutput> {
 function buildEntityOutputs(): Record<string, TriggerOutput> {
   return {
     id: { type: 'string', description: 'Entity ID (page or database ID)' },
-    type: { type: 'string', description: 'Entity type (page or database)' },
+    entity_type: { type: 'string', description: 'Entity type (page or database)' },
   }
 }
 
@@ -107,13 +97,12 @@ export function buildPageEventOutputs(): Record<string, TriggerOutput> {
     authors: {
       type: 'array',
       description: 'Array of users who triggered the event',
-      ...buildAuthorOutputs(),
     },
     entity: buildEntityOutputs(),
     data: {
       parent: {
         id: { type: 'string', description: 'Parent page or database ID' },
-        type: { type: 'string', description: 'Parent type (database, page, workspace)' },
+        parent_type: { type: 'string', description: 'Parent type (database, page, workspace)' },
       },
     },
   }
@@ -128,13 +117,12 @@ export function buildDatabaseEventOutputs(): Record<string, TriggerOutput> {
     authors: {
       type: 'array',
       description: 'Array of users who triggered the event',
-      ...buildAuthorOutputs(),
     },
     entity: buildEntityOutputs(),
     data: {
       parent: {
         id: { type: 'string', description: 'Parent page or workspace ID' },
-        type: { type: 'string', description: 'Parent type (page, workspace)' },
+        parent_type: { type: 'string', description: 'Parent type (page, workspace)' },
       },
     },
   }
@@ -149,16 +137,15 @@ export function buildCommentEventOutputs(): Record<string, TriggerOutput> {
     authors: {
       type: 'array',
       description: 'Array of users who triggered the event',
-      ...buildAuthorOutputs(),
     },
     entity: {
       id: { type: 'string', description: 'Comment ID' },
-      type: { type: 'string', description: 'Entity type (comment)' },
+      entity_type: { type: 'string', description: 'Entity type (comment)' },
     },
     data: {
       parent: {
         id: { type: 'string', description: 'Parent page ID' },
-        type: { type: 'string', description: 'Parent type (page)' },
+        parent_type: { type: 'string', description: 'Parent type (page)' },
       },
     },
   }
@@ -173,7 +160,6 @@ export function buildGenericWebhookOutputs(): Record<string, TriggerOutput> {
     authors: {
       type: 'array',
       description: 'Array of users who triggered the event',
-      ...buildAuthorOutputs(),
     },
     entity: buildEntityOutputs(),
     data: {
