@@ -48,9 +48,9 @@ export function buildNotionExtraFields(triggerId: string): SubBlockConfig[] {
       id: 'webhookSecret',
       title: 'Webhook Secret',
       type: 'short-input',
-      placeholder: 'Enter your verification_token for signature verification',
+      placeholder: 'Enter your Notion webhook signing secret',
       description:
-        'The verification_token from Notion, used to validate X-Notion-Signature headers on incoming webhooks.',
+        'The signing secret from your Notion integration settings page, used to verify X-Notion-Signature headers. This is separate from the verification_token used during initial setup.',
       password: true,
       required: false,
       mode: 'trigger',
