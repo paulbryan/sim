@@ -1073,7 +1073,7 @@ export function useChat(
                 }
                 flush()
 
-                if (ui?.clientExecutable && isWorkflowToolName(name) && !isPartial) {
+                if (isWorkflowToolName(name) && !isPartial) {
                   startClientWorkflowTool(id, name, args ?? {})
                 }
                 break
