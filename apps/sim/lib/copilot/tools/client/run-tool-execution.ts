@@ -356,9 +356,6 @@ async function reportCompletion(
       headers: { 'Content-Type': 'application/json' },
       body,
     })
-    // Next.js silently truncates request bodies beyond its body size limit (default 10MB),
-    // corrupting the JSON and causing a server-side parse error (500). When the request fails
-    // and the payload is large, retry without logs (the largest field) to fit under the limit.
     const LARGE_PAYLOAD_THRESHOLD = 10 * 1024 * 1024
     const bodySize = new Blob([body]).size
     if (!res.ok && data && bodySize > LARGE_PAYLOAD_THRESHOLD) {
