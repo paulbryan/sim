@@ -1,6 +1,5 @@
 import { db } from '@sim/db'
 import {
-  copilotChats,
   knowledgeBase,
   knowledgeConnector,
   mcpServers,
@@ -10,7 +9,7 @@ import {
   workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, count, eq, inArray, isNull } from 'drizzle-orm'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
@@ -56,7 +55,7 @@ export interface WorkspaceMdData {
   tables: Array<{ id: string; name: string; description?: string | null; rowCount: number }>
   files: Array<{ name: string; type: string; size: number }>
   credentials: Array<{ providerId: string }>
-  tasks: Array<{ id: string; title: string; updatedAt: Date }>
+  tasks?: Array<{ id: string; title: string; updatedAt: Date }>
   customTools?: Array<{ id: string; name: string }>
   mcpServers?: Array<{ id: string; name: string; url?: string | null; enabled: boolean }>
   skills?: Array<{ id: string; name: string; description: string }>
@@ -182,14 +181,6 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
     sections.push(`## Jobs (${data.jobs.length})\n${lines.join('\n')}`)
   }
 
-  if (data.tasks.length > 0) {
-    const lines = data.tasks.map((t) => {
-      const date = t.updatedAt.toISOString().split('T')[0]
-      return `- **${t.title || 'Untitled'}** (${t.id}) — ${date}`
-    })
-    sections.push(`## Recent Tasks (${data.tasks.length})\n${lines.join('\n')}`)
-  }
-
   return sections.join('\n\n')
 }
 
@@ -216,7 +207,6 @@ export async function generateWorkspaceContext(
       tables,
       files,
       credentials,
-      recentTasks,
       customTools,
       mcpServerRows,
       skillRows,
@@ -261,23 +251,6 @@ export async function generateWorkspaceContext(
       listWorkspaceFiles(workspaceId),
 
       getAccessibleOAuthCredentials(workspaceId, userId),
-
-      db
-        .select({
-          id: copilotChats.id,
-          title: copilotChats.title,
-          updatedAt: copilotChats.updatedAt,
-        })
-        .from(copilotChats)
-        .where(
-          and(
-            eq(copilotChats.workspaceId, workspaceId),
-            eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership')
-          )
-        )
-        .orderBy(desc(copilotChats.updatedAt))
-        .limit(5),
 
       listCustomTools({ userId, workspaceId }),
 
@@ -363,11 +336,6 @@ export async function generateWorkspaceContext(
       tables: tables.map((t, i) => ({ ...t, rowCount: rowCounts[i] ?? 0 })),
       files: files.map((f) => ({ name: f.name, type: f.type, size: f.size })),
       credentials: credentials.map((c) => ({ providerId: c.providerId })),
-      tasks: recentTasks.map((t) => ({
-        id: t.id,
-        title: t.title || 'Untitled',
-        updatedAt: t.updatedAt,
-      })),
       customTools: customTools.map((t) => ({ id: t.id, name: t.title })),
       mcpServers: mcpServerRows,
       skills: skillRows.map((s) => ({ id: s.id, name: s.name, description: s.description })),
