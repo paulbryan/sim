@@ -14,6 +14,7 @@ import { githubHandler } from '@/lib/webhooks/providers/github'
 import { gmailHandler } from '@/lib/webhooks/providers/gmail'
 import { googleFormsHandler } from '@/lib/webhooks/providers/google-forms'
 import { grainHandler } from '@/lib/webhooks/providers/grain'
+import { greenhouseHandler } from '@/lib/webhooks/providers/greenhouse'
 import { hubspotHandler } from '@/lib/webhooks/providers/hubspot'
 import { imapHandler } from '@/lib/webhooks/providers/imap'
 import { jiraHandler } from '@/lib/webhooks/providers/jira'
@@ -50,6 +51,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   google_forms: googleFormsHandler,
   fathom: fathomHandler,
   grain: grainHandler,
+  greenhouse: greenhouseHandler,
   hubspot: hubspotHandler,
   imap: imapHandler,
   jira: jiraHandler,
