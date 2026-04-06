@@ -1,6 +1,7 @@
 import { GreenhouseIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
 import {
+  buildGreenhouseExtraFields,
   buildJobCreatedOutputs,
   greenhouseSetupInstructions,
   greenhouseTriggerOptions,
@@ -24,6 +25,7 @@ export const greenhouseJobCreatedTrigger: TriggerConfig = {
     triggerId: 'greenhouse_job_created',
     triggerOptions: greenhouseTriggerOptions,
     setupInstructions: greenhouseSetupInstructions('Job Created'),
+    extraFields: buildGreenhouseExtraFields('greenhouse_job_created'),
   }),
 
   outputs: buildJobCreatedOutputs(),

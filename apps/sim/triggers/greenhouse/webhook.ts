@@ -1,6 +1,7 @@
 import { GreenhouseIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
 import {
+  buildGreenhouseExtraFields,
   buildWebhookOutputs,
   greenhouseSetupInstructions,
   greenhouseTriggerOptions,
@@ -24,6 +25,7 @@ export const greenhouseWebhookTrigger: TriggerConfig = {
     triggerId: 'greenhouse_webhook',
     triggerOptions: greenhouseTriggerOptions,
     setupInstructions: greenhouseSetupInstructions('All Events'),
+    extraFields: buildGreenhouseExtraFields('greenhouse_webhook'),
   }),
 
   outputs: buildWebhookOutputs(),

@@ -2,6 +2,7 @@ import { GreenhouseIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildCandidateRejectedOutputs,
+  buildGreenhouseExtraFields,
   greenhouseSetupInstructions,
   greenhouseTriggerOptions,
 } from '@/triggers/greenhouse/utils'
@@ -24,6 +25,7 @@ export const greenhouseCandidateRejectedTrigger: TriggerConfig = {
     triggerId: 'greenhouse_candidate_rejected',
     triggerOptions: greenhouseTriggerOptions,
     setupInstructions: greenhouseSetupInstructions('Candidate Rejected'),
+    extraFields: buildGreenhouseExtraFields('greenhouse_candidate_rejected'),
   }),
 
   outputs: buildCandidateRejectedOutputs(),

@@ -2,6 +2,7 @@ import { GreenhouseIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildCandidateHiredOutputs,
+  buildGreenhouseExtraFields,
   greenhouseSetupInstructions,
   greenhouseTriggerOptions,
 } from '@/triggers/greenhouse/utils'
@@ -26,6 +27,7 @@ export const greenhouseCandidateHiredTrigger: TriggerConfig = {
     triggerOptions: greenhouseTriggerOptions,
     includeDropdown: true,
     setupInstructions: greenhouseSetupInstructions('Candidate Hired'),
+    extraFields: buildGreenhouseExtraFields('greenhouse_candidate_hired'),
   }),
 
   outputs: buildCandidateHiredOutputs(),

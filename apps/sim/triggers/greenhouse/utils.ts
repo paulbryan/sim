@@ -1,3 +1,4 @@
+import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
 /**
@@ -37,6 +38,25 @@ export function isGreenhouseEventMatch(triggerId: string, action: string): boole
     return true
   }
   return action === expectedAction
+}
+
+/**
+ * Builds extra fields for Greenhouse triggers.
+ * Includes an optional secret key for HMAC signature verification.
+ */
+export function buildGreenhouseExtraFields(triggerId: string): SubBlockConfig[] {
+  return [
+    {
+      id: 'secretKey',
+      title: 'Secret Key (Optional)',
+      type: 'short-input',
+      placeholder: 'Enter the same secret key configured in Greenhouse',
+      description: 'Used to verify webhook signatures via HMAC-SHA256.',
+      password: true,
+      mode: 'trigger',
+      condition: { field: 'selectedTriggerId', value: triggerId },
+    },
+  ]
 }
 
 /**
@@ -221,7 +241,7 @@ export function buildCandidateRejectedOutputs(): Record<string, TriggerOutput> {
         rejection_reason: {
           id: { type: 'number', description: 'Rejection reason ID' },
           name: { type: 'string', description: 'Rejection reason name' },
-          type: {
+          reason_type: {
             id: { type: 'number', description: 'Rejection reason type ID' },
             name: { type: 'string', description: 'Rejection reason type name' },
           },
@@ -257,29 +277,34 @@ export function buildOfferCreatedOutputs(): Record<string, TriggerOutput> {
 }
 
 /**
+ * Shared job payload shape used by both job_created and job_updated events.
+ */
+function buildJobPayload(): Record<string, TriggerOutput> {
+  return {
+    id: { type: 'number', description: 'Job ID' },
+    name: { type: 'string', description: 'Job title' },
+    requisition_id: { type: 'string', description: 'Requisition ID' },
+    status: { type: 'string', description: 'Job status (open, closed, draft)' },
+    confidential: { type: 'boolean', description: 'Whether the job is confidential' },
+    created_at: { type: 'string', description: 'When the job was created' },
+    opened_at: { type: 'string', description: 'When the job was opened' },
+    closed_at: { type: 'string', description: 'When the job was closed' },
+    departments: { type: 'json', description: 'Associated departments' },
+    offices: { type: 'json', description: 'Associated offices' },
+    hiring_team: { type: 'json', description: 'Hiring team (managers, recruiters, etc.)' },
+    openings: { type: 'json', description: 'Job openings' },
+    custom_fields: { type: 'json', description: 'Custom field values' },
+  } as Record<string, TriggerOutput>
+}
+
+/**
  * Build outputs for job_created events.
  * Job data is nested under payload.job.
  */
 export function buildJobCreatedOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (job_created)' },
-    payload: {
-      job: {
-        id: { type: 'number', description: 'Job ID' },
-        name: { type: 'string', description: 'Job title' },
-        requisition_id: { type: 'string', description: 'Requisition ID' },
-        status: { type: 'string', description: 'Job status (open, closed, draft)' },
-        confidential: { type: 'boolean', description: 'Whether the job is confidential' },
-        created_at: { type: 'string', description: 'When the job was created' },
-        opened_at: { type: 'string', description: 'When the job was opened' },
-        closed_at: { type: 'string', description: 'When the job was closed' },
-        departments: { type: 'json', description: 'Associated departments' },
-        offices: { type: 'json', description: 'Associated offices' },
-        hiring_team: { type: 'json', description: 'Hiring team (managers, recruiters, etc.)' },
-        openings: { type: 'json', description: 'Job openings' },
-        custom_fields: { type: 'json', description: 'Custom field values' },
-      },
-    },
+    payload: { job: buildJobPayload() },
   } as Record<string, TriggerOutput>
 }
 
@@ -290,23 +315,7 @@ export function buildJobCreatedOutputs(): Record<string, TriggerOutput> {
 export function buildJobUpdatedOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (job_updated)' },
-    payload: {
-      job: {
-        id: { type: 'number', description: 'Job ID' },
-        name: { type: 'string', description: 'Job title' },
-        requisition_id: { type: 'string', description: 'Requisition ID' },
-        status: { type: 'string', description: 'Job status (open, closed, draft)' },
-        confidential: { type: 'boolean', description: 'Whether the job is confidential' },
-        created_at: { type: 'string', description: 'When the job was created' },
-        opened_at: { type: 'string', description: 'When the job was opened' },
-        closed_at: { type: 'string', description: 'When the job was closed' },
-        departments: { type: 'json', description: 'Associated departments' },
-        offices: { type: 'json', description: 'Associated offices' },
-        hiring_team: { type: 'json', description: 'Hiring team (managers, recruiters, etc.)' },
-        openings: { type: 'json', description: 'Job openings' },
-        custom_fields: { type: 'json', description: 'Custom field values' },
-      },
-    },
+    payload: { job: buildJobPayload() },
   } as Record<string, TriggerOutput>
 }
 

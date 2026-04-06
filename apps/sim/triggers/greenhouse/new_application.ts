@@ -1,6 +1,7 @@
 import { GreenhouseIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
 import {
+  buildGreenhouseExtraFields,
   buildNewApplicationOutputs,
   greenhouseSetupInstructions,
   greenhouseTriggerOptions,
@@ -24,6 +25,7 @@ export const greenhouseNewApplicationTrigger: TriggerConfig = {
     triggerId: 'greenhouse_new_application',
     triggerOptions: greenhouseTriggerOptions,
     setupInstructions: greenhouseSetupInstructions('New Candidate Application'),
+    extraFields: buildGreenhouseExtraFields('greenhouse_new_application'),
   }),
 
   outputs: buildNewApplicationOutputs(),

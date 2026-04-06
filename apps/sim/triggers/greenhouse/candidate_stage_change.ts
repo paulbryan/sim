@@ -2,6 +2,7 @@ import { GreenhouseIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
 import {
   buildCandidateStageChangeOutputs,
+  buildGreenhouseExtraFields,
   greenhouseSetupInstructions,
   greenhouseTriggerOptions,
 } from '@/triggers/greenhouse/utils'
@@ -24,6 +25,7 @@ export const greenhouseCandidateStageChangeTrigger: TriggerConfig = {
     triggerId: 'greenhouse_candidate_stage_change',
     triggerOptions: greenhouseTriggerOptions,
     setupInstructions: greenhouseSetupInstructions('Candidate Stage Change'),
+    extraFields: buildGreenhouseExtraFields('greenhouse_candidate_stage_change'),
   }),
 
   outputs: buildCandidateStageChangeOutputs(),

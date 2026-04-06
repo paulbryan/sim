@@ -1,6 +1,7 @@
 import { GreenhouseIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
 import {
+  buildGreenhouseExtraFields,
   buildOfferCreatedOutputs,
   greenhouseSetupInstructions,
   greenhouseTriggerOptions,
@@ -24,6 +25,7 @@ export const greenhouseOfferCreatedTrigger: TriggerConfig = {
     triggerId: 'greenhouse_offer_created',
     triggerOptions: greenhouseTriggerOptions,
     setupInstructions: greenhouseSetupInstructions('Offer Created'),
+    extraFields: buildGreenhouseExtraFields('greenhouse_offer_created'),
   }),
 
   outputs: buildOfferCreatedOutputs(),
