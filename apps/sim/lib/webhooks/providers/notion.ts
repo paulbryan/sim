@@ -3,12 +3,12 @@ import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
 import type {
-  AuthContext,
   EventMatchContext,
   FormatInputContext,
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Notion')
 
@@ -46,28 +46,12 @@ function validateNotionSignature(secret: string, signature: string, body: string
 }
 
 export const notionHandler: WebhookProviderHandler = {
-  verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
-    const secret = providerConfig.webhookSecret as string | undefined
-    if (!secret) {
-      return null
-    }
-
-    const signature = request.headers.get('X-Notion-Signature')
-    if (!signature) {
-      logger.warn(`[${requestId}] Notion webhook missing signature header`)
-      return new NextResponse('Unauthorized - Missing Notion signature', { status: 401 })
-    }
-
-    if (!validateNotionSignature(secret, signature, rawBody)) {
-      logger.warn(`[${requestId}] Notion signature verification failed`, {
-        signatureLength: signature.length,
-        secretLength: secret.length,
-      })
-      return new NextResponse('Unauthorized - Invalid Notion signature', { status: 401 })
-    }
-
-    return null
-  },
+  verifyAuth: createHmacVerifier({
+    configKey: 'webhookSecret',
+    headerName: 'X-Notion-Signature',
+    validateFn: validateNotionSignature,
+    providerLabel: 'Notion',
+  }),
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
