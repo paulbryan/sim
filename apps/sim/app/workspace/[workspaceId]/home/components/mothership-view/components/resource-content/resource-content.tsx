@@ -538,10 +538,28 @@ function extractFileContent(raw: string): string {
   const idx = raw.indexOf(marker)
   if (idx === -1) return ''
   let rest = raw.slice(idx + marker.length).trimStart()
-  if (rest.startsWith('"')) rest = rest.slice(1)
-  return rest
+  if (!rest.startsWith('"')) return rest
+
+  // Walk the JSON string value to find the unescaped closing quote.
+  // While streaming, the closing quote may not have arrived yet — in that
+  // case we treat everything received so far as the content (no trim).
+  let end = -1
+  for (let i = 1; i < rest.length; i++) {
+    if (rest[i] === '\\') {
+      i++ // skip escaped character
+      continue
+    }
+    if (rest[i] === '"') {
+      end = i
+      break
+    }
+  }
+
+  const inner = end === -1 ? rest.slice(1) : rest.slice(1, end)
+  return inner
     .replace(/\\n/g, '\n')
     .replace(/\\t/g, '\t')
+    .replace(/\\r/g, '\r')
     .replace(/\\"/g, '"')
     .replace(/\\\\/g, '\\')
 }
