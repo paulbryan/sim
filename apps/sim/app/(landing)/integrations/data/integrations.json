@@ -5264,8 +5264,49 @@
       }
     ],
     "operationCount": 11,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "greenhouse_candidate_hired",
+        "name": "Greenhouse Candidate Hired",
+        "description": "Trigger workflow when a candidate is hired"
+      },
+      {
+        "id": "greenhouse_new_application",
+        "name": "Greenhouse New Application",
+        "description": "Trigger workflow when a new application is submitted"
+      },
+      {
+        "id": "greenhouse_candidate_stage_change",
+        "name": "Greenhouse Candidate Stage Change",
+        "description": "Trigger workflow when a candidate changes interview stages"
+      },
+      {
+        "id": "greenhouse_candidate_rejected",
+        "name": "Greenhouse Candidate Rejected",
+        "description": "Trigger workflow when a candidate is rejected"
+      },
+      {
+        "id": "greenhouse_offer_created",
+        "name": "Greenhouse Offer Created",
+        "description": "Trigger workflow when a new offer is created"
+      },
+      {
+        "id": "greenhouse_job_created",
+        "name": "Greenhouse Job Created",
+        "description": "Trigger workflow when a new job is created"
+      },
+      {
+        "id": "greenhouse_job_updated",
+        "name": "Greenhouse Job Updated",
+        "description": "Trigger workflow when a job is updated"
+      },
+      {
+        "id": "greenhouse_webhook",
+        "name": "Greenhouse Webhook (All Events)",
+        "description": "Trigger workflow on any Greenhouse webhook event"
+      }
+    ],
+    "triggerCount": 8,
     "authType": "api-key",
     "category": "tools",
     "integrationType": "hr",
@@ -5529,6 +5570,11 @@
         "description": "Trigger workflow when a contact is deleted in HubSpot"
       },
       {
+        "id": "hubspot_contact_merged",
+        "name": "HubSpot Contact Merged",
+        "description": "Trigger workflow when contacts are merged in HubSpot"
+      },
+      {
         "id": "hubspot_contact_privacy_deleted",
         "name": "HubSpot Contact Privacy Deleted",
         "description": "Trigger workflow when a contact is deleted for privacy compliance (GDPR, CCPA, etc.) in HubSpot"
@@ -5537,6 +5583,11 @@
         "id": "hubspot_contact_property_changed",
         "name": "HubSpot Contact Property Changed",
         "description": "Trigger workflow when any property of a contact is updated in HubSpot"
+      },
+      {
+        "id": "hubspot_contact_restored",
+        "name": "HubSpot Contact Restored",
+        "description": "Trigger workflow when a deleted contact is restored in HubSpot"
       },
       {
         "id": "hubspot_company_created",
@@ -5549,9 +5600,19 @@
         "description": "Trigger workflow when a company is deleted in HubSpot"
       },
       {
+        "id": "hubspot_company_merged",
+        "name": "HubSpot Company Merged",
+        "description": "Trigger workflow when companies are merged in HubSpot"
+      },
+      {
         "id": "hubspot_company_property_changed",
         "name": "HubSpot Company Property Changed",
         "description": "Trigger workflow when any property of a company is updated in HubSpot"
+      },
+      {
+        "id": "hubspot_company_restored",
+        "name": "HubSpot Company Restored",
+        "description": "Trigger workflow when a deleted company is restored in HubSpot"
       },
       {
         "id": "hubspot_conversation_creation",
@@ -5589,9 +5650,19 @@
         "description": "Trigger workflow when a deal is deleted in HubSpot"
       },
       {
+        "id": "hubspot_deal_merged",
+        "name": "HubSpot Deal Merged",
+        "description": "Trigger workflow when deals are merged in HubSpot"
+      },
+      {
         "id": "hubspot_deal_property_changed",
         "name": "HubSpot Deal Property Changed",
         "description": "Trigger workflow when any property of a deal is updated in HubSpot"
+      },
+      {
+        "id": "hubspot_deal_restored",
+        "name": "HubSpot Deal Restored",
+        "description": "Trigger workflow when a deleted deal is restored in HubSpot"
       },
       {
         "id": "hubspot_ticket_created",
@@ -5604,12 +5675,27 @@
         "description": "Trigger workflow when a ticket is deleted in HubSpot"
       },
       {
+        "id": "hubspot_ticket_merged",
+        "name": "HubSpot Ticket Merged",
+        "description": "Trigger workflow when tickets are merged in HubSpot"
+      },
+      {
         "id": "hubspot_ticket_property_changed",
         "name": "HubSpot Ticket Property Changed",
         "description": "Trigger workflow when any property of a ticket is updated in HubSpot"
+      },
+      {
+        "id": "hubspot_ticket_restored",
+        "name": "HubSpot Ticket Restored",
+        "description": "Trigger workflow when a deleted ticket is restored in HubSpot"
+      },
+      {
+        "id": "hubspot_webhook",
+        "name": "HubSpot Webhook (All Events)",
+        "description": "Trigger workflow on any HubSpot webhook event"
       }
     ],
-    "triggerCount": 18,
+    "triggerCount": 27,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "crm",
@@ -9516,8 +9602,49 @@
       }
     ],
     "operationCount": 8,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "resend_email_sent",
+        "name": "Resend Email Sent",
+        "description": "Trigger workflow when an email is sent"
+      },
+      {
+        "id": "resend_email_delivered",
+        "name": "Resend Email Delivered",
+        "description": "Trigger workflow when an email is delivered"
+      },
+      {
+        "id": "resend_email_bounced",
+        "name": "Resend Email Bounced",
+        "description": "Trigger workflow when an email bounces"
+      },
+      {
+        "id": "resend_email_complained",
+        "name": "Resend Email Complained",
+        "description": "Trigger workflow when an email is marked as spam"
+      },
+      {
+        "id": "resend_email_opened",
+        "name": "Resend Email Opened",
+        "description": "Trigger workflow when an email is opened"
+      },
+      {
+        "id": "resend_email_clicked",
+        "name": "Resend Email Clicked",
+        "description": "Trigger workflow when a link in an email is clicked"
+      },
+      {
+        "id": "resend_email_failed",
+        "name": "Resend Email Failed",
+        "description": "Trigger workflow when an email fails to send"
+      },
+      {
+        "id": "resend_webhook",
+        "name": "Resend Webhook (All Events)",
+        "description": "Trigger workflow on any Resend webhook event"
+      }
+    ],
+    "triggerCount": 8,
     "authType": "none",
     "category": "tools",
     "integrationType": "email",
@@ -10263,8 +10390,39 @@
       }
     ],
     "operationCount": 35,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "salesforce_record_created",
+        "name": "Salesforce Record Created",
+        "description": "Trigger workflow when a Salesforce record is created"
+      },
+      {
+        "id": "salesforce_record_updated",
+        "name": "Salesforce Record Updated",
+        "description": "Trigger workflow when a Salesforce record is updated"
+      },
+      {
+        "id": "salesforce_record_deleted",
+        "name": "Salesforce Record Deleted",
+        "description": "Trigger workflow when a Salesforce record is deleted"
+      },
+      {
+        "id": "salesforce_opportunity_stage_changed",
+        "name": "Salesforce Opportunity Stage Changed",
+        "description": "Trigger workflow when an opportunity stage changes"
+      },
+      {
+        "id": "salesforce_case_status_changed",
+        "name": "Salesforce Case Status Changed",
+        "description": "Trigger workflow when a case status changes"
+      },
+      {
+        "id": "salesforce_webhook",
+        "name": "Salesforce Webhook (All Events)",
+        "description": "Trigger workflow on any Salesforce webhook event"
+      }
+    ],
+    "triggerCount": 6,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "crm",
@@ -10484,8 +10642,34 @@
       }
     ],
     "operationCount": 4,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "servicenow_incident_created",
+        "name": "ServiceNow Incident Created",
+        "description": "Trigger workflow when a new incident is created in ServiceNow"
+      },
+      {
+        "id": "servicenow_incident_updated",
+        "name": "ServiceNow Incident Updated",
+        "description": "Trigger workflow when an incident is updated in ServiceNow"
+      },
+      {
+        "id": "servicenow_change_request_created",
+        "name": "ServiceNow Change Request Created",
+        "description": "Trigger workflow when a new change request is created in ServiceNow"
+      },
+      {
+        "id": "servicenow_change_request_updated",
+        "name": "ServiceNow Change Request Updated",
+        "description": "Trigger workflow when a change request is updated in ServiceNow"
+      },
+      {
+        "id": "servicenow_webhook",
+        "name": "ServiceNow Webhook (All Events)",
+        "description": "Trigger workflow on any ServiceNow webhook event"
+      }
+    ],
+    "triggerCount": 5,
     "authType": "none",
     "category": "tools",
     "integrationType": "customer-support",
@@ -12053,8 +12237,49 @@
       }
     ],
     "operationCount": 50,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "vercel_deployment_created",
+        "name": "Vercel Deployment Created",
+        "description": "Trigger workflow when a new deployment is created"
+      },
+      {
+        "id": "vercel_deployment_ready",
+        "name": "Vercel Deployment Ready",
+        "description": "Trigger workflow when a deployment is ready to serve traffic"
+      },
+      {
+        "id": "vercel_deployment_error",
+        "name": "Vercel Deployment Error",
+        "description": "Trigger workflow when a deployment fails"
+      },
+      {
+        "id": "vercel_deployment_canceled",
+        "name": "Vercel Deployment Canceled",
+        "description": "Trigger workflow when a deployment is canceled"
+      },
+      {
+        "id": "vercel_project_created",
+        "name": "Vercel Project Created",
+        "description": "Trigger workflow when a new project is created"
+      },
+      {
+        "id": "vercel_project_removed",
+        "name": "Vercel Project Removed",
+        "description": "Trigger workflow when a project is removed"
+      },
+      {
+        "id": "vercel_domain_created",
+        "name": "Vercel Domain Created",
+        "description": "Trigger workflow when a domain is created"
+      },
+      {
+        "id": "vercel_webhook",
+        "name": "Vercel Webhook (All Events)",
+        "description": "Trigger workflow on any Vercel webhook event"
+      }
+    ],
+    "triggerCount": 8,
     "authType": "api-key",
     "category": "tools",
     "integrationType": "developer-tools",

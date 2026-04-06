@@ -220,6 +220,13 @@ import {
   salesforceRecordUpdatedTrigger,
   salesforceWebhookTrigger,
 } from '@/triggers/salesforce'
+import {
+  servicenowChangeRequestCreatedTrigger,
+  servicenowChangeRequestUpdatedTrigger,
+  servicenowIncidentCreatedTrigger,
+  servicenowIncidentUpdatedTrigger,
+  servicenowWebhookTrigger,
+} from '@/triggers/servicenow'
 import { slackWebhookTrigger } from '@/triggers/slack'
 import { stripeWebhookTrigger } from '@/triggers/stripe'
 import { telegramWebhookTrigger } from '@/triggers/telegram'
@@ -451,4 +458,9 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   intercom_contact_created: intercomContactCreatedTrigger,
   intercom_user_created: intercomUserCreatedTrigger,
   intercom_webhook: intercomWebhookTrigger,
+  servicenow_incident_created: servicenowIncidentCreatedTrigger,
+  servicenow_incident_updated: servicenowIncidentUpdatedTrigger,
+  servicenow_change_request_created: servicenowChangeRequestCreatedTrigger,
+  servicenow_change_request_updated: servicenowChangeRequestUpdatedTrigger,
+  servicenow_webhook: servicenowWebhookTrigger,
 }
