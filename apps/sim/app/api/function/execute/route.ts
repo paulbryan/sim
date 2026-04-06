@@ -739,18 +739,25 @@ export async function POST(req: NextRequest) {
 
     const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
 
-    const codeResolution = resolveCodeVariables(
-      code,
-      executionParams,
-      envVars,
-      blockData,
-      blockNameMapping,
-      blockOutputSchemas,
-      workflowVariables,
-      lang
-    )
-    resolvedCode = codeResolution.resolvedCode
-    const contextVariables = codeResolution.contextVariables
+    let contextVariables: Record<string, unknown> = {}
+    if (lang === CodeLanguage.Shell) {
+      // For shell, env vars are injected as OS env vars via shellEnvs.
+      // Replace {{VAR}} placeholders with $VAR so the shell can access them natively.
+      resolvedCode = code.replace(/\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g, '$$$1')
+    } else {
+      const codeResolution = resolveCodeVariables(
+        code,
+        executionParams,
+        envVars,
+        blockData,
+        blockNameMapping,
+        blockOutputSchemas,
+        workflowVariables,
+        lang
+      )
+      resolvedCode = codeResolution.resolvedCode
+      contextVariables = codeResolution.contextVariables
+    }
 
     let jsImports = ''
     let jsRemainingCode = resolvedCode
