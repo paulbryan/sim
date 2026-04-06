@@ -1,4 +1,7 @@
+import { db } from '@sim/db'
+import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
@@ -33,6 +36,12 @@ export async function POST(req: NextRequest) {
     }
 
     const { userId } = validationResult.data
+
+    const [existingUser] = await db.select().from(user).where(eq(user.id, userId)).limit(1)
+    if (!existingUser) {
+      logger.warn('[API VALIDATION] userId does not exist', { userId })
+      return NextResponse.json({ error: 'User not found' }, { status: 403 })
+    }
 
     logger.info('[API VALIDATION] Validating usage limit', { userId })
 
