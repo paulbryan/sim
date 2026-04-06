@@ -239,12 +239,8 @@ export function buildCandidateRejectedOutputs(): Record<string, TriggerOutput> {
         },
         jobs: { type: 'json', description: 'Associated jobs (array)' },
         rejection_reason: {
-          id: { type: 'number', description: 'Rejection reason ID' },
-          name: { type: 'string', description: 'Rejection reason name' },
-          reason_type: {
-            id: { type: 'number', description: 'Rejection reason type ID' },
-            name: { type: 'string', description: 'Rejection reason type name' },
-          },
+          type: 'json',
+          description: 'Rejection reason object with id, name, and type fields',
         },
         rejection_details: { type: 'json', description: 'Rejection details with custom fields' },
         custom_fields: { type: 'json', description: 'Application custom fields' },
