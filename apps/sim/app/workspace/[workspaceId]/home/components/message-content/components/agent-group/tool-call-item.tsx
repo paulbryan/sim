@@ -1,6 +1,9 @@
+import { useMemo } from 'react'
 import { PillsRing } from '@/components/emcn'
+import { FunctionExecute } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ToolCallStatus } from '../../../../types'
 import { getToolIcon } from '../../utils'
+import { ChatContent } from '../chat-content/chat-content'
 
 function CircleCheck({ className }: { className?: string }) {
   return (
@@ -54,19 +57,72 @@ function StatusIcon({ status, toolName }: { status: ToolCallStatus; toolName: st
   return <CircleCheck className='h-[15px] w-[15px] text-[var(--text-tertiary)]' />
 }
 
+const LANG_ALIASES: Record<string, string> = {
+  javascript: 'javascript',
+  python: 'python',
+  shell: 'bash',
+  bash: 'bash',
+}
+
+function extractFunctionExecutePreview(raw: string): { code: string; lang: string } | null {
+  if (!raw) return null
+  const langMatch = raw.match(/"language"\s*:\s*"(\w+)"/)
+  const lang = langMatch ? (LANG_ALIASES[langMatch[1]] ?? langMatch[1]) : 'javascript'
+
+  const codeStart = raw.indexOf('"code"')
+  if (codeStart === -1) return null
+  const colonIdx = raw.indexOf(':', codeStart + 6)
+  if (colonIdx === -1) return null
+  const quoteIdx = raw.indexOf('"', colonIdx + 1)
+  if (quoteIdx === -1) return null
+
+  let value = raw.slice(quoteIdx + 1)
+  if (value.endsWith('"}') || value.endsWith('"\n}')) {
+    value = value.replace(/"\s*\}?\s*$/, '')
+  }
+  if (value.endsWith('"')) {
+    value = value.slice(0, -1)
+  }
+
+  const code = value
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\')
+
+  return code.length > 0 ? { code, lang } : null
+}
+
 interface ToolCallItemProps {
   toolName: string
   displayTitle: string
   status: ToolCallStatus
+  streamingArgs?: string
 }
 
-export function ToolCallItem({ toolName, displayTitle, status }: ToolCallItemProps) {
+export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: ToolCallItemProps) {
+  const extracted = useMemo(() => {
+    if (toolName !== FunctionExecute.id || !streamingArgs) return null
+    return extractFunctionExecutePreview(streamingArgs)
+  }, [toolName, streamingArgs])
+  const markdown = useMemo(
+    () => (extracted ? `\`\`\`${extracted.lang}\n${extracted.code}\n\`\`\`` : null),
+    [extracted]
+  )
+
   return (
-    <div className='flex items-center gap-[8px] pl-[24px]'>
-      <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-        <StatusIcon status={status} toolName={toolName} />
+    <div className='flex flex-col pl-[24px]'>
+      <div className='flex items-center gap-[8px]'>
+        <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+          <StatusIcon status={status} toolName={toolName} />
+        </div>
+        <span className='font-base text-[13px] text-[var(--text-secondary)]'>{displayTitle}</span>
       </div>
-      <span className='font-base text-[13px] text-[var(--text-secondary)]'>{displayTitle}</span>
+      {markdown && (
+        <div className='ml-[24px] max-h-[300px] overflow-auto'>
+          <ChatContent content={markdown} isStreaming={status === 'executing'} />
+        </div>
+      )}
     </div>
   )
 }
