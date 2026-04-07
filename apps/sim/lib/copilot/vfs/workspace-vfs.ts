@@ -500,6 +500,14 @@ export class WorkspaceVFS {
 
     const folderPaths = this.buildFolderPaths(folderRows)
 
+    // Register all folders in the VFS so empty folders are discoverable.
+    for (const { folderId } of folderRows) {
+      const folderPath = folderPaths.get(folderId)
+      if (folderPath) {
+        this.files.set(`workflows/${folderPath}/.folder`, '')
+      }
+    }
+
     await Promise.all(
       workflowRows.map(async (wf) => {
         const safeName = sanitizeName(wf.name)
