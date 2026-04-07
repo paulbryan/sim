@@ -20,7 +20,7 @@ describe('persisted-message', () => {
         {
           type: 'tool_call',
           timestamp: Date.now(),
-          calledBy: 'build',
+          calledBy: 'workflow',
           toolCall: {
             id: 'tool-1',
             name: 'read',
@@ -46,7 +46,7 @@ describe('persisted-message', () => {
           state: 'success',
           params: { path: 'foo.txt' },
           result: { success: true, output: { ok: true } },
-          calledBy: 'build',
+          calledBy: 'workflow',
         },
       },
       {

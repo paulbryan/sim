@@ -1,7 +1,6 @@
 import {
   Agent,
   Auth,
-  Build,
   CreateWorkflow,
   Debug,
   Deploy,
@@ -26,6 +25,7 @@ import {
   Table,
   UserMemory,
   UserTable,
+  Workflow,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ChatContext } from '@/stores/panel'
@@ -178,7 +178,7 @@ export interface ChatMessage {
 }
 
 export const SUBAGENT_LABELS: Record<string, string> = {
-  build: 'Build agent',
+  workflow: 'Workflow agent',
   deploy: 'Deploy agent',
   auth: 'Integration agent',
   research: 'Research agent',
@@ -281,7 +281,7 @@ export const TOOL_UI_METADATA: Record<string, ToolUIMetadata> = {
     phaseLabel: 'Resource',
     phase: 'resource',
   },
-  [Build.id]: { title: 'Building', phaseLabel: 'Build', phase: 'subagent' },
+  [Workflow.id]: { title: 'Managing workflow', phaseLabel: 'Workflow', phase: 'subagent' },
   [Run.id]: { title: 'Running', phaseLabel: 'Run', phase: 'subagent' },
   [Deploy.id]: { title: 'Deploying', phaseLabel: 'Deploy', phase: 'subagent' },
   [Auth.id]: {

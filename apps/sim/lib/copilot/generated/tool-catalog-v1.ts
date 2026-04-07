@@ -9,7 +9,6 @@ export interface ToolCatalogEntry {
   id:
     | 'agent'
     | 'auth'
-    | 'build'
     | 'check_deployment_status'
     | 'complete_job'
     | 'context_write'
@@ -84,13 +83,13 @@ export interface ToolCatalogEntry {
     | 'update_workspace_mcp_server'
     | 'user_memory'
     | 'user_table'
+    | 'workflow'
     | 'workspace_file'
   internal?: boolean
   mode: 'async' | 'sync'
   name:
     | 'agent'
     | 'auth'
-    | 'build'
     | 'check_deployment_status'
     | 'complete_job'
     | 'context_write'
@@ -165,13 +164,13 @@ export interface ToolCatalogEntry {
     | 'update_workspace_mcp_server'
     | 'user_memory'
     | 'user_table'
+    | 'workflow'
     | 'workspace_file'
   requiredPermission?: 'admin' | 'write'
   requiresConfirmation?: boolean
   subagentId?:
     | 'agent'
     | 'auth'
-    | 'build'
     | 'debug'
     | 'deploy'
     | 'file_write'
@@ -181,6 +180,7 @@ export interface ToolCatalogEntry {
     | 'run'
     | 'superagent'
     | 'table'
+    | 'workflow'
 }
 
 export const Agent: ToolCatalogEntry = {
@@ -199,15 +199,6 @@ export const Auth: ToolCatalogEntry = {
   executor: 'subagent',
   mode: 'async',
   subagentId: 'auth',
-  internal: true,
-}
-
-export const Build: ToolCatalogEntry = {
-  id: 'build',
-  name: 'build',
-  executor: 'subagent',
-  mode: 'async',
-  subagentId: 'build',
   internal: true,
 }
 
@@ -801,6 +792,15 @@ export const UserTable: ToolCatalogEntry = {
   requiresConfirmation: true,
 }
 
+export const Workflow: ToolCatalogEntry = {
+  id: 'workflow',
+  name: 'workflow',
+  executor: 'subagent',
+  mode: 'async',
+  subagentId: 'workflow',
+  internal: true,
+}
+
 export const WorkspaceFile: ToolCatalogEntry = {
   id: 'workspace_file',
   name: 'workspace_file',
@@ -812,7 +812,6 @@ export const WorkspaceFile: ToolCatalogEntry = {
 export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Agent.id]: Agent,
   [Auth.id]: Auth,
-  [Build.id]: Build,
   [CheckDeploymentStatus.id]: CheckDeploymentStatus,
   [CompleteJob.id]: CompleteJob,
   [ContextWrite.id]: ContextWrite,
@@ -887,5 +886,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,
   [UserMemory.id]: UserMemory,
   [UserTable.id]: UserTable,
+  [Workflow.id]: Workflow,
   [WorkspaceFile.id]: WorkspaceFile,
 }

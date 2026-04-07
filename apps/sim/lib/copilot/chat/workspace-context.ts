@@ -45,6 +45,7 @@ export interface WorkspaceMdData {
     description?: string | null
     isDeployed: boolean
     lastRunAt?: Date | null
+    folderPath?: string | null
   }>
   knowledgeBases: Array<{
     id: string
@@ -92,15 +93,40 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   }
 
   if (data.workflows.length > 0) {
-    const lines = data.workflows.map((wf) => {
-      const parts = [`- **${wf.name}** (${wf.id})`]
-      if (wf.description) parts.push(`  ${wf.description}`)
+    const rootWorkflows: typeof data.workflows = []
+    const folderWorkflows = new Map<string, typeof data.workflows>()
+
+    for (const wf of data.workflows) {
+      if (wf.folderPath) {
+        const existing = folderWorkflows.get(wf.folderPath) ?? []
+        existing.push(wf)
+        folderWorkflows.set(wf.folderPath, existing)
+      } else {
+        rootWorkflows.push(wf)
+      }
+    }
+
+    const formatWf = (wf: (typeof data.workflows)[0], indent: string) => {
+      const parts = [`${indent}- **${wf.name}** (${wf.id})`]
+      if (wf.description) parts.push(`${indent}  ${wf.description}`)
       const flags: string[] = []
       if (wf.isDeployed) flags.push('deployed')
       if (wf.lastRunAt) flags.push(`last run: ${wf.lastRunAt.toISOString().split('T')[0]}`)
       if (flags.length > 0) parts[0] += ` — ${flags.join(', ')}`
       return parts.join('\n')
-    })
+    }
+
+    const lines: string[] = []
+    for (const wf of rootWorkflows) {
+      lines.push(formatWf(wf, ''))
+    }
+    const sortedFolders = [...folderWorkflows.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+    for (const [folder, wfs] of sortedFolders) {
+      lines.push(`- 📁 **${folder}/**`)
+      for (const wf of wfs) {
+        lines.push(formatWf(wf, '  '))
+      }
+    }
     sections.push(`## Workflows (${data.workflows.length})\n${lines.join('\n')}`)
   } else {
     sections.push('## Workflows (0)\n(none)')

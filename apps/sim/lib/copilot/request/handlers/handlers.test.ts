@@ -132,7 +132,7 @@ describe('sse-handlers tool lifecycle', () => {
     context.subAgentParentStack = ['parent-1']
     context.toolCalls.set('parent-1', {
       id: 'parent-1',
-      name: 'build',
+      name: 'workflow',
       status: 'pending',
       startTime: Date.now(),
     })
@@ -140,7 +140,7 @@ describe('sse-handlers tool lifecycle', () => {
     await subAgentHandlers.tool(
       {
         type: MothershipStreamV1EventType.tool,
-        scope: { lane: 'subagent', parentToolCallId: 'parent-1', agentId: 'build' },
+        scope: { lane: 'subagent', parentToolCallId: 'parent-1', agentId: 'workflow' },
         payload: {
           toolCallId: 'sub-tool-1',
           toolName: 'create_workflow',
@@ -158,7 +158,7 @@ describe('sse-handlers tool lifecycle', () => {
     await subAgentHandlers.tool(
       {
         type: MothershipStreamV1EventType.tool,
-        scope: { lane: 'subagent', parentToolCallId: 'parent-1', agentId: 'build' },
+        scope: { lane: 'subagent', parentToolCallId: 'parent-1', agentId: 'workflow' },
         payload: {
           toolCallId: 'sub-tool-1',
           toolName: 'create_workflow',

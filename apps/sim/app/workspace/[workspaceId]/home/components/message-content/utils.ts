@@ -43,7 +43,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   workspace_file: File,
   create_workflow: Layout,
   edit_workflow: Pencil,
-  build: Hammer,
+  workflow: Hammer,
   run: PlayOutline,
   deploy: Rocket,
   auth: Integration,

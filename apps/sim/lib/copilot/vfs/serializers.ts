@@ -12,6 +12,7 @@ export function serializeWorkflowMeta(wf: {
   id: string
   name: string
   description?: string | null
+  folderId?: string | null
   isDeployed: boolean
   deployedAt?: Date | null
   runCount: number
@@ -24,6 +25,7 @@ export function serializeWorkflowMeta(wf: {
       id: wf.id,
       name: wf.name,
       description: wf.description || undefined,
+      folderId: wf.folderId || undefined,
       isDeployed: wf.isDeployed,
       deployedAt: wf.deployedAt?.toISOString(),
       runCount: wf.runCount,

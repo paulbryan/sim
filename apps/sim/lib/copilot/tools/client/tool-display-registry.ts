@@ -371,20 +371,20 @@ const META_manage_skill: ToolMetadata = {
   },
 }
 
-const META_build: ToolMetadata = {
+const META_workflow: ToolMetadata = {
   displayNames: {
-    [ClientToolCallState.generating]: { text: 'Building', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Building', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Building', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Built', icon: Wrench },
-    [ClientToolCallState.error]: { text: 'Failed to build', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped build', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted build', icon: XCircle },
+    [ClientToolCallState.generating]: { text: 'Managing workflow', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Managing workflow', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Managing workflow', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Done', icon: Wrench },
+    [ClientToolCallState.error]: { text: 'Failed', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted', icon: XCircle },
   },
   uiConfig: {
     subagent: {
-      streamingLabel: 'Building',
-      completedLabel: 'Built',
+      streamingLabel: 'Managing workflow',
+      completedLabel: 'Done',
       shouldCollapse: true,
       outputArtifacts: [],
     },
@@ -2298,7 +2298,7 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   checkoff_todo: META_checkoff_todo,
   crawl_website: META_crawl_website,
   create_workspace_mcp_server: META_create_workspace_mcp_server,
-  build: META_build,
+  workflow: META_workflow,
   create_folder: META_create_folder,
   create_workflow: META_create_workflow,
   agent: META_agent,

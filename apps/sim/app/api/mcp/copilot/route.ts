@@ -122,11 +122,9 @@ Sim is a workflow automation platform. Workflows are visual pipelines of connect
 
 1. \`list_workspaces\` → know where to work
 2. \`create_workflow(name, workspaceId)\` → get a workflowId
-3. \`sim_build(request, workflowId)\` → plan and build in one pass
+3. \`sim_workflow(request, workflowId)\` → plan and build in one pass
 4. \`sim_test(request, workflowId)\` → verify it works
 5. \`sim_deploy("deploy as api", workflowId)\` → make it accessible externally (optional)
-
-For fine-grained control, use \`sim_plan\` → \`sim_edit\` instead of \`sim_build\`. Pass the plan object from sim_plan EXACTLY as-is to sim_edit's context.plan field.
 
 ### Working with Existing Workflows
 
@@ -670,7 +668,7 @@ async function handleDirectToolCall(
 
 /**
  * Build mode uses the main chat orchestrator with the 'fast' command instead of
- * the subagent endpoint. In Go, 'build' is not a registered subagent — it's a mode
+ * the subagent endpoint. In Go, 'workflow' is not a registered subagent — it's a mode
  * (ModeFast) on the main chat processor that bypasses subagent orchestration and
  * executes all tools directly.
  */
@@ -768,7 +766,7 @@ async function handleSubagentToolCall(
   userId: string,
   abortSignal?: AbortSignal
 ): Promise<CallToolResult> {
-  if (toolDef.agentId === 'build') {
+  if (toolDef.agentId === 'workflow') {
     return handleBuildToolCall(args, userId, abortSignal)
   }
 

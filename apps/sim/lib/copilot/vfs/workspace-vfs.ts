@@ -66,7 +66,7 @@ import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { listSkills } from '@/lib/workflows/skills/operations'
-import { listWorkflows } from '@/lib/workflows/utils'
+import { listFolders, listWorkflows } from '@/lib/workflows/utils'
 import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
@@ -262,10 +262,11 @@ function getStaticComponentFiles(): Map<string, string> {
  *
  * Structure:
  *   WORKSPACE.md                         — workspace identity, members, inventory (auto-generated)
- *   workflows/{name}/meta.json
+ *   workflows/{name}/meta.json            (root-level workflows)
  *   workflows/{name}/state.json          (sanitized blocks with embedded connections)
  *   workflows/{name}/executions.json
  *   workflows/{name}/deployment.json
+ *   workflows/{folder}/{name}/...        (workflows inside folders, nested folders supported)
  *   knowledgebases/{name}/meta.json
  *   knowledgebases/{name}/documents.json
  *   knowledgebases/{name}/connectors.json
@@ -416,19 +417,61 @@ export class WorkspaceVFS {
   }
 
   /**
+   * Build a map from folderId to its full VFS path segment (e.g. "My Folder/Sub Folder").
+   * Handles nested folders via parentId traversal.
+   */
+  private buildFolderPaths(
+    folders: Array<{ folderId: string; folderName: string; parentId: string | null }>
+  ): Map<string, string> {
+    const folderMap = new Map<string, { name: string; parentId: string | null }>()
+    for (const f of folders) {
+      folderMap.set(f.folderId, { name: f.folderName, parentId: f.parentId })
+    }
+
+    const cache = new Map<string, string>()
+    const resolve = (id: string): string => {
+      if (cache.has(id)) return cache.get(id)!
+      const folder = folderMap.get(id)
+      if (!folder) return ''
+      const parentPath = folder.parentId ? resolve(folder.parentId) : ''
+      const path = parentPath
+        ? `${parentPath}/${sanitizeName(folder.name)}`
+        : sanitizeName(folder.name)
+      cache.set(id, path)
+      return path
+    }
+
+    for (const id of folderMap.keys()) {
+      resolve(id)
+    }
+    return cache
+  }
+
+  /**
    * Materialize all workflows using the shared listWorkflows function.
+   * Workflows are nested under their folder paths in the VFS:
+   *   workflows/{folder}/{name}/  (if in a folder)
+   *   workflows/{name}/           (if at workspace root)
    * Returns a summary for WORKSPACE.md generation.
    */
   private async materializeWorkflows(
     workspaceId: string,
     _userId: string
   ): Promise<WorkspaceMdData['workflows']> {
-    const workflowRows = await listWorkflows(workspaceId)
+    const [workflowRows, folderRows] = await Promise.all([
+      listWorkflows(workspaceId),
+      listFolders(workspaceId),
+    ])
+
+    const folderPaths = this.buildFolderPaths(folderRows)
 
     await Promise.all(
       workflowRows.map(async (wf) => {
         const safeName = sanitizeName(wf.name)
-        const prefix = `workflows/${safeName}/`
+        const folderPath = wf.folderId ? folderPaths.get(wf.folderId) : null
+        const prefix = folderPath
+          ? `workflows/${folderPath}/${safeName}/`
+          : `workflows/${safeName}/`
 
         this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf))
 
@@ -506,6 +549,7 @@ export class WorkspaceVFS {
       description: wf.description,
       isDeployed: wf.isDeployed,
       lastRunAt: wf.lastRunAt,
+      folderPath: wf.folderId ? (folderPaths.get(wf.folderId) ?? null) : null,
     }))
   }
 
