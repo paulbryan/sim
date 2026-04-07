@@ -118,6 +118,10 @@ function getStaticComponentFiles(): Map<string, string> {
 
   const latestTools = getLatestVersionTools(toolRegistry)
   let integrationCount = 0
+
+  const oauthServices = new Map<string, { provider: string; operations: string[] }>()
+  const apiKeyServices = new Map<string, { params: string[]; operations: string[] }>()
+
   for (const [toolId, tool] of Object.entries(latestTools)) {
     const baseName = stripVersionSuffix(toolId)
     const service = toolToService.get(toolId) ?? toolToService.get(baseName)
@@ -132,7 +136,38 @@ function getStaticComponentFiles(): Map<string, string> {
     const path = `components/integrations/${service}/${operation}.json`
     files.set(path, serializeIntegrationSchema(tool))
     integrationCount++
+
+    if (tool.oauth?.required) {
+      const existing = oauthServices.get(service)
+      if (existing) {
+        existing.operations.push(operation)
+      } else {
+        oauthServices.set(service, { provider: tool.oauth.provider, operations: [operation] })
+      }
+    } else if (tool.hosting?.apiKeyParam) {
+      const existing = apiKeyServices.get(service)
+      if (existing) {
+        if (!existing.params.includes(tool.hosting.apiKeyParam)) {
+          existing.params.push(tool.hosting.apiKeyParam)
+        }
+        existing.operations.push(operation)
+      } else {
+        apiKeyServices.set(service, {
+          params: [tool.hosting.apiKeyParam],
+          operations: [operation],
+        })
+      }
+    }
   }
+
+  files.set(
+    'environment/oauth-integrations.json',
+    JSON.stringify(Object.fromEntries(oauthServices), null, 2)
+  )
+  files.set(
+    'environment/api-key-integrations.json',
+    JSON.stringify(Object.fromEntries(apiKeyServices), null, 2)
+  )
 
   files.set(
     'components/blocks/loop.json',
