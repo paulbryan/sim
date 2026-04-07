@@ -3,7 +3,6 @@ import { PillsRing } from '@/components/emcn'
 import { FunctionExecute } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ToolCallStatus } from '../../../../types'
 import { getToolIcon } from '../../utils'
-import { ChatContent } from '../chat-content/chat-content'
 
 function CircleCheck({ className }: { className?: string }) {
   return (
@@ -118,11 +117,11 @@ export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: 
         </div>
         <span className='font-base text-[13px] text-[var(--text-secondary)]'>{displayTitle}</span>
       </div>
-      {markdown && (
+      {/* {markdown && (
         <div className='ml-[24px] max-h-[300px] overflow-auto'>
           <ChatContent content={markdown} isStreaming={status === 'executing'} />
         </div>
-      )}
+      )} */}
     </div>
   )
 }
