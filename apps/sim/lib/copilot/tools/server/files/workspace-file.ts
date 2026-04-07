@@ -15,6 +15,7 @@ import {
   deleteWorkspaceFile,
   downloadWorkspaceFile as downloadWsFile,
   getWorkspaceFile,
+  getWorkspaceFileByName,
   renameWorkspaceFile,
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
@@ -99,20 +100,76 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           const isPptx = lowerName.endsWith('.pptx')
           const isDocx = lowerName.endsWith('.docx')
           const isPdf = lowerName.endsWith('.pdf')
-          let contentType: string
+          const isDoc = isPptx || isDocx || isPdf
+          const sourceMime = isPptx
+            ? PPTX_SOURCE_MIME
+            : isDocx
+              ? DOCX_SOURCE_MIME
+              : isPdf
+                ? PDF_SOURCE_MIME
+                : undefined
 
-          if (isPptx || isDocx || isPdf) {
+          const existingFile = await getWorkspaceFileByName(workspaceId, fileName)
+
+          if (existingFile) {
+            const currentBuffer = await downloadWsFile(existingFile)
+            const combined = `${currentBuffer.toString('utf-8')}\n${content}`
+
+            if (isDoc) {
+              const formatName = isPptx ? 'PPTX' : isDocx ? 'DOCX' : 'PDF'
+              const generator = isPptx
+                ? generatePptxFromCode
+                : isDocx
+                  ? generateDocxFromCode
+                  : generatePdfFromCode
+              try {
+                await generator(combined, workspaceId)
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err)
+                return {
+                  success: false,
+                  message: `${formatName} generation failed after append: ${msg}. Fix the content and retry.`,
+                }
+              }
+            }
+
+            const combinedBuffer = Buffer.from(combined, 'utf-8')
+            assertServerToolNotAborted(context)
+            await updateWorkspaceFileContent(
+              workspaceId,
+              existingFile.id,
+              context.userId,
+              combinedBuffer,
+              sourceMime
+            )
+
+            logger.info('Workspace file appended via write', {
+              fileId: existingFile.id,
+              name: fileName,
+              appendedSize: content.length,
+              totalSize: combinedBuffer.length,
+              userId: context.userId,
+            })
+
+            return {
+              success: true,
+              message: `Content appended to "${fileName}" (${content.length} bytes added, ${combinedBuffer.length} bytes total)`,
+              data: {
+                id: existingFile.id,
+                name: fileName,
+                size: combinedBuffer.length,
+              },
+            }
+          }
+
+          let contentType: string
+          if (isDoc) {
             const formatName = isPptx ? 'PPTX' : isDocx ? 'DOCX' : 'PDF'
             const generator = isPptx
               ? generatePptxFromCode
               : isDocx
                 ? generateDocxFromCode
                 : generatePdfFromCode
-            const sourceMime = isPptx
-              ? PPTX_SOURCE_MIME
-              : isDocx
-                ? DOCX_SOURCE_MIME
-                : PDF_SOURCE_MIME
             try {
               await generator(content, workspaceId)
             } catch (err) {
@@ -123,7 +180,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
                 message: `${formatName} generation failed: ${msg}. Fix the code and retry.`,
               }
             }
-            contentType = sourceMime
+            contentType = sourceMime!
           } else {
             contentType = inferContentType(fileName, explicitType)
           }
@@ -298,85 +355,6 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             success: true,
             message: `File "${fileRecord.name}" deleted successfully`,
             data: { id: fileId, name: fileRecord.name },
-          }
-        }
-
-        case 'append': {
-          const fileId = (args as Record<string, unknown>).fileId as string | undefined
-          const content = (args as Record<string, unknown>).content as string | undefined
-
-          if (!fileId) {
-            return { success: false, message: 'fileId is required for append operation' }
-          }
-          if (!content) {
-            return { success: false, message: 'content is required for append operation' }
-          }
-
-          const fileRecord = await getWorkspaceFile(workspaceId, fileId)
-          if (!fileRecord) {
-            return { success: false, message: `File with ID "${fileId}" not found` }
-          }
-
-          const currentBuffer = await downloadWsFile(fileRecord)
-          const combined = `${currentBuffer.toString('utf-8')}\n${content}`
-
-          const appendLowerName = fileRecord.name?.toLowerCase() ?? ''
-          const isPptxAppend = appendLowerName.endsWith('.pptx')
-          const isDocxAppend = appendLowerName.endsWith('.docx')
-          const isPdfAppend = appendLowerName.endsWith('.pdf')
-          const isDocAppend = isPptxAppend || isDocxAppend || isPdfAppend
-
-          if (isDocAppend) {
-            const formatName = isPptxAppend ? 'PPTX' : isDocxAppend ? 'DOCX' : 'PDF'
-            const generator = isPptxAppend
-              ? generatePptxFromCode
-              : isDocxAppend
-                ? generateDocxFromCode
-                : generatePdfFromCode
-            try {
-              await generator(combined, workspaceId)
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err)
-              return {
-                success: false,
-                message: `Appended ${formatName} code failed to compile: ${msg}. Fix the content and retry.`,
-              }
-            }
-          }
-
-          const appendSourceMime = isPptxAppend
-            ? PPTX_SOURCE_MIME
-            : isDocxAppend
-              ? DOCX_SOURCE_MIME
-              : isPdfAppend
-                ? PDF_SOURCE_MIME
-                : undefined
-          const appendBuffer = Buffer.from(combined, 'utf-8')
-          assertServerToolNotAborted(context)
-          await updateWorkspaceFileContent(
-            workspaceId,
-            fileId,
-            context.userId,
-            appendBuffer,
-            appendSourceMime
-          )
-
-          logger.info('Workspace file appended via copilot', {
-            fileId,
-            name: fileRecord.name,
-            appendedSize: content.length,
-            totalSize: appendBuffer.length,
-            userId: context.userId,
-          })
-
-          return {
-            success: true,
-            message: `Content appended to "${fileRecord.name}" (${content.length} bytes added, ${appendBuffer.length} bytes total)`,
-            data: {
-              id: fileId,
-              name: fileRecord.name,
-              size: appendBuffer.length,
-            },
           }
         }
 

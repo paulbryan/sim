@@ -502,7 +502,7 @@ const ZOOM_BUTTON_FACTOR = 1.2
 const clampZoom = (z: number) => Math.min(Math.max(z, ZOOM_MIN), ZOOM_MAX)
 
 const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
-  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
+  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace&t=${file.size}`
   const [zoom, setZoom] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const isDragging = useRef(false)
