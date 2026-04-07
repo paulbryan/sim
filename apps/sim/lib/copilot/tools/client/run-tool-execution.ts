@@ -121,6 +121,21 @@ async function doExecuteRunTool(
     return
   }
 
+  const existingToolCallId = activeRunToolByWorkflowId.get(targetWorkflowId)
+  if (existingToolCallId) {
+    logger.warn('[RunTool] Execution prevented: another run tool is already active', {
+      toolCallId,
+      toolName,
+      existingToolCallId,
+    })
+    await reportCompletion(
+      toolCallId,
+      MothershipStreamV1ToolOutcome.error,
+      'Workflow is already being executed by another tool. Wait for it to complete.'
+    )
+    return
+  }
+
   setActiveWorkflow(targetWorkflowId)
   activeRunToolByWorkflowId.set(targetWorkflowId, toolCallId)
 
@@ -129,6 +144,7 @@ async function doExecuteRunTool(
 
   if (isExecuting) {
     logger.warn('[RunTool] Execution prevented: already executing', { toolCallId, toolName })
+    activeRunToolByWorkflowId.delete(targetWorkflowId)
     setToolState(toolCallId, ClientToolCallState.error)
     await reportCompletion(
       toolCallId,
