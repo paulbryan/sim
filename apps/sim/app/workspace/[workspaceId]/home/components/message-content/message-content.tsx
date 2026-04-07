@@ -51,6 +51,11 @@ const SUBAGENT_DISPATCH_TOOLS: Record<string, string> = {
   [FileWrite.id]: WorkspaceFile.id,
 }
 
+function isToolResultRead(params?: Record<string, unknown>): boolean {
+  const path = params?.path
+  return typeof path === 'string' && path.startsWith('internal/tool-results/')
+}
+
 function formatToolName(name: string): string {
   return name
     .replace(/_v\d+$/, '')
@@ -206,6 +211,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
       if (!block.toolCall) continue
       const tc = block.toolCall
       if (tc.name === ToolSearchToolRegex.id) continue
+      if (tc.name === ReadTool.id && isToolResultRead(tc.params)) continue
       const isDispatch = SUBAGENT_KEYS.has(tc.name) && !tc.calledBy
 
       if (isDispatch) {
