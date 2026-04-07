@@ -84,12 +84,8 @@ export interface RequestTraceV1MergedTrace {
   cost?: RequestTraceV1CostSummary
   durationMs: number
   endMs: number
-  executionId?: string
   goTraceId: string
-  model?: string
   outcome: RequestTraceV1Outcome
-  provider?: string
-  runId?: string
   serviceCharges?: MothershipStreamV1AdditionalPropertiesMap
   simRequestId?: string
   spans: RequestTraceV1Span[]

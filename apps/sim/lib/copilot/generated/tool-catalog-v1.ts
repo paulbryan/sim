@@ -8,11 +8,8 @@ export interface ToolCatalogEntry {
   hidden?: boolean
   id:
     | 'agent'
-    | 'agent_respond'
     | 'auth'
-    | 'auth_respond'
     | 'build'
-    | 'build_respond'
     | 'check_deployment_status'
     | 'complete_job'
     | 'context_write'
@@ -22,7 +19,6 @@ export interface ToolCatalogEntry {
     | 'create_workflow'
     | 'create_workspace_mcp_server'
     | 'debug'
-    | 'debug_respond'
     | 'delete_folder'
     | 'delete_workflow'
     | 'delete_workspace_mcp_server'
@@ -30,11 +26,8 @@ export interface ToolCatalogEntry {
     | 'deploy_api'
     | 'deploy_chat'
     | 'deploy_mcp'
-    | 'deploy_respond'
     | 'download_to_workspace_file'
-    | 'edit_respond'
     | 'edit_workflow'
-    | 'fast_edit_respond'
     | 'file_write'
     | 'function_execute'
     | 'generate_api_key'
@@ -53,10 +46,8 @@ export interface ToolCatalogEntry {
     | 'glob'
     | 'grep'
     | 'job'
-    | 'job_respond'
     | 'knowledge'
     | 'knowledge_base'
-    | 'knowledge_respond'
     | 'list_folders'
     | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
@@ -69,16 +60,14 @@ export interface ToolCatalogEntry {
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
     | 'open_resource'
-    | 'plan_respond'
     | 'read'
     | 'redeploy'
     | 'research'
-    | 'research_respond'
+    | 'respond'
     | 'revert_to_version'
     | 'run'
     | 'run_block'
     | 'run_from_block'
-    | 'run_respond'
     | 'run_workflow'
     | 'run_workflow_until_block'
     | 'scrape_page'
@@ -89,9 +78,7 @@ export interface ToolCatalogEntry {
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
     | 'superagent'
-    | 'superagent_respond'
     | 'table'
-    | 'table_respond'
     | 'tool_search_tool_regex'
     | 'update_job_history'
     | 'update_workspace_mcp_server'
@@ -102,11 +89,8 @@ export interface ToolCatalogEntry {
   mode: 'async' | 'sync'
   name:
     | 'agent'
-    | 'agent_respond'
     | 'auth'
-    | 'auth_respond'
     | 'build'
-    | 'build_respond'
     | 'check_deployment_status'
     | 'complete_job'
     | 'context_write'
@@ -116,7 +100,6 @@ export interface ToolCatalogEntry {
     | 'create_workflow'
     | 'create_workspace_mcp_server'
     | 'debug'
-    | 'debug_respond'
     | 'delete_folder'
     | 'delete_workflow'
     | 'delete_workspace_mcp_server'
@@ -124,11 +107,8 @@ export interface ToolCatalogEntry {
     | 'deploy_api'
     | 'deploy_chat'
     | 'deploy_mcp'
-    | 'deploy_respond'
     | 'download_to_workspace_file'
-    | 'edit_respond'
     | 'edit_workflow'
-    | 'fast_edit_respond'
     | 'file_write'
     | 'function_execute'
     | 'generate_api_key'
@@ -147,10 +127,8 @@ export interface ToolCatalogEntry {
     | 'glob'
     | 'grep'
     | 'job'
-    | 'job_respond'
     | 'knowledge'
     | 'knowledge_base'
-    | 'knowledge_respond'
     | 'list_folders'
     | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
@@ -163,16 +141,14 @@ export interface ToolCatalogEntry {
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
     | 'open_resource'
-    | 'plan_respond'
     | 'read'
     | 'redeploy'
     | 'research'
-    | 'research_respond'
+    | 'respond'
     | 'revert_to_version'
     | 'run'
     | 'run_block'
     | 'run_from_block'
-    | 'run_respond'
     | 'run_workflow'
     | 'run_workflow_until_block'
     | 'scrape_page'
@@ -183,9 +159,7 @@ export interface ToolCatalogEntry {
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
     | 'superagent'
-    | 'superagent_respond'
     | 'table'
-    | 'table_respond'
     | 'tool_search_tool_regex'
     | 'update_job_history'
     | 'update_workspace_mcp_server'
@@ -219,15 +193,6 @@ export const Agent: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
-export const AgentRespond: ToolCatalogEntry = {
-  id: 'agent_respond',
-  name: 'agent_respond',
-  executor: 'sim',
-  mode: 'async',
-  internal: true,
-  hidden: true,
-}
-
 export const Auth: ToolCatalogEntry = {
   id: 'auth',
   name: 'auth',
@@ -237,15 +202,6 @@ export const Auth: ToolCatalogEntry = {
   internal: true,
 }
 
-export const AuthRespond: ToolCatalogEntry = {
-  id: 'auth_respond',
-  name: 'auth_respond',
-  executor: 'sim',
-  mode: 'async',
-  internal: true,
-  hidden: true,
-}
-
 export const Build: ToolCatalogEntry = {
   id: 'build',
   name: 'build',
@@ -253,15 +209,6 @@ export const Build: ToolCatalogEntry = {
   mode: 'async',
   subagentId: 'build',
   internal: true,
-}
-
-export const BuildRespond: ToolCatalogEntry = {
-  id: 'build_respond',
-  name: 'build_respond',
-  executor: 'sim',
-  mode: 'async',
-  internal: true,
-  hidden: true,
 }
 
 export const CheckDeploymentStatus: ToolCatalogEntry = {
@@ -333,15 +280,6 @@ export const Debug: ToolCatalogEntry = {
   internal: true,
 }
 
-export const DebugRespond: ToolCatalogEntry = {
-  id: 'debug_respond',
-  name: 'debug_respond',
-  executor: 'sim',
-  mode: 'async',
-  internal: true,
-  hidden: true,
-}
-
 export const DeleteFolder: ToolCatalogEntry = {
   id: 'delete_folder',
   name: 'delete_folder',
@@ -405,15 +343,6 @@ export const DeployMcp: ToolCatalogEntry = {
   requiredPermission: 'admin',
 }
 
-export const DeployRespond: ToolCatalogEntry = {
-  id: 'deploy_respond',
-  name: 'deploy_respond',
-  executor: 'sim',
-  mode: 'async',
-  internal: true,
-  hidden: true,
-}
-
 export const DownloadToWorkspaceFile: ToolCatalogEntry = {
   id: 'download_to_workspace_file',
   name: 'download_to_workspace_file',
@@ -422,30 +351,12 @@ export const DownloadToWorkspaceFile: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
-export const EditRespond: ToolCatalogEntry = {
-  id: 'edit_respond',
-  name: 'edit_respond',
-  executor: 'sim',
-  mode: 'async',
-  internal: true,
-  hidden: true,
-}
-
 export const EditWorkflow: ToolCatalogEntry = {
   id: 'edit_workflow',
   name: 'edit_workflow',
   executor: 'sim',
   mode: 'async',
   requiredPermission: 'write',
-}
-
-export const FastEditRespond: ToolCatalogEntry = {
-  id: 'fast_edit_respond',
-  name: 'fast_edit_respond',
-  executor: 'sim',
-  mode: 'async',
-  internal: true,
-  hidden: true,
 }
 
 export const FileWrite: ToolCatalogEntry = {
@@ -583,15 +494,6 @@ export const Job: ToolCatalogEntry = {
   internal: true,
 }
 
-export const JobRespond: ToolCatalogEntry = {
-  id: 'job_respond',
-  name: 'job_respond',
-  executor: 'sim',
-  mode: 'async',
-  internal: true,
-  hidden: true,
-}
-
 export const Knowledge: ToolCatalogEntry = {
   id: 'knowledge',
   name: 'knowledge',
@@ -607,15 +509,6 @@ export const KnowledgeBase: ToolCatalogEntry = {
   executor: 'sim',
   mode: 'async',
   requiresConfirmation: true,
-}
-
-export const KnowledgeRespond: ToolCatalogEntry = {
-  id: 'knowledge_respond',
-  name: 'knowledge_respond',
-  executor: 'sim',
-  mode: 'async',
-  internal: true,
-  hidden: true,
 }
 
 export const ListFolders: ToolCatalogEntry = {
@@ -711,15 +604,6 @@ export const OpenResource: ToolCatalogEntry = {
   mode: 'async',
 }
 
-export const PlanRespond: ToolCatalogEntry = {
-  id: 'plan_respond',
-  name: 'plan_respond',
-  executor: 'sim',
-  mode: 'async',
-  internal: true,
-  hidden: true,
-}
-
 export const Read: ToolCatalogEntry = {
   id: 'read',
   name: 'read',
@@ -745,9 +629,9 @@ export const Research: ToolCatalogEntry = {
   internal: true,
 }
 
-export const ResearchRespond: ToolCatalogEntry = {
-  id: 'research_respond',
-  name: 'research_respond',
+export const Respond: ToolCatalogEntry = {
+  id: 'respond',
+  name: 'respond',
   executor: 'sim',
   mode: 'async',
   internal: true,
@@ -788,15 +672,6 @@ export const RunFromBlock: ToolCatalogEntry = {
   mode: 'async',
   clientExecutable: true,
   requiresConfirmation: true,
-}
-
-export const RunRespond: ToolCatalogEntry = {
-  id: 'run_respond',
-  name: 'run_respond',
-  executor: 'sim',
-  mode: 'async',
-  internal: true,
-  hidden: true,
 }
 
 export const RunWorkflow: ToolCatalogEntry = {
@@ -879,15 +754,6 @@ export const Superagent: ToolCatalogEntry = {
   internal: true,
 }
 
-export const SuperagentRespond: ToolCatalogEntry = {
-  id: 'superagent_respond',
-  name: 'superagent_respond',
-  executor: 'sim',
-  mode: 'async',
-  internal: true,
-  hidden: true,
-}
-
 export const Table: ToolCatalogEntry = {
   id: 'table',
   name: 'table',
@@ -895,15 +761,6 @@ export const Table: ToolCatalogEntry = {
   mode: 'async',
   subagentId: 'table',
   internal: true,
-}
-
-export const TableRespond: ToolCatalogEntry = {
-  id: 'table_respond',
-  name: 'table_respond',
-  executor: 'sim',
-  mode: 'async',
-  internal: true,
-  hidden: true,
 }
 
 export const ToolSearchToolRegex: ToolCatalogEntry = {
@@ -954,11 +811,8 @@ export const WorkspaceFile: ToolCatalogEntry = {
 
 export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Agent.id]: Agent,
-  [AgentRespond.id]: AgentRespond,
   [Auth.id]: Auth,
-  [AuthRespond.id]: AuthRespond,
   [Build.id]: Build,
-  [BuildRespond.id]: BuildRespond,
   [CheckDeploymentStatus.id]: CheckDeploymentStatus,
   [CompleteJob.id]: CompleteJob,
   [ContextWrite.id]: ContextWrite,
@@ -968,7 +822,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [CreateWorkflow.id]: CreateWorkflow,
   [CreateWorkspaceMcpServer.id]: CreateWorkspaceMcpServer,
   [Debug.id]: Debug,
-  [DebugRespond.id]: DebugRespond,
   [DeleteFolder.id]: DeleteFolder,
   [DeleteWorkflow.id]: DeleteWorkflow,
   [DeleteWorkspaceMcpServer.id]: DeleteWorkspaceMcpServer,
@@ -976,11 +829,8 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [DeployApi.id]: DeployApi,
   [DeployChat.id]: DeployChat,
   [DeployMcp.id]: DeployMcp,
-  [DeployRespond.id]: DeployRespond,
   [DownloadToWorkspaceFile.id]: DownloadToWorkspaceFile,
-  [EditRespond.id]: EditRespond,
   [EditWorkflow.id]: EditWorkflow,
-  [FastEditRespond.id]: FastEditRespond,
   [FileWrite.id]: FileWrite,
   [FunctionExecute.id]: FunctionExecute,
   [GenerateApiKey.id]: GenerateApiKey,
@@ -999,10 +849,8 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Glob.id]: Glob,
   [Grep.id]: Grep,
   [Job.id]: Job,
-  [JobRespond.id]: JobRespond,
   [Knowledge.id]: Knowledge,
   [KnowledgeBase.id]: KnowledgeBase,
-  [KnowledgeRespond.id]: KnowledgeRespond,
   [ListFolders.id]: ListFolders,
   [ListUserWorkspaces.id]: ListUserWorkspaces,
   [ListWorkspaceMcpServers.id]: ListWorkspaceMcpServers,
@@ -1015,16 +863,14 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [OauthGetAuthLink.id]: OauthGetAuthLink,
   [OauthRequestAccess.id]: OauthRequestAccess,
   [OpenResource.id]: OpenResource,
-  [PlanRespond.id]: PlanRespond,
   [Read.id]: Read,
   [Redeploy.id]: Redeploy,
   [Research.id]: Research,
-  [ResearchRespond.id]: ResearchRespond,
+  [Respond.id]: Respond,
   [RevertToVersion.id]: RevertToVersion,
   [Run.id]: Run,
   [RunBlock.id]: RunBlock,
   [RunFromBlock.id]: RunFromBlock,
-  [RunRespond.id]: RunRespond,
   [RunWorkflow.id]: RunWorkflow,
   [RunWorkflowUntilBlock.id]: RunWorkflowUntilBlock,
   [ScrapePage.id]: ScrapePage,
@@ -1035,9 +881,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SetEnvironmentVariables.id]: SetEnvironmentVariables,
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
   [Superagent.id]: Superagent,
-  [SuperagentRespond.id]: SuperagentRespond,
   [Table.id]: Table,
-  [TableRespond.id]: TableRespond,
   [ToolSearchToolRegex.id]: ToolSearchToolRegex,
   [UpdateJobHistory.id]: UpdateJobHistory,
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,

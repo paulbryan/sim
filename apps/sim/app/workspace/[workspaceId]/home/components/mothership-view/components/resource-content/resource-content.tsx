@@ -537,7 +537,7 @@ function extractFileContent(raw: string): string {
   const marker = '"content":'
   const idx = raw.indexOf(marker)
   if (idx === -1) return ''
-  let rest = raw.slice(idx + marker.length).trimStart()
+  const rest = raw.slice(idx + marker.length).trimStart()
   if (!rest.startsWith('"')) return rest
 
   // Walk the JSON string value to find the unescaped closing quote.

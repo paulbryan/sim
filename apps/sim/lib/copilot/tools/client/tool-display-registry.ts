@@ -4,7 +4,6 @@ import {
   Bug,
   Check,
   CheckCircle,
-  ClipboardList,
   Database,
   Eye,
   FileSearch,
@@ -2087,66 +2086,6 @@ const META_superagent: ToolMetadata = {
   },
 }
 
-const META_plan: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Planning', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Planning', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Planning', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Planned', icon: ClipboardList },
-    [ClientToolCallState.error]: { text: 'Failed to plan', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped planning', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted planning', icon: XCircle },
-  },
-  uiConfig: {
-    subagent: {
-      streamingLabel: 'Planning',
-      completedLabel: 'Planned',
-      shouldCollapse: true,
-      outputArtifacts: [],
-    },
-  },
-}
-
-const META_edit: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Editing', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Editing', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Editing', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Edited', icon: PencilLine },
-    [ClientToolCallState.error]: { text: 'Failed to edit', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped editing', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted editing', icon: XCircle },
-  },
-  uiConfig: {
-    subagent: {
-      streamingLabel: 'Editing',
-      completedLabel: 'Edited',
-      shouldCollapse: true,
-      outputArtifacts: [],
-    },
-  },
-}
-
-const META_fast_edit: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Building', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Building', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Building', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Built', icon: Wrench },
-    [ClientToolCallState.error]: { text: 'Failed to build', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped build', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted build', icon: XCircle },
-  },
-  uiConfig: {
-    subagent: {
-      streamingLabel: 'Building',
-      completedLabel: 'Built',
-      shouldCollapse: true,
-      outputArtifacts: [],
-    },
-  },
-}
-
 const META_debug: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Debugging', icon: Loader2 },
@@ -2369,8 +2308,6 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   deploy_api: META_deploy_api,
   deploy_chat: META_deploy_chat,
   deploy_mcp: META_deploy_mcp,
-  edit: META_edit,
-  fast_edit: META_fast_edit,
   edit_workflow: META_edit_workflow,
   get_block_outputs: META_get_block_outputs,
   get_block_upstream_references: META_get_block_upstream_references,
@@ -2401,7 +2338,6 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   oauth_get_auth_link: META_oauth_get_auth_link,
   oauth_request_access: META_oauth_request_access,
   open_resource: META_open_resource,
-  plan: META_plan,
   read: META_read,
   redeploy: META_redeploy,
   rename_workflow: META_rename_workflow,
