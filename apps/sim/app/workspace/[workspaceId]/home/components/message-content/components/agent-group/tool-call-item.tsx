@@ -110,18 +110,11 @@ export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: 
   )
 
   return (
-    <div className='flex flex-col pl-[24px]'>
-      <div className='flex items-center gap-[8px]'>
-        <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-          <StatusIcon status={status} toolName={toolName} />
-        </div>
-        <span className='font-base text-[13px] text-[var(--text-secondary)]'>{displayTitle}</span>
+    <div className='flex items-center gap-[8px] pl-[24px]'>
+      <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+        <StatusIcon status={status} toolName={toolName} />
       </div>
-      {/* {markdown && (
-        <div className='ml-[24px] max-h-[300px] overflow-auto'>
-          <ChatContent content={markdown} isStreaming={status === 'executing'} />
-        </div>
-      )} */}
+      <span className='font-base text-[13px] text-[var(--text-secondary)]'>{displayTitle}</span>
     </div>
   )
 }
