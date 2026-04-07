@@ -20,12 +20,18 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
+  CreateFolder,
+  DeleteFolder,
+  DeleteWorkflow,
   DeployApi,
   DeployChat,
   DeployMcp,
   FileWrite,
+  MoveFolder,
+  MoveWorkflow,
   Read as ReadTool,
   Redeploy,
+  RenameWorkflow,
   ToolSearchToolRegex,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -54,6 +60,7 @@ import {
   useChatHistory,
 } from '@/hooks/queries/tasks'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowSelectors } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
@@ -105,6 +112,14 @@ const DEPLOY_TOOL_NAMES: Set<string> = new Set([
   DeployChat.id,
   DeployMcp.id,
   Redeploy.id,
+])
+
+const FOLDER_TOOL_NAMES: Set<string> = new Set([CreateFolder.id, DeleteFolder.id, MoveFolder.id])
+
+const WORKFLOW_MUTATION_TOOL_NAMES: Set<string> = new Set([
+  MoveWorkflow.id,
+  RenameWorkflow.id,
+  DeleteWorkflow.id,
 ])
 const RECONNECT_TAIL_ERROR =
   'Live reconnect failed before the stream finished. The latest response may be incomplete.'
@@ -980,6 +995,17 @@ export function useChat(
                         queryKey: workflowKeys.list(workspaceId),
                       })
                     }
+                  }
+
+                  if (FOLDER_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
+                    queryClient.invalidateQueries({
+                      queryKey: folderKeys.list(workspaceId),
+                    })
+                  }
+                  if (WORKFLOW_MUTATION_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
+                    queryClient.invalidateQueries({
+                      queryKey: workflowKeys.list(workspaceId),
+                    })
                   }
 
                   const extractedResources =

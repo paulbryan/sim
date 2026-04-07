@@ -56,11 +56,14 @@ export interface ToolCatalogEntry {
     | 'manage_mcp_tool'
     | 'manage_skill'
     | 'materialize_file'
+    | 'move_folder'
+    | 'move_workflow'
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
     | 'open_resource'
     | 'read'
     | 'redeploy'
+    | 'rename_workflow'
     | 'research'
     | 'respond'
     | 'revert_to_version'
@@ -137,11 +140,14 @@ export interface ToolCatalogEntry {
     | 'manage_mcp_tool'
     | 'manage_skill'
     | 'materialize_file'
+    | 'move_folder'
+    | 'move_workflow'
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
     | 'open_resource'
     | 'read'
     | 'redeploy'
+    | 'rename_workflow'
     | 'research'
     | 'respond'
     | 'revert_to_version'
@@ -573,6 +579,22 @@ export const MaterializeFile: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
+export const MoveFolder: ToolCatalogEntry = {
+  id: 'move_folder',
+  name: 'move_folder',
+  executor: 'sim',
+  mode: 'async',
+  requiredPermission: 'write',
+}
+
+export const MoveWorkflow: ToolCatalogEntry = {
+  id: 'move_workflow',
+  name: 'move_workflow',
+  executor: 'sim',
+  mode: 'async',
+  requiredPermission: 'write',
+}
+
 export const OauthGetAuthLink: ToolCatalogEntry = {
   id: 'oauth_get_auth_link',
   name: 'oauth_get_auth_link',
@@ -609,6 +631,14 @@ export const Redeploy: ToolCatalogEntry = {
   mode: 'async',
   requiresConfirmation: true,
   requiredPermission: 'admin',
+}
+
+export const RenameWorkflow: ToolCatalogEntry = {
+  id: 'rename_workflow',
+  name: 'rename_workflow',
+  executor: 'sim',
+  mode: 'async',
+  requiredPermission: 'write',
 }
 
 export const Research: ToolCatalogEntry = {
@@ -859,11 +889,14 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ManageMcpTool.id]: ManageMcpTool,
   [ManageSkill.id]: ManageSkill,
   [MaterializeFile.id]: MaterializeFile,
+  [MoveFolder.id]: MoveFolder,
+  [MoveWorkflow.id]: MoveWorkflow,
   [OauthGetAuthLink.id]: OauthGetAuthLink,
   [OauthRequestAccess.id]: OauthRequestAccess,
   [OpenResource.id]: OpenResource,
   [Read.id]: Read,
   [Redeploy.id]: Redeploy,
+  [RenameWorkflow.id]: RenameWorkflow,
   [Research.id]: Research,
   [Respond.id]: Respond,
   [RevertToVersion.id]: RevertToVersion,
