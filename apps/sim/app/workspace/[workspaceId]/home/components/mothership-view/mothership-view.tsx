@@ -34,14 +34,8 @@ function fileTitlesEquivalent(streamFileName: string, resourceTitle: string): bo
  * The synthetic `streaming-file` tab always shows it; a real file tab shows it when
  * the streamed `fileName` matches that resource (so users who stay on the open file see live text).
  */
-function streamReferencesFileId(raw: string, fileId: string): boolean {
-  if (!fileId) return false
-  const escaped = fileId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return new RegExp(`"fileId"\\s*:\\s*"${escaped}"`).test(raw)
-}
-
 function shouldShowStreamingFilePanel(
-  streamingFile: { fileName: string; content: string } | null | undefined,
+  streamingFile: { fileName: string; fileId?: string; content: string } | null | undefined,
   active: MothershipResource | null
 ): boolean {
   if (!streamingFile || !active) return false
@@ -49,7 +43,7 @@ function shouldShowStreamingFilePanel(
   if (active.type !== 'file') return false
   const fn = streamingFile.fileName.trim()
   if (fn && fileTitlesEquivalent(fn, active.title)) return true
-  if (active.id && streamReferencesFileId(streamingFile.content, active.id)) return true
+  if (active.id && streamingFile.fileId === active.id) return true
   return false
 }
 
@@ -65,7 +59,7 @@ interface MothershipViewProps {
   onCollapse: () => void
   isCollapsed: boolean
   className?: string
-  streamingFile?: { fileName: string; content: string } | null
+  streamingFile?: { fileName: string; fileId?: string; content: string } | null
   genericResourceData?: GenericResourceData
 }
 

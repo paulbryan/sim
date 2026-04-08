@@ -26,13 +26,20 @@ const FORMATS = {
   docx: {
     setup() {
       const docx = require('docx')
-      return { globals: { docx }, docx }
+      const _sections = []
+      return { globals: { docx, addSection: (s) => _sections.push(s) }, _sections, docx }
     },
     async serialize(ctx) {
-      const doc = ctx.globals.doc
-      if (!doc)
-        throw new Error('No document created. Set doc = new docx.Document({...}) in your code.')
-      return ctx.docx.Packer.toBuffer(doc)
+      if (ctx.globals.doc) {
+        return ctx.docx.Packer.toBuffer(ctx.globals.doc)
+      }
+      if (ctx._sections.length > 0) {
+        const doc = new ctx.docx.Document({ sections: ctx._sections })
+        return ctx.docx.Packer.toBuffer(doc)
+      }
+      throw new Error(
+        'No document created. Use addSection({ children: [...] }) for chunked writes, or set doc = new docx.Document({...}) for a single write.'
+      )
     },
   },
   pdf: {

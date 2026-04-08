@@ -83,6 +83,16 @@ export class StreamWriter {
   }
 
   publish(event: StreamEvent): void {
+    const payload = event.payload as Record<string, unknown> | undefined
+    if (event.type === MothershipStreamV1EventType.tool && payload?.toolName === 'workspace_file') {
+      logger.info('[file-stream] PUBLISH to client', {
+        seq: this.nextSeq + 1,
+        phase: payload.phase,
+        toolCallId: payload.toolCallId,
+        disconnected: this._clientDisconnected,
+        hasController: !!this.controller,
+      })
+    }
     const envelope = this.createEnvelope(event)
     this.enqueue(envelope)
     this.queuePersistence(envelope)

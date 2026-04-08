@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { PillsRing } from '@/components/emcn'
-import { FunctionExecute } from '@/lib/copilot/generated/tool-catalog-v1'
+import { FunctionExecute, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ToolCallStatus } from '../../../../types'
 import { getToolIcon } from '../../utils'
 
@@ -100,6 +100,18 @@ interface ToolCallItemProps {
 }
 
 export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: ToolCallItemProps) {
+  const liveWorkspaceFileTitle = useMemo(() => {
+    if (toolName !== WorkspaceFile.id || !streamingArgs) return null
+    const titleMatch = streamingArgs.match(/"title"\s*:\s*"([^"]+)"/)
+    if (!titleMatch?.[1]) return null
+    const unescaped = titleMatch[1]
+      .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) =>
+        String.fromCharCode(Number.parseInt(hex, 16))
+      )
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\')
+    return `Writing ${unescaped}`
+  }, [toolName, streamingArgs])
   const extracted = useMemo(() => {
     if (toolName !== FunctionExecute.id || !streamingArgs) return null
     return extractFunctionExecutePreview(streamingArgs)
@@ -114,7 +126,9 @@ export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: 
       <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
         <StatusIcon status={status} toolName={toolName} />
       </div>
-      <span className='font-base text-[13px] text-[var(--text-secondary)]'>{displayTitle}</span>
+      <span className='font-base text-[13px] text-[var(--text-secondary)]'>
+        {liveWorkspaceFileTitle || displayTitle}
+      </span>
     </div>
   )
 }

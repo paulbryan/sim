@@ -13,6 +13,7 @@ export interface ToolCatalogEntry {
     | 'complete_job'
     | 'context_write'
     | 'crawl_website'
+    | 'create_file'
     | 'create_folder'
     | 'create_job'
     | 'create_workflow'
@@ -78,6 +79,7 @@ export interface ToolCatalogEntry {
     | 'search_online'
     | 'search_patterns'
     | 'set_environment_variables'
+    | 'set_file_context'
     | 'set_global_workflow_variables'
     | 'superagent'
     | 'table'
@@ -97,6 +99,7 @@ export interface ToolCatalogEntry {
     | 'complete_job'
     | 'context_write'
     | 'crawl_website'
+    | 'create_file'
     | 'create_folder'
     | 'create_job'
     | 'create_workflow'
@@ -162,6 +165,7 @@ export interface ToolCatalogEntry {
     | 'search_online'
     | 'search_patterns'
     | 'set_environment_variables'
+    | 'set_file_context'
     | 'set_global_workflow_variables'
     | 'superagent'
     | 'table'
@@ -234,6 +238,13 @@ export const CrawlWebsite: ToolCatalogEntry = {
   name: 'crawl_website',
   executor: 'go',
   mode: 'sync',
+}
+
+export const CreateFile: ToolCatalogEntry = {
+  id: 'create_file',
+  name: 'create_file',
+  executor: 'sim',
+  mode: 'async',
 }
 
 export const CreateFolder: ToolCatalogEntry = {
@@ -757,6 +768,14 @@ export const SetEnvironmentVariables: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
+export const SetFileContext: ToolCatalogEntry = {
+  id: 'set_file_context',
+  name: 'set_file_context',
+  executor: 'sim',
+  mode: 'async',
+  hidden: true,
+}
+
 export const SetGlobalWorkflowVariables: ToolCatalogEntry = {
   id: 'set_global_workflow_variables',
   name: 'set_global_workflow_variables',
@@ -846,6 +865,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [CompleteJob.id]: CompleteJob,
   [ContextWrite.id]: ContextWrite,
   [CrawlWebsite.id]: CrawlWebsite,
+  [CreateFile.id]: CreateFile,
   [CreateFolder.id]: CreateFolder,
   [CreateJob.id]: CreateJob,
   [CreateWorkflow.id]: CreateWorkflow,
@@ -911,6 +931,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SearchOnline.id]: SearchOnline,
   [SearchPatterns.id]: SearchPatterns,
   [SetEnvironmentVariables.id]: SetEnvironmentVariables,
+  [SetFileContext.id]: SetFileContext,
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
   [Superagent.id]: Superagent,
   [Table.id]: Table,

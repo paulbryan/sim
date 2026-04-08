@@ -115,8 +115,7 @@ export async function runStreamLoop(
   }, timeout)
 
   try {
-    await processSSEStream(reader, decoder, abortSignal, (raw) => {
-      // --- Abort gate (sync check, no await) ---
+    await processSSEStream(reader, decoder, abortSignal, async (raw) => {
       if (abortSignal?.aborted) {
         context.wasAborted = true
         return true
@@ -133,51 +132,52 @@ export async function runStreamLoop(
         context.trace.setGoTraceId(raw.trace.requestId)
       }
 
-      // ---------------------------------------------------------------
-      // FAST PATH — text events
-      //
-      // Text is the most frequent event type. We skip two things that
-      // can never match for text events:
-      //   • shouldSkipToolCallEvent  (early-exits for type !== 'tool')
-      //   • shouldSkipToolResultEvent (early-exits for type !== 'tool')
-      //
-      // All calls in this path are synchronous: onEvent (publish) returns
-      // void, and both textHandler / subagentTextHandler return void.
-      // Eliminating the awaits saves 2 microtask yields per text event
-      // (on top of the 2 saved by replacing the async generator).
-      // ---------------------------------------------------------------
-      if (streamEvent.type === MothershipStreamV1EventType.text) {
-        try {
-          options.onEvent?.(streamEvent)
-        } catch (error) {
-          logger.warn('Failed to forward stream event', {
-            type: streamEvent.type,
-            error: error instanceof Error ? error.message : String(error),
-          })
-        }
-
-        if (options.onBeforeDispatch?.(streamEvent, context)) {
-          return context.streamComplete || undefined
-        }
-
-        if (handleSubagentRouting(streamEvent, context)) {
-          subagentTextHandler(streamEvent, context, execContext, options)
-        } else {
-          textHandler(streamEvent, context, execContext, options)
-        }
-        return context.streamComplete || undefined
-      }
-
-      // ---------------------------------------------------------------
-      // STANDARD PATH — all other event types
-      // ---------------------------------------------------------------
       if (shouldSkipToolCallEvent(streamEvent) || shouldSkipToolResultEvent(streamEvent)) {
         return
       }
 
-      // onEvent (publish) is synchronous — no await needed.
+      if (streamEvent.type === MothershipStreamV1EventType.tool) {
+        const tp = streamEvent.payload as Record<string, unknown> | undefined
+        if (tp?.phase === 'args_delta' && tp?.toolName === 'workspace_file') {
+          logger.info('[file-stream] args_delta FROM GO', {
+            toolCallId: tp.toolCallId,
+            deltaLen:
+              typeof tp.argumentsDelta === 'string' ? (tp.argumentsDelta as string).length : 0,
+            scope: streamEvent.scope?.agentId,
+            parentToolCallId: streamEvent.scope?.parentToolCallId,
+          })
+        }
+        if (tp?.phase === 'call' && tp?.toolName === 'workspace_file') {
+          logger.info('[file-stream] workspace_file CALL event', {
+            toolCallId: tp.toolCallId,
+            phase: tp.phase,
+            status: tp.status,
+            hasArgs: !!tp.arguments,
+          })
+        }
+        if (tp?.phase === 'result' && tp?.toolName === 'workspace_file') {
+          const resultData = tp.result as Record<string, unknown> | undefined
+          const innerData = resultData?.data as Record<string, unknown> | undefined
+          logger.info('[file-stream] workspace_file RESULT', {
+            toolCallId: tp.toolCallId,
+            success: tp.success,
+            fileId: innerData?.id,
+            fileName: innerData?.name,
+          })
+        }
+      }
+      if (streamEvent.type === MothershipStreamV1EventType.span) {
+        const sp = streamEvent.payload as Record<string, unknown> | undefined
+        if (sp?.agent === 'file_write') {
+          logger.info('[file-stream] file_write SPAN', {
+            event: sp.event,
+            parentToolCallId: streamEvent.scope?.parentToolCallId,
+          })
+        }
+      }
+
       try {
-        options.onEvent?.(streamEvent)
+        await options.onEvent?.(streamEvent)
       } catch (error) {
         logger.warn('Failed to forward stream event', {
           type: streamEvent.type,
@@ -185,11 +185,15 @@ export async function runStreamLoop(
         })
       }
 
+      // Yield a macrotask so Node.js flushes the HTTP response buffer to
+      // the browser. Microtask yields (await Promise.resolve()) are not
+      // enough — the I/O layer needs a full event loop tick to write.
+      await new Promise<void>((resolve) => setImmediate(resolve))
+
       if (options.onBeforeDispatch?.(streamEvent, context)) {
         return context.streamComplete || undefined
       }
 
-      // --- Subagent span lifecycle ---
       if (
         streamEvent.type === MothershipStreamV1EventType.span &&
         streamEvent.payload.kind === MothershipStreamV1SpanPayloadKind.subagent
@@ -204,9 +208,9 @@ export async function runStreamLoop(
           (streamEvent.payload.parentToolCallId as string | undefined) ||
           (spanData?.tool_call_id as string | undefined)
         const subagentName = streamEvent.payload.agent as string | undefined
-        const spanEvent = streamEvent.payload.event as string | undefined
+        const spanEvt = streamEvent.payload.event as string | undefined
         const isPendingPause = spanData?.pending === true
-        if (spanEvent === MothershipStreamV1SpanLifecycleEvent.start) {
+        if (spanEvt === MothershipStreamV1SpanLifecycleEvent.start) {
           const lastParent = context.subAgentParentStack[context.subAgentParentStack.length - 1]
           const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
           if (toolCallId) {
@@ -233,7 +237,7 @@ export async function runStreamLoop(
           }
           return
         }
-        if (spanEvent === MothershipStreamV1SpanLifecycleEvent.end) {
+        if (spanEvt === MothershipStreamV1SpanLifecycleEvent.end) {
           if (isPendingPause) {
             return
           }
@@ -250,24 +254,16 @@ export async function runStreamLoop(
         }
       }
 
-      // --- Subagent-scoped event dispatch ---
       if (handleSubagentRouting(streamEvent, context)) {
         const handler = subAgentHandlers[streamEvent.type]
         if (handler) {
-          // All current subagent handlers (text, tool, span) resolve
-          // synchronously or fire-and-forget their async work internally.
-          // Calling without await saves 1 microtask yield per event.
           handler(streamEvent, context, execContext, options)
         }
         return context.streamComplete || undefined
       }
 
-      // --- Main handler dispatch ---
       const handler = sseHandlers[streamEvent.type]
       if (handler) {
-        // session, complete, error, run, span handlers are synchronous.
-        // tool handler is async but resolves immediately (fire-and-forget
-        // internal dispatch). Calling without await saves 1 microtask yield.
         handler(streamEvent, context, execContext, options)
       }
       return context.streamComplete || undefined

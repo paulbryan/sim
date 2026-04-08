@@ -64,6 +64,11 @@ export async function handleResourceSideEffects(
           : []
 
     if (resources.length > 0) {
+      logger.info('[file-stream-server] Emitting resource upsert events', {
+        toolName,
+        chatId,
+        resources: resources.map((r) => ({ type: r.type, id: r.id, title: r.title })),
+      })
       persistChatResources(chatId, resources).catch((err) => {
         logger.warn('Failed to persist chat resources', {
           chatId,

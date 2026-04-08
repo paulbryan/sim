@@ -20,6 +20,7 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
+  CreateFile,
   CreateFolder,
   DeleteFolder,
   DeleteWorkflow,
@@ -32,6 +33,7 @@ import {
   Read as ReadTool,
   Redeploy,
   RenameWorkflow,
+  SetFileContext,
   ToolSearchToolRegex,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -341,10 +343,12 @@ export function useChat(
 
   const [streamingFile, setStreamingFile] = useState<{
     fileName: string
+    fileId?: string
     content: string
   } | null>(null)
   const streamingFileRef = useRef(streamingFile)
   streamingFileRef.current = streamingFile
+  const activeFileContextRef = useRef<{ fileId?: string; fileName?: string } | null>(null)
 
   const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const messageQueueRef = useRef<QueuedMessage[]>([])
@@ -730,538 +734,740 @@ export function useChat(
       }
 
       try {
+        const pendingLines: string[] = []
+
         while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          if (isStale()) continue
+          if (pendingLines.length === 0) {
+            const { done, value } = await reader.read()
+            if (done) break
+            if (isStale()) continue
 
-          buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split('\n')
-          buffer = lines.pop() || ''
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() || ''
+            pendingLines.push(...lines)
+          }
 
-          for (const line of lines) {
-            if (isStale()) break
-            if (!line.startsWith('data: ')) continue
-            const raw = line.slice(6)
+          const line = pendingLines.shift()!
+          if (isStale()) {
+            pendingLines.length = 0
+            continue
+          }
+          if (!line.startsWith('data: ')) continue
+          const raw = line.slice(6)
 
-            let parsed: MothershipStreamV1EventEnvelope
-            try {
-              parsed = JSON.parse(raw)
-            } catch {
-              continue
+          let parsed: MothershipStreamV1EventEnvelope
+          try {
+            parsed = JSON.parse(raw)
+          } catch {
+            continue
+          }
+
+          if (parsed.trace?.requestId && parsed.trace.requestId !== streamRequestId) {
+            streamRequestId = parsed.trace.requestId
+            flush()
+          }
+          if (parsed.stream?.streamId) {
+            streamIdRef.current = parsed.stream.streamId
+          }
+          if (parsed.stream?.cursor) {
+            lastCursorRef.current = parsed.stream.cursor
+          } else if (typeof parsed.seq === 'number') {
+            lastCursorRef.current = String(parsed.seq)
+          }
+
+          logger.debug('SSE event received', parsed)
+          if (parsed.type === 'tool') {
+            const _p = getPayloadData(parsed)
+            if (_p.phase === 'args_delta' && _p.toolName === 'workspace_file') {
+              console.warn('[FILE-STREAM-BROWSER] workspace_file args_delta arrived', {
+                seq: parsed.seq,
+                deltaLen:
+                  typeof _p.argumentsDelta === 'string' ? (_p.argumentsDelta as string).length : 0,
+              })
             }
-
-            if (parsed.trace?.requestId && parsed.trace.requestId !== streamRequestId) {
-              streamRequestId = parsed.trace.requestId
-              flush()
-            }
-            if (parsed.stream?.streamId) {
-              streamIdRef.current = parsed.stream.streamId
-            }
-            if (parsed.stream?.cursor) {
-              lastCursorRef.current = parsed.stream.cursor
-            } else if (typeof parsed.seq === 'number') {
-              lastCursorRef.current = String(parsed.seq)
-            }
-
-            logger.debug('SSE event received', parsed)
-            switch (parsed.type) {
-              case MothershipStreamV1EventType.session: {
-                const payload = getPayloadData(parsed)
-                const kind = typeof payload.kind === 'string' ? payload.kind : ''
-                const payloadChatId =
-                  typeof payload.chatId === 'string'
-                    ? payload.chatId
-                    : typeof parsed.stream?.chatId === 'string'
-                      ? parsed.stream.chatId
-                      : undefined
-                if (kind === MothershipStreamV1SessionKind.chat && payloadChatId) {
-                  const isNewChat = !chatIdRef.current
-                  chatIdRef.current = payloadChatId
-                  const selected = selectedChatIdRef.current
-                  if (selected == null) {
-                    if (isNewChat) {
-                      setResolvedChatId(payloadChatId)
-                    }
-                  } else if (payloadChatId === selected) {
+          }
+          switch (parsed.type) {
+            case MothershipStreamV1EventType.session: {
+              const payload = getPayloadData(parsed)
+              const kind = typeof payload.kind === 'string' ? payload.kind : ''
+              const payloadChatId =
+                typeof payload.chatId === 'string'
+                  ? payload.chatId
+                  : typeof parsed.stream?.chatId === 'string'
+                    ? parsed.stream.chatId
+                    : undefined
+              if (kind === MothershipStreamV1SessionKind.chat && payloadChatId) {
+                const isNewChat = !chatIdRef.current
+                chatIdRef.current = payloadChatId
+                const selected = selectedChatIdRef.current
+                if (selected == null) {
+                  if (isNewChat) {
                     setResolvedChatId(payloadChatId)
                   }
-                  queryClient.invalidateQueries({
-                    queryKey: taskKeys.list(workspaceId),
-                  })
-                  if (isNewChat) {
-                    const userMsg = pendingUserMsgRef.current
-                    const activeStreamId = streamIdRef.current
-                    if (userMsg && activeStreamId) {
-                      queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(payloadChatId), {
-                        id: payloadChatId,
-                        title: null,
-                        messages: [
-                          {
-                            id: userMsg.id,
-                            role: 'user',
-                            content: userMsg.content,
-                            timestamp: new Date().toISOString(),
-                          },
-                        ],
-                        activeStreamId,
-                        resources: [],
-                      })
-                    }
-                    if (!workflowIdRef.current) {
-                      window.history.replaceState(
-                        null,
-                        '',
-                        `/workspace/${workspaceId}/task/${payloadChatId}`
-                      )
-                    }
+                } else if (payloadChatId === selected) {
+                  setResolvedChatId(payloadChatId)
+                }
+                queryClient.invalidateQueries({
+                  queryKey: taskKeys.list(workspaceId),
+                })
+                if (isNewChat) {
+                  const userMsg = pendingUserMsgRef.current
+                  const activeStreamId = streamIdRef.current
+                  if (userMsg && activeStreamId) {
+                    queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(payloadChatId), {
+                      id: payloadChatId,
+                      title: null,
+                      messages: [
+                        {
+                          id: userMsg.id,
+                          role: 'user',
+                          content: userMsg.content,
+                          timestamp: new Date().toISOString(),
+                        },
+                      ],
+                      activeStreamId,
+                      resources: [],
+                    })
+                  }
+                  if (!workflowIdRef.current) {
+                    window.history.replaceState(
+                      null,
+                      '',
+                      `/workspace/${workspaceId}/task/${payloadChatId}`
+                    )
                   }
                 }
-                if (kind === MothershipStreamV1SessionKind.title) {
-                  queryClient.invalidateQueries({
-                    queryKey: taskKeys.list(workspaceId),
-                  })
-                  onTitleUpdateRef.current?.()
-                }
-                break
               }
-              case MothershipStreamV1EventType.text: {
-                const payload = getPayloadData(parsed)
-                const chunk = typeof payload.text === 'string' ? payload.text : ''
-                if (chunk) {
-                  const contentSource: 'main' | 'subagent' = activeSubagent ? 'subagent' : 'main'
-                  const needsBoundaryNewline =
-                    lastContentSource !== null &&
-                    lastContentSource !== contentSource &&
-                    runningText.length > 0 &&
-                    !runningText.endsWith('\n')
-                  const tb = ensureTextBlock()
-                  const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
-                  tb.content = (tb.content ?? '') + normalizedChunk
-                  if (activeSubagent) tb.subagent = activeSubagent
-                  runningText += normalizedChunk
-                  lastContentSource = contentSource
-                  streamingContentRef.current = runningText
-                  flush()
-                }
-                break
+              if (kind === MothershipStreamV1SessionKind.title) {
+                queryClient.invalidateQueries({
+                  queryKey: taskKeys.list(workspaceId),
+                })
+                onTitleUpdateRef.current?.()
               }
-              case MothershipStreamV1EventType.tool: {
-                const payload = getPayloadData(parsed)
-                const phase =
-                  typeof payload.phase === 'string'
-                    ? payload.phase
-                    : MothershipStreamV1ToolPhase.call
-                const id =
-                  typeof payload.toolCallId === 'string'
-                    ? payload.toolCallId
-                    : typeof payload.id === 'string'
-                      ? payload.id
-                      : undefined
-                if (!id) break
+              break
+            }
+            case MothershipStreamV1EventType.text: {
+              const payload = getPayloadData(parsed)
+              const chunk = typeof payload.text === 'string' ? payload.text : ''
+              if (chunk) {
+                const contentSource: 'main' | 'subagent' = activeSubagent ? 'subagent' : 'main'
+                const needsBoundaryNewline =
+                  lastContentSource !== null &&
+                  lastContentSource !== contentSource &&
+                  runningText.length > 0 &&
+                  !runningText.endsWith('\n')
+                const tb = ensureTextBlock()
+                const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
+                tb.content = (tb.content ?? '') + normalizedChunk
+                if (activeSubagent) tb.subagent = activeSubagent
+                runningText += normalizedChunk
+                lastContentSource = contentSource
+                streamingContentRef.current = runningText
+                flush()
+              }
+              break
+            }
+            case MothershipStreamV1EventType.tool: {
+              const payload = getPayloadData(parsed)
+              const phase =
+                typeof payload.phase === 'string' ? payload.phase : MothershipStreamV1ToolPhase.call
+              const id =
+                typeof payload.toolCallId === 'string'
+                  ? payload.toolCallId
+                  : typeof payload.id === 'string'
+                    ? payload.id
+                    : undefined
+              if (!id) break
 
-                if (phase === MothershipStreamV1ToolPhase.args_delta) {
-                  const delta =
-                    typeof payload.argumentsDelta === 'string' ? payload.argumentsDelta : ''
-                  if (!delta) break
+              if (phase === MothershipStreamV1ToolPhase.args_delta) {
+                const delta =
+                  typeof payload.argumentsDelta === 'string' ? payload.argumentsDelta : ''
+                if (!delta) break
 
-                  const toolName =
-                    typeof payload.toolName === 'string'
-                      ? payload.toolName
-                      : (blocks[toolMap.get(id) ?? -1]?.toolCall?.name ?? '')
-                  const streamWorkspaceFile =
-                    activeSubagent === FileWrite.id || toolName === WorkspaceFile.id
+                const toolName =
+                  typeof payload.toolName === 'string'
+                    ? payload.toolName
+                    : (blocks[toolMap.get(id) ?? -1]?.toolCall?.name ?? '')
+                const streamWorkspaceFile = toolName === WorkspaceFile.id
 
-                  if (streamWorkspaceFile) {
-                    let prev = streamingFileRef.current
-                    if (!prev) {
-                      prev = { fileName: '', content: '' }
-                      streamingFileRef.current = prev
-                      setStreamingFile(prev)
+                // #region agent log
+                fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
+                  body: JSON.stringify({
+                    sessionId: '6f10b0',
+                    location: 'use-chat.ts:args_delta',
+                    message: 'args_delta entry',
+                    data: {
+                      toolName,
+                      streamWorkspaceFile,
+                      deltaLen: delta.length,
+                      seq: parsed.seq,
+                    },
+                    timestamp: Date.now(),
+                    hypothesisId: 'H1',
+                  }),
+                }).catch(() => {})
+                // #endregion
+
+                if (streamWorkspaceFile) {
+                  let prev = streamingFileRef.current
+                  if (!prev || (!prev.fileName && !prev.fileId)) {
+                    const ctx = activeFileContextRef.current
+                    prev = {
+                      fileName: ctx?.fileName || prev?.fileName || '',
+                      fileId: ctx?.fileId || prev?.fileId,
+                      content: prev?.content || '',
                     }
-                    const raw = prev.content + delta
-                    let fileName = prev.fileName
+                    streamingFileRef.current = prev
+                    setStreamingFile(prev)
+                  }
+                  const raw = prev.content + delta
+                  let fileName = prev.fileName
+                  if (!fileName) {
+                    fileName = activeFileContextRef.current?.fileName || ''
                     if (!fileName) {
                       const match = raw.match(/"fileName"\s*:\s*"([^"]+)"/)
                       if (match) {
                         fileName = match[1]
                       }
                     }
-                    const fileIdMatch = raw.match(/"fileId"\s*:\s*"([^"]+)"/)
-                    const matchedResourceId = fileIdMatch?.[1]
-                    if (
-                      matchedResourceId &&
-                      resourcesRef.current.some(
-                        (resource) => resource.type === 'file' && resource.id === matchedResourceId
-                      )
-                    ) {
-                      setActiveResourceId(matchedResourceId)
-                      setResources((rs) =>
-                        rs.filter((resource) => resource.id !== 'streaming-file')
-                      )
-                    } else if (fileName || fileIdMatch) {
-                      const hasStreamingResource = resourcesRef.current.some(
-                        (resource) => resource.id === 'streaming-file'
-                      )
-                      if (!hasStreamingResource) {
-                        addResource({
-                          type: 'file',
-                          id: 'streaming-file',
-                          title: fileName || 'Writing file...',
-                        })
-                      } else if (fileName) {
-                        setResources((rs) =>
-                          rs.map((resource) =>
-                            resource.id === 'streaming-file'
-                              ? { ...resource, title: fileName }
-                              : resource
-                          )
-                        )
-                      }
-                    }
-                    const next = { fileName, content: raw }
-                    streamingFileRef.current = next
-                    setStreamingFile(next)
                   }
+                  const fileIdMatch = raw.match(/"fileId"\s*:\s*"([^"]+)"/)
+                  const matchedResourceId =
+                    fileIdMatch?.[1] || prev.fileId || activeFileContextRef.current?.fileId
+                  const existingFileMatch =
+                    matchedResourceId &&
+                    resourcesRef.current.some(
+                      (resource) => resource.type === 'file' && resource.id === matchedResourceId
+                    )
 
-                  const idx = toolMap.get(id)
-                  if (idx !== undefined && blocks[idx].toolCall) {
-                    const tc = blocks[idx].toolCall!
-                    tc.streamingArgs = (tc.streamingArgs ?? '') + delta
-                    flush()
+                  // #region agent log
+                  const hasContent = raw.indexOf('"content":') >= 0
+                  fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
+                    body: JSON.stringify({
+                      sessionId: '6f10b0',
+                      location: 'use-chat.ts:resource-decision',
+                      message: 'resource routing',
+                      data: {
+                        fileName,
+                        matchedResourceId,
+                        existingFileMatch: !!existingFileMatch,
+                        hasContent,
+                        rawLen: raw.length,
+                        activeResourceId: activeResourceIdRef.current,
+                        resourceIds: resourcesRef.current.map((r: { id: string }) => r.id),
+                        activeFileCtx: activeFileContextRef.current,
+                        seq: parsed.seq,
+                      },
+                      timestamp: Date.now(),
+                      hypothesisId: 'H4',
+                    }),
+                  }).catch(() => {})
+                  // #endregion
+
+                  if (existingFileMatch) {
+                    setActiveResourceId(matchedResourceId)
+                    setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
+                  } else if (fileName || fileIdMatch || activeSubagent === 'file_write') {
+                    const hasStreamingResource = resourcesRef.current.some(
+                      (resource) => resource.id === 'streaming-file'
+                    )
+                    if (!hasStreamingResource) {
+                      addResource({
+                        type: 'file',
+                        id: 'streaming-file',
+                        title: fileName || 'Writing file...',
+                      })
+                      setActiveResourceId('streaming-file')
+                    } else if (activeResourceIdRef.current !== 'streaming-file') {
+                      setActiveResourceId('streaming-file')
+                    }
                   }
-                  break
+                  const next = { fileName, fileId: matchedResourceId, content: raw }
+                  streamingFileRef.current = next
+                  setStreamingFile(next)
                 }
 
-                if (phase === MothershipStreamV1ToolPhase.result) {
-                  const idx = toolMap.get(id)
-                  if (idx === undefined || !blocks[idx].toolCall) {
-                    break
-                  }
+                const idx = toolMap.get(id)
+                if (idx !== undefined && blocks[idx].toolCall) {
                   const tc = blocks[idx].toolCall!
-                  const resultObj = asPayloadRecord(payload.result)
-                  const success =
-                    typeof payload.success === 'boolean'
-                      ? payload.success
-                      : payload.status === MothershipStreamV1ToolOutcome.success
-                  const isCancelled =
-                    resultObj?.reason === 'user_cancelled' ||
-                    resultObj?.cancelledByUser === true ||
-                    payload.reason === 'user_cancelled' ||
-                    payload.cancelledByUser === true ||
-                    payload.status === MothershipStreamV1ToolOutcome.cancelled
+                  tc.streamingArgs = (tc.streamingArgs ?? '') + delta
 
-                  if (isCancelled) {
-                    tc.status = 'cancelled'
-                    tc.displayTitle = 'Stopped by user'
-                  } else {
-                    tc.status = success ? 'success' : 'error'
+                  if (tc.name === WorkspaceFile.id) {
+                    const titleMatch = tc.streamingArgs.match(/"title"\s*:\s*"([^"]*)"/)
+                    if (titleMatch?.[1]) {
+                      const unescaped = titleMatch[1]
+                        .replace(/\\u([0-9a-fA-F]{4})/g, (_: string, hex: string) =>
+                          String.fromCharCode(Number.parseInt(hex, 16))
+                        )
+                        .replace(/\\"/g, '"')
+                        .replace(/\\\\/g, '\\')
+                      tc.displayTitle = `Writing ${unescaped}`
+                    }
                   }
-                  tc.streamingArgs = undefined
-                  tc.result = {
-                    success: !!success,
-                    output:
-                      payload.result !== undefined
-                        ? payload.result
-                        : payload.output !== undefined
-                          ? payload.output
-                          : payload.data,
-                    error: typeof payload.error === 'string' ? payload.error : undefined,
-                  }
+
                   flush()
+                }
+                break
+              }
 
-                  if (tc.name === ReadTool.id && tc.status === 'success') {
-                    const readArgs = toolArgsMap.get(id)
-                    const resource = extractResourceFromReadResult(
-                      readArgs?.path as string | undefined,
-                      tc.result.output
-                    )
-                    if (resource && addResource(resource)) {
-                      onResourceEventRef.current?.()
-                    }
+              if (phase === MothershipStreamV1ToolPhase.result) {
+                const resultToolName = typeof payload.toolName === 'string' ? payload.toolName : ''
+                if (
+                  (resultToolName === CreateFile.id || resultToolName === SetFileContext.id) &&
+                  (payload.success === true ||
+                    payload.status === MothershipStreamV1ToolOutcome.success)
+                ) {
+                  const resultOutput = asPayloadRecord(payload.result)
+                  const ctxFileId =
+                    typeof resultOutput?.fileId === 'string' ? resultOutput.fileId : undefined
+                  const ctxFileName =
+                    typeof resultOutput?.fileName === 'string' ? resultOutput.fileName : undefined
+                  if (ctxFileId || ctxFileName) {
+                    activeFileContextRef.current = { fileId: ctxFileId, fileName: ctxFileName }
                   }
+                }
 
-                  if (DEPLOY_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
-                    const output = tc.result?.output as Record<string, unknown> | undefined
-                    const deployedWorkflowId = (output?.workflowId as string) ?? undefined
-                    if (deployedWorkflowId && typeof output?.isDeployed === 'boolean') {
-                      queryClient.invalidateQueries({
-                        queryKey: deploymentKeys.info(deployedWorkflowId),
-                      })
-                      queryClient.invalidateQueries({
-                        queryKey: deploymentKeys.versions(deployedWorkflowId),
-                      })
-                      queryClient.invalidateQueries({
-                        queryKey: workflowKeys.list(workspaceId),
-                      })
-                    }
+                const idx = toolMap.get(id)
+                if (idx === undefined || !blocks[idx].toolCall) {
+                  break
+                }
+                const tc = blocks[idx].toolCall!
+                const resultObj = asPayloadRecord(payload.result)
+                const success =
+                  typeof payload.success === 'boolean'
+                    ? payload.success
+                    : payload.status === MothershipStreamV1ToolOutcome.success
+                const isCancelled =
+                  resultObj?.reason === 'user_cancelled' ||
+                  resultObj?.cancelledByUser === true ||
+                  payload.reason === 'user_cancelled' ||
+                  payload.cancelledByUser === true ||
+                  payload.status === MothershipStreamV1ToolOutcome.cancelled
+
+                if (isCancelled) {
+                  tc.status = 'cancelled'
+                  tc.displayTitle = 'Stopped by user'
+                } else {
+                  tc.status = success ? 'success' : 'error'
+                }
+                tc.streamingArgs = undefined
+                tc.result = {
+                  success: !!success,
+                  output:
+                    payload.result !== undefined
+                      ? payload.result
+                      : payload.output !== undefined
+                        ? payload.output
+                        : payload.data,
+                  error: typeof payload.error === 'string' ? payload.error : undefined,
+                }
+                flush()
+
+                if (tc.name === ReadTool.id && tc.status === 'success') {
+                  const readArgs = toolArgsMap.get(id)
+                  const resource = extractResourceFromReadResult(
+                    readArgs?.path as string | undefined,
+                    tc.result.output
+                  )
+                  if (resource && addResource(resource)) {
+                    onResourceEventRef.current?.()
                   }
+                }
 
-                  if (FOLDER_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
+                if (DEPLOY_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
+                  const output = tc.result?.output as Record<string, unknown> | undefined
+                  const deployedWorkflowId = (output?.workflowId as string) ?? undefined
+                  if (deployedWorkflowId && typeof output?.isDeployed === 'boolean') {
                     queryClient.invalidateQueries({
-                      queryKey: folderKeys.list(workspaceId),
+                      queryKey: deploymentKeys.info(deployedWorkflowId),
                     })
-                  }
-                  if (WORKFLOW_MUTATION_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
+                    queryClient.invalidateQueries({
+                      queryKey: deploymentKeys.versions(deployedWorkflowId),
+                    })
                     queryClient.invalidateQueries({
                       queryKey: workflowKeys.list(workspaceId),
                     })
                   }
-
-                  const extractedResources =
-                    tc.status === 'success' && isResourceToolName(tc.name)
-                      ? extractResourcesFromToolResult(
-                          tc.name,
-                          toolArgsMap.get(id) as Record<string, unknown> | undefined,
-                          tc.result?.output
-                        )
-                      : []
-
-                  for (const resource of extractedResources) {
-                    invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
-                  }
-
-                  onToolResultRef.current?.(tc.name, tc.status === 'success', tc.result?.output)
-                  if (isWorkflowToolName(tc.name)) {
-                    clientExecutionStartedRef.current.delete(id)
-                  }
-
-                  if (tc.name === WorkspaceFile.id) {
-                    setStreamingFile(null)
-                    streamingFileRef.current = null
-
-                    const fileResource = extractedResources.find((r) => r.type === 'file')
-                    if (fileResource) {
-                      setResources((rs) => {
-                        const without = rs.filter((r) => r.id !== 'streaming-file')
-                        if (without.some((r) => r.type === 'file' && r.id === fileResource.id)) {
-                          return without
-                        }
-                        return [...without, fileResource]
-                      })
-                      setActiveResourceId(fileResource.id)
-                    } else {
-                      setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
-                    }
-                  }
-
-                  if (tc.status === 'error' && tc.name === WorkspaceFile.id) {
-                    setStreamingFile(null)
-                    streamingFileRef.current = null
-                    setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
-                  }
-                  break
                 }
 
-                const name =
-                  typeof payload.toolName === 'string'
-                    ? payload.toolName
-                    : typeof payload.name === 'string'
-                      ? payload.name
-                      : 'unknown'
-                const isPartial = payload.partial === true
-                if (name === ToolSearchToolRegex.id) {
-                  break
-                }
-                const ui = getToolUI(payload)
-                if (ui?.hidden) break
-                const displayTitle = ui?.title || ui?.phaseLabel
-                const phaseLabel = ui?.phaseLabel
-                const args = (asPayloadRecord(payload.arguments) ??
-                  asPayloadRecord(payload.input)) as Record<string, unknown> | undefined
-
-                if (!toolMap.has(id)) {
-                  toolMap.set(id, blocks.length)
-                  blocks.push({
-                    type: 'tool_call',
-                    toolCall: {
-                      id,
-                      name,
-                      status: 'executing',
-                      displayTitle,
-                      phaseLabel,
-                      params: args,
-                      calledBy: activeSubagent,
-                    },
+                if (FOLDER_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
+                  queryClient.invalidateQueries({
+                    queryKey: folderKeys.list(workspaceId),
                   })
-                  if (name === ReadTool.id || isResourceToolName(name)) {
-                    if (args) toolArgsMap.set(id, args)
-                  }
-                } else {
-                  const idx = toolMap.get(id)!
-                  const tc = blocks[idx].toolCall
-                  if (tc) {
-                    tc.name = name
-                    if (displayTitle) tc.displayTitle = displayTitle
-                    if (phaseLabel) tc.phaseLabel = phaseLabel
-                    if (args) tc.params = args
-                  }
                 }
-                flush()
+                if (WORKFLOW_MUTATION_TOOL_NAMES.has(tc.name) && tc.status === 'success') {
+                  queryClient.invalidateQueries({
+                    queryKey: workflowKeys.list(workspaceId),
+                  })
+                }
 
-                if (isWorkflowToolName(name) && !isPartial) {
-                  startClientWorkflowTool(id, name, args ?? {})
+                const extractedResources =
+                  tc.status === 'success' && isResourceToolName(tc.name)
+                    ? extractResourcesFromToolResult(
+                        tc.name,
+                        toolArgsMap.get(id) as Record<string, unknown> | undefined,
+                        tc.result?.output
+                      )
+                    : []
+
+                for (const resource of extractedResources) {
+                  invalidateResourceQueries(queryClient, workspaceId, resource.type, resource.id)
+                }
+
+                onToolResultRef.current?.(tc.name, tc.status === 'success', tc.result?.output)
+
+                if (
+                  (tc.name === CreateFile.id || tc.name === SetFileContext.id) &&
+                  tc.status === 'success'
+                ) {
+                  const output = tc.result?.output as Record<string, unknown> | undefined
+                  const fileId = typeof output?.fileId === 'string' ? output.fileId : undefined
+                  const fileName =
+                    typeof output?.fileName === 'string' ? output.fileName : undefined
+                  if (fileId || fileName) {
+                    activeFileContextRef.current = { fileId, fileName }
+                  }
+                  // #region agent log
+                  fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
+                    body: JSON.stringify({
+                      sessionId: '6f10b0',
+                      location: 'use-chat.ts:create_file_result',
+                      message: 'create_file result processed',
+                      data: {
+                        toolName: tc.name,
+                        fileId,
+                        fileName,
+                        status: tc.status,
+                        activeFileCtx: activeFileContextRef.current,
+                      },
+                      timestamp: Date.now(),
+                      hypothesisId: 'H5',
+                    }),
+                  }).catch(() => {})
+                  // #endregion
+                }
+
+                if (isWorkflowToolName(tc.name)) {
+                  clientExecutionStartedRef.current.delete(id)
+                }
+
+                if (tc.name === WorkspaceFile.id) {
+                  const fileResource = extractedResources.find((r) => r.type === 'file')
+                  // #region agent log
+                  fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
+                    body: JSON.stringify({
+                      sessionId: '6f10b0',
+                      location: 'use-chat.ts:workspace_file_result_cleanup',
+                      message: 'workspace_file result cleanup',
+                      data: {
+                        toolCallId: id,
+                        activeResourceIdBefore: activeResourceIdRef.current,
+                        streamingFileExists: !!streamingFileRef.current,
+                        fileResourceId: fileResource?.id,
+                        fileResourceTitle: fileResource?.title,
+                        resourceIds: resourcesRef.current.map((r: { id: string }) => r.id),
+                      },
+                      timestamp: Date.now(),
+                      hypothesisId: 'H6',
+                    }),
+                  }).catch(() => {})
+                  // #endregion
+                  if (fileResource) {
+                    setResources((rs) => {
+                      const without = rs.filter((r) => r.id !== 'streaming-file')
+                      if (without.some((r) => r.type === 'file' && r.id === fileResource.id)) {
+                        return without
+                      }
+                      return [...without, fileResource]
+                    })
+                    setActiveResourceId(fileResource.id)
+                    invalidateResourceQueries(queryClient, workspaceId, 'file', fileResource.id)
+                  } else {
+                    setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
+                  }
                 }
                 break
               }
-              case MothershipStreamV1EventType.resource: {
-                const payload = getPayloadData(parsed)
-                const resource = asPayloadRecord(payload.resource)
-                if (
-                  !resource ||
-                  typeof resource.type !== 'string' ||
-                  typeof resource.id !== 'string'
-                ) {
-                  break
-                }
 
-                if (payload.op === MothershipStreamV1ResourceOp.remove) {
-                  removeResource(resource.type as MothershipResourceType, resource.id)
-                  invalidateResourceQueries(
-                    queryClient,
-                    workspaceId,
-                    resource.type as MothershipResourceType,
-                    resource.id
-                  )
-                  onResourceEventRef.current?.()
-                  break
-                }
+              const name =
+                typeof payload.toolName === 'string'
+                  ? payload.toolName
+                  : typeof payload.name === 'string'
+                    ? payload.name
+                    : 'unknown'
+              const isPartial = payload.partial === true
+              if (name === ToolSearchToolRegex.id || name === SetFileContext.id) {
+                break
+              }
+              const ui = getToolUI(payload)
+              if (ui?.hidden) break
+              let displayTitle = ui?.title || ui?.phaseLabel
+              const phaseLabel = ui?.phaseLabel
+              const args = (asPayloadRecord(payload.arguments) ?? asPayloadRecord(payload.input)) as
+                | Record<string, unknown>
+                | undefined
 
-                const nextResource = {
-                  type: resource.type as MothershipResourceType,
-                  id: resource.id,
-                  title: typeof resource.title === 'string' ? resource.title : resource.id,
+              if (name === WorkspaceFile.id) {
+                const innerArgs = args ? asPayloadRecord(args.args) : undefined
+                const chunkTitle = innerArgs?.title as string | undefined
+                if (chunkTitle) {
+                  displayTitle = `Writing ${chunkTitle}`
                 }
-                const wasAdded = addResource(nextResource)
+              }
+
+              if (!toolMap.has(id)) {
+                toolMap.set(id, blocks.length)
+                blocks.push({
+                  type: 'tool_call',
+                  toolCall: {
+                    id,
+                    name,
+                    status: 'executing',
+                    displayTitle,
+                    phaseLabel,
+                    params: args,
+                    calledBy: activeSubagent,
+                  },
+                })
+                if (name === ReadTool.id || isResourceToolName(name)) {
+                  if (args) toolArgsMap.set(id, args)
+                }
+              } else {
+                const idx = toolMap.get(id)!
+                const tc = blocks[idx].toolCall
+                if (tc) {
+                  tc.name = name
+                  if (displayTitle) tc.displayTitle = displayTitle
+                  if (phaseLabel) tc.phaseLabel = phaseLabel
+                  if (args) tc.params = args
+                }
+              }
+              flush()
+
+              if (isWorkflowToolName(name) && !isPartial) {
+                startClientWorkflowTool(id, name, args ?? {})
+              }
+              break
+            }
+            case MothershipStreamV1EventType.resource: {
+              const payload = getPayloadData(parsed)
+              const resource = asPayloadRecord(payload.resource)
+              if (
+                !resource ||
+                typeof resource.type !== 'string' ||
+                typeof resource.id !== 'string'
+              ) {
+                break
+              }
+
+              if (payload.op === MothershipStreamV1ResourceOp.remove) {
+                removeResource(resource.type as MothershipResourceType, resource.id)
                 invalidateResourceQueries(
                   queryClient,
                   workspaceId,
-                  nextResource.type,
-                  nextResource.id
+                  resource.type as MothershipResourceType,
+                  resource.id
                 )
-
-                if (!wasAdded && activeResourceIdRef.current !== nextResource.id) {
-                  setActiveResourceId(nextResource.id)
-                }
                 onResourceEventRef.current?.()
-
-                if (nextResource.type === 'workflow') {
-                  const wasRegistered = ensureWorkflowInRegistry(
-                    nextResource.id,
-                    nextResource.title,
-                    workspaceId
-                  )
-                  if (wasAdded && wasRegistered) {
-                    useWorkflowRegistry.getState().setActiveWorkflow(nextResource.id)
-                  } else {
-                    useWorkflowRegistry.getState().loadWorkflowState(nextResource.id)
-                  }
-                }
                 break
               }
-              case MothershipStreamV1EventType.run: {
-                const payload = getPayloadData(parsed)
-                const kind = typeof payload.kind === 'string' ? payload.kind : ''
-                if (kind === MothershipStreamV1RunKind.compaction_start) {
-                  const compactionId = `compaction_${Date.now()}`
-                  activeCompactionId = compactionId
+
+              const nextResource = {
+                type: resource.type as MothershipResourceType,
+                id: resource.id,
+                title: typeof resource.title === 'string' ? resource.title : resource.id,
+              }
+              const wasAdded = addResource(nextResource)
+              invalidateResourceQueries(
+                queryClient,
+                workspaceId,
+                nextResource.type,
+                nextResource.id
+              )
+
+              if (!wasAdded && activeResourceIdRef.current !== nextResource.id) {
+                setActiveResourceId(nextResource.id)
+              }
+              onResourceEventRef.current?.()
+
+              if (nextResource.type === 'workflow') {
+                const wasRegistered = ensureWorkflowInRegistry(
+                  nextResource.id,
+                  nextResource.title,
+                  workspaceId
+                )
+                if (wasAdded && wasRegistered) {
+                  useWorkflowRegistry.getState().setActiveWorkflow(nextResource.id)
+                } else {
+                  useWorkflowRegistry.getState().loadWorkflowState(nextResource.id)
+                }
+              }
+              break
+            }
+            case MothershipStreamV1EventType.run: {
+              const payload = getPayloadData(parsed)
+              const kind = typeof payload.kind === 'string' ? payload.kind : ''
+              if (kind === MothershipStreamV1RunKind.compaction_start) {
+                const compactionId = `compaction_${Date.now()}`
+                activeCompactionId = compactionId
+                toolMap.set(compactionId, blocks.length)
+                blocks.push({
+                  type: 'tool_call',
+                  toolCall: {
+                    id: compactionId,
+                    name: 'context_compaction',
+                    status: 'executing',
+                    displayTitle: 'Compacting context...',
+                  },
+                })
+                flush()
+              } else if (kind === MothershipStreamV1RunKind.compaction_done) {
+                const compactionId = activeCompactionId || `compaction_${Date.now()}`
+                activeCompactionId = undefined
+                const idx = toolMap.get(compactionId)
+                if (idx !== undefined && blocks[idx]?.toolCall) {
+                  blocks[idx].toolCall!.status = 'success'
+                  blocks[idx].toolCall!.displayTitle = 'Compacted context'
+                } else {
                   toolMap.set(compactionId, blocks.length)
                   blocks.push({
                     type: 'tool_call',
                     toolCall: {
                       id: compactionId,
                       name: 'context_compaction',
-                      status: 'executing',
-                      displayTitle: 'Compacting context...',
+                      status: 'success',
+                      displayTitle: 'Compacted context',
                     },
                   })
-                  flush()
-                } else if (kind === MothershipStreamV1RunKind.compaction_done) {
-                  const compactionId = activeCompactionId || `compaction_${Date.now()}`
-                  activeCompactionId = undefined
-                  const idx = toolMap.get(compactionId)
-                  if (idx !== undefined && blocks[idx]?.toolCall) {
-                    blocks[idx].toolCall!.status = 'success'
-                    blocks[idx].toolCall!.displayTitle = 'Compacted context'
-                  } else {
-                    toolMap.set(compactionId, blocks.length)
-                    blocks.push({
-                      type: 'tool_call',
-                      toolCall: {
-                        id: compactionId,
-                        name: 'context_compaction',
-                        status: 'success',
-                        displayTitle: 'Compacted context',
-                      },
-                    })
-                  }
-                  flush()
                 }
+                flush()
+              }
+              break
+            }
+            case MothershipStreamV1EventType.span: {
+              const payload = getPayloadData(parsed)
+              const kind = typeof payload.kind === 'string' ? payload.kind : ''
+              if (kind !== MothershipStreamV1SpanPayloadKind.subagent) {
                 break
               }
-              case MothershipStreamV1EventType.span: {
-                const payload = getPayloadData(parsed)
-                const kind = typeof payload.kind === 'string' ? payload.kind : ''
-                if (kind !== MothershipStreamV1SpanPayloadKind.subagent) {
+              const spanEvent = typeof payload.event === 'string' ? payload.event : ''
+              const spanData = asPayloadRecord(payload.data)
+              const parentToolCallId =
+                typeof parsed.scope?.parentToolCallId === 'string'
+                  ? parsed.scope.parentToolCallId
+                  : typeof spanData?.tool_call_id === 'string'
+                    ? spanData.tool_call_id
+                    : undefined
+              const isPendingPause = spanData?.pending === true
+              const name =
+                typeof payload.agent === 'string'
+                  ? payload.agent
+                  : typeof parsed.scope?.agentId === 'string'
+                    ? parsed.scope.agentId
+                    : undefined
+              if (spanEvent === MothershipStreamV1SpanLifecycleEvent.start && name) {
+                const isSameActiveSubagent =
+                  activeSubagent === name &&
+                  activeSubagentParentToolCallId &&
+                  parentToolCallId === activeSubagentParentToolCallId
+                activeSubagent = name
+                activeSubagentParentToolCallId = parentToolCallId
+                if (!isSameActiveSubagent) {
+                  blocks.push({ type: 'subagent', content: name })
+                }
+                if (name === FileWrite.id) {
+                  // #region agent log
+                  fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
+                    body: JSON.stringify({
+                      sessionId: '6f10b0',
+                      location: 'use-chat.ts:file_write_span_start',
+                      message: 'file_write span start',
+                      data: {
+                        parentToolCallId,
+                        activeResourceIdBefore: activeResourceIdRef.current,
+                        existingStreamingFile: streamingFileRef.current,
+                        activeFileCtx: activeFileContextRef.current,
+                        resourceIds: resourcesRef.current.map((r: { id: string }) => r.id),
+                      },
+                      timestamp: Date.now(),
+                      hypothesisId: 'H7',
+                    }),
+                  }).catch(() => {})
+                  // #endregion
+                  const emptyFile = { fileName: '', content: '' }
+                  streamingFileRef.current = emptyFile
+                  setStreamingFile(emptyFile)
+                }
+                flush()
+              } else if (spanEvent === MothershipStreamV1SpanLifecycleEvent.end) {
+                if (isPendingPause) {
                   break
                 }
-                const spanEvent = typeof payload.event === 'string' ? payload.event : ''
-                const spanData = asPayloadRecord(payload.data)
-                const parentToolCallId =
-                  typeof parsed.scope?.parentToolCallId === 'string'
-                    ? parsed.scope.parentToolCallId
-                    : typeof spanData?.tool_call_id === 'string'
-                      ? spanData.tool_call_id
-                      : undefined
-                const isPendingPause = spanData?.pending === true
-                const name =
-                  typeof payload.agent === 'string'
-                    ? payload.agent
-                    : typeof parsed.scope?.agentId === 'string'
-                      ? parsed.scope.agentId
-                      : undefined
-                if (spanEvent === MothershipStreamV1SpanLifecycleEvent.start && name) {
-                  const isSameActiveSubagent =
-                    activeSubagent === name &&
-                    activeSubagentParentToolCallId &&
-                    parentToolCallId === activeSubagentParentToolCallId
-                  activeSubagent = name
-                  activeSubagentParentToolCallId = parentToolCallId
-                  if (!isSameActiveSubagent) {
-                    blocks.push({ type: 'subagent', content: name })
+                if (streamingFileRef.current) {
+                  // #region agent log
+                  fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
+                    body: JSON.stringify({
+                      sessionId: '6f10b0',
+                      location: 'use-chat.ts:file_write_span_end',
+                      message: 'file_write span end clear',
+                      data: {
+                        activeResourceIdBefore: activeResourceIdRef.current,
+                        streamingFileBefore: streamingFileRef.current,
+                        lastRealFileId: resourcesRef.current.find(
+                          (r: { type: string; id: string }) =>
+                            r.type === 'file' && r.id !== 'streaming-file'
+                        )?.id,
+                        resourceIds: resourcesRef.current.map((r: { id: string }) => r.id),
+                      },
+                      timestamp: Date.now(),
+                      hypothesisId: 'H8',
+                    }),
+                  }).catch(() => {})
+                  // #endregion
+                  setStreamingFile(null)
+                  streamingFileRef.current = null
+                  const lastFileResource = resourcesRef.current.find(
+                    (r) => r.type === 'file' && r.id !== 'streaming-file'
+                  )
+                  setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
+                  if (lastFileResource) {
+                    setActiveResourceId(lastFileResource.id)
                   }
-                  if (name === FileWrite.id) {
-                    const emptyFile = { fileName: '', content: '' }
-                    streamingFileRef.current = emptyFile
-                    setStreamingFile(emptyFile)
-                  }
-                  flush()
-                } else if (spanEvent === MothershipStreamV1SpanLifecycleEvent.end) {
-                  if (isPendingPause) {
-                    break
-                  }
-                  activeSubagent = undefined
-                  activeSubagentParentToolCallId = undefined
-                  blocks.push({ type: 'subagent_end' })
-                  flush()
                 }
-                break
+                activeSubagent = undefined
+                activeSubagentParentToolCallId = undefined
+                blocks.push({ type: 'subagent_end' })
+                flush()
               }
-              case MothershipStreamV1EventType.error: {
-                const payload = getPayloadData(parsed)
-                sawStreamError = true
-                setError(
-                  (typeof payload.message === 'string' ? payload.message : undefined) ||
-                    (typeof payload.error === 'string' ? payload.error : undefined) ||
-                    'An error occurred'
-                )
-                appendInlineErrorTag(buildInlineErrorTag(parsed))
-                break
-              }
-              case MothershipStreamV1EventType.complete: {
-                sawCompleteEvent = true
-                break
-              }
+              break
+            }
+            case MothershipStreamV1EventType.error: {
+              const payload = getPayloadData(parsed)
+              sawStreamError = true
+              setError(
+                (typeof payload.message === 'string' ? payload.message : undefined) ||
+                  (typeof payload.error === 'string' ? payload.error : undefined) ||
+                  'An error occurred'
+              )
+              appendInlineErrorTag(buildInlineErrorTag(parsed))
+              break
+            }
+            case MothershipStreamV1EventType.complete: {
+              sawCompleteEvent = true
+              break
             }
           }
         }

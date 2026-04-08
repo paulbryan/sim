@@ -3,20 +3,15 @@ import { createLogger } from '@sim/logger'
 const logger = createLogger('CopilotSseParser')
 
 /**
- * Processes an SSE stream by calling onEvent synchronously for each parsed event
- * within a single reader.read() chunk. All events from one chunk are processed
- * in the same microtask — no yield/next() boundaries between them.
+ * Processes an SSE stream by calling onEvent for each parsed event.
  *
- * Replaces the async generator approach which incurred 2 microtask yields per
- * event (one for yield, one for the consumer's next() resumption).
- *
- * @param onEvent Called synchronously per parsed event. Return true to stop processing.
+ * @param onEvent Called per parsed event. Return true to stop processing.
  */
 export async function processSSEStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   decoder: TextDecoder,
   abortSignal: AbortSignal | undefined,
-  onEvent: (event: unknown) => boolean | undefined
+  onEvent: (event: unknown) => boolean | undefined | Promise<boolean | undefined>
 ): Promise<void> {
   let buffer = ''
 
@@ -48,7 +43,7 @@ export async function processSSEStream(
           if (jsonStr === '[DONE]') continue
 
           try {
-            if (onEvent(JSON.parse(jsonStr))) {
+            if (await onEvent(JSON.parse(jsonStr))) {
               stopped = true
               break
             }
@@ -73,7 +68,7 @@ export async function processSSEStream(
 
     if (buffer.trim() && buffer.startsWith('data: ')) {
       try {
-        onEvent(JSON.parse(buffer.slice(6)))
+        await onEvent(JSON.parse(buffer.slice(6)))
       } catch (error) {
         logger.warn('Failed to parse final SSE buffer', {
           preview: buffer.slice(0, 200),

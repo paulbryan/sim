@@ -82,6 +82,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
       switch (operation) {
         case 'write': {
           const fileName = (args as Record<string, unknown>).fileName as string | undefined
+          const fileId = (args as Record<string, unknown>).fileId as string | undefined
           const content = (args as Record<string, unknown>).content as string | undefined
           const explicitType = (args as Record<string, unknown>).contentType as string | undefined
 
@@ -109,11 +110,15 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
                 ? PDF_SOURCE_MIME
                 : undefined
 
-          const existingFile = await getWorkspaceFileByName(workspaceId, fileName)
+          const existingFile = fileId
+            ? await getWorkspaceFile(workspaceId, fileId)
+            : await getWorkspaceFileByName(workspaceId, fileName)
 
           if (existingFile) {
             const currentBuffer = await downloadWsFile(existingFile)
-            const combined = `${currentBuffer.toString('utf-8')}\n${content}`
+            const combined = isDoc
+              ? `${currentBuffer.toString('utf-8')}\n{\n${content}\n}`
+              : `${currentBuffer.toString('utf-8')}\n${content}`
 
             if (isDoc) {
               const formatName = isPptx ? 'PPTX' : isDocx ? 'DOCX' : 'PDF'
@@ -145,7 +150,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
             logger.info('Workspace file appended via write', {
               fileId: existingFile.id,
-              name: fileName,
+              name: existingFile.name,
               appendedSize: content.length,
               totalSize: combinedBuffer.length,
               userId: context.userId,
@@ -153,10 +158,10 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
             return {
               success: true,
-              message: `Content appended to "${fileName}" (${content.length} bytes added, ${combinedBuffer.length} bytes total)`,
+              message: `Content appended to "${existingFile.name}" (${content.length} bytes added, ${combinedBuffer.length} bytes total)`,
               data: {
                 id: existingFile.id,
-                name: fileName,
+                name: existingFile.name,
                 size: combinedBuffer.length,
               },
             }
