@@ -85,10 +85,15 @@ export const ResourceContent = memo(function ResourceContent({
 }: ResourceContentProps) {
   const streamFileName = streamingFile?.fileName || 'file.md'
 
-  const isPatchStream = useMemo(() => {
-    if (!streamingFile) return false
-    return /"operation"\s*:\s*"patch"/.test(streamingFile.content)
+  const streamOperation = useMemo(() => {
+    if (!streamingFile) return undefined
+    const m = streamingFile.content.match(/"operation"\s*:\s*"(\w+)"/)
+    return m?.[1]
   }, [streamingFile])
+
+  const isWriteStream = streamOperation === 'write'
+  const isPatchStream = streamOperation === 'patch'
+  const isUpdateStream = streamOperation === 'update'
 
   const { data: allFiles = [] } = useWorkspaceFiles(workspaceId)
   const activeFileRecord = useMemo(() => {
@@ -112,13 +117,25 @@ export const ResourceContent = memo(function ResourceContent({
     if (!streamingFile) return undefined
     const raw = streamingFile.content
 
-    if (isPatchStream && fetchedFileContent) {
+    // Do not guess. Until the operation key has streamed in, we don't know
+    // whether the payload should append, replace, or splice into the file.
+    // Rendering early here can show content at the end of the file and then
+    // "snap" to the right place once the operation/mode becomes known.
+    if (!streamOperation) return undefined
+
+    if (isPatchStream) {
+      if (!fetchedFileContent) return undefined
       return extractPatchPreview(raw, fetchedFileContent)
     }
 
     const extracted = extractFileContent(raw)
-    return extracted.length > 0 ? extracted : undefined
-  }, [streamingFile, isPatchStream, fetchedFileContent])
+    if (extracted.length === 0) return undefined
+
+    if (isUpdateStream) return extracted
+    if (isWriteStream) return extracted
+
+    return undefined
+  }, [streamingFile, streamOperation, isWriteStream, isPatchStream, isUpdateStream, fetchedFileContent])
   const syntheticFile = useMemo(() => {
     const ext = getFileExtension(streamFileName)
     const SOURCE_MIME_MAP: Record<string, string> = {
@@ -140,6 +157,9 @@ export const ResourceContent = memo(function ResourceContent({
     }
   }, [workspaceId, streamFileName])
 
+  const streamingFileMode: 'append' | 'replace' =
+    isWriteStream ? 'append' : 'replace'
+
   if (streamingFile && resource.id === 'streaming-file') {
     return (
       <div className='flex h-full flex-col overflow-hidden'>
@@ -150,6 +170,7 @@ export const ResourceContent = memo(function ResourceContent({
             canEdit={false}
             previewMode={previewMode ?? 'preview'}
             streamingContent={streamingExtractedContent}
+            streamingMode={streamingFileMode}
           />
         ) : (
           <div className='flex h-full items-center justify-center'>
@@ -172,6 +193,7 @@ export const ResourceContent = memo(function ResourceContent({
           fileId={resource.id}
           previewMode={previewMode}
           streamingContent={streamingExtractedContent}
+          streamingMode={streamingFileMode}
         />
       )
 
@@ -460,9 +482,10 @@ interface EmbeddedFileProps {
   fileId: string
   previewMode?: PreviewMode
   streamingContent?: string
+  streamingMode?: 'append' | 'replace'
 }
 
-function EmbeddedFile({ workspaceId, fileId, previewMode, streamingContent }: EmbeddedFileProps) {
+function EmbeddedFile({ workspaceId, fileId, previewMode, streamingContent, streamingMode }: EmbeddedFileProps) {
   const { canEdit } = useUserPermissionsContext()
   const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
   const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
@@ -490,6 +513,7 @@ function EmbeddedFile({ workspaceId, fileId, previewMode, streamingContent }: Em
         file={file}
         workspaceId={workspaceId}
         canEdit={canEdit}
+        streamingMode={streamingMode}
         previewMode={previewMode}
         streamingContent={streamingContent}
       />

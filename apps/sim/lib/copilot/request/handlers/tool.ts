@@ -21,7 +21,7 @@ import type {
   StreamingContext,
   ToolCallState,
 } from '@/lib/copilot/request/types'
-import { isSimExecuted } from '@/lib/copilot/tool-executor'
+import { isSimExecuted, getToolEntry } from '@/lib/copilot/tool-executor'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import type { ToolScope } from './types'
 import {
@@ -191,8 +191,10 @@ async function handleCallPhase(
   if (isGoHandledInternalRead) return
 
   const { clientExecutable, simExecutable, internal } = getEventUI(event)
+  const catalogEntry = getToolEntry(toolName)
+  const isInternal = internal || catalogEntry?.internal === true
   const staticSimExecuted = isSimExecuted(toolName)
-  const willDispatch = !internal && (staticSimExecuted || simExecutable || clientExecutable)
+  const willDispatch = !isInternal && (staticSimExecuted || simExecutable || clientExecutable)
   logger.info('Tool call routing decision', {
     toolCallId,
     toolName,
@@ -203,12 +205,12 @@ async function handleCallPhase(
     clientExecutable,
     simExecutable,
     staticSimExecuted,
-    internal,
+    internal: isInternal,
     hasPendingPromise: context.pendingToolPromises.has(toolCallId),
     existingStatus: existing?.status,
     willDispatch,
   })
-  if (internal) return
+  if (isInternal) return
   if (!willDispatch) return
 
   await dispatchToolExecution(

@@ -1,7 +1,7 @@
 'use client'
 
 import {
-  FileWrite,
+  File as FileTool,
   Read as ReadTool,
   ToolSearchToolRegex,
   WorkspaceFile,
@@ -43,12 +43,12 @@ const SUBAGENT_KEYS = new Set(Object.keys(SUBAGENT_LABELS))
 
 /**
  * Maps subagent names to the Mothership tool that dispatches them when the
- * tool name differs from the subagent name (e.g. `workspace_file` → `file_write`).
+ * tool name differs from the subagent name (e.g. `workspace_file` → `file`).
  * When a `subagent` block arrives, any trailing dispatch tool in the previous
  * group is absorbed so it doesn't render as a separate Mothership entry.
  */
 const SUBAGENT_DISPATCH_TOOLS: Record<string, string> = {
-  [FileWrite.id]: WorkspaceFile.id,
+  [FileTool.id]: WorkspaceFile.id,
 }
 
 function isToolResultRead(params?: Record<string, unknown>): boolean {

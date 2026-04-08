@@ -57,7 +57,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   debug: Bug,
   context_compaction: Asterisk,
   open_resource: Eye,
-  file_write: File,
+  file: File,
 }
 
 export function getAgentIcon(name: string): IconComponent {

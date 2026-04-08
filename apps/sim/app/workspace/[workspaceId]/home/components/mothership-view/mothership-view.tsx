@@ -30,7 +30,7 @@ function fileTitlesEquivalent(streamFileName: string, resourceTitle: string): bo
 }
 
 /**
- * Whether the active resource should show the in-progress file_write stream.
+ * Whether the active resource should show the in-progress file stream.
  * The synthetic `streaming-file` tab always shows it; a real file tab shows it when
  * the streamed `fileName` matches that resource (so users who stay on the open file see live text).
  */

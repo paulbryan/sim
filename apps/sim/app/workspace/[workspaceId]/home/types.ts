@@ -190,7 +190,7 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   run: 'Run agent',
   agent: 'Agent manager',
   job: 'Job agent',
-  file_write: 'File Write',
+  file: 'File',
 } as const
 
 export interface ToolUIMetadata {

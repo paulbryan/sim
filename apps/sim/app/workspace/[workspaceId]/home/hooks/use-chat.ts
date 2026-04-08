@@ -27,7 +27,7 @@ import {
   DeployApi,
   DeployChat,
   DeployMcp,
-  FileWrite,
+  File as FileTool,
   MoveFolder,
   MoveWorkflow,
   Read as ReadTool,
@@ -914,9 +914,16 @@ export function useChat(
                     )
 
                   if (existingFileMatch) {
-                    setActiveResourceId(matchedResourceId)
-                    setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
-                  } else if (fileName || fileIdMatch || activeSubagent === 'file_write') {
+                    const hadStreamingResource = resourcesRef.current.some(
+                      (resource) => resource.id === 'streaming-file'
+                    )
+                    if (hadStreamingResource) {
+                      setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
+                      setActiveResourceId(matchedResourceId)
+                    } else if (activeResourceIdRef.current === null) {
+                      setActiveResourceId(matchedResourceId)
+                    }
+                  } else if (fileName || fileIdMatch || activeSubagent === FileTool.id) {
                     const hasStreamingResource = resourcesRef.current.some(
                       (resource) => resource.id === 'streaming-file'
                     )
@@ -926,8 +933,6 @@ export function useChat(
                         id: 'streaming-file',
                         title: fileName || 'Writing file...',
                       })
-                      setActiveResourceId('streaming-file')
-                    } else if (activeResourceIdRef.current !== 'streaming-file') {
                       setActiveResourceId('streaming-file')
                     }
                   }
@@ -1294,7 +1299,7 @@ export function useChat(
                 if (!isSameActiveSubagent) {
                   blocks.push({ type: 'subagent', content: name })
                 }
-                if (name === FileWrite.id) {
+                if (name === FileTool.id) {
                   const emptyFile = { fileName: '', content: '' }
                   streamingFileRef.current = emptyFile
                   setStreamingFile(emptyFile)

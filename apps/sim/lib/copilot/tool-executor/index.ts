@@ -8,6 +8,7 @@ export {
 } from './executor'
 export { ensureHandlersRegistered } from './register-handlers'
 export {
+  getToolEntry,
   isGoExecuted,
   isKnownTool,
   isSimExecuted,

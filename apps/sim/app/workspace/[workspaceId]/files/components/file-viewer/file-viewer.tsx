@@ -130,6 +130,7 @@ interface FileViewerProps {
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
+  streamingMode?: 'append' | 'replace'
 }
 
 export function FileViewer({
@@ -143,6 +144,7 @@ export function FileViewer({
   onSaveStatusChange,
   saveRef,
   streamingContent,
+  streamingMode,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
 
@@ -158,6 +160,7 @@ export function FileViewer({
         onSaveStatusChange={onSaveStatusChange}
         saveRef={saveRef}
         streamingContent={streamingContent}
+        streamingMode={streamingMode}
       />
     )
   }
@@ -195,6 +198,7 @@ interface TextEditorProps {
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
+  streamingMode?: 'append' | 'replace'
 }
 
 function TextEditor({
@@ -207,6 +211,7 @@ function TextEditor({
   onSaveStatusChange,
   saveRef,
   streamingContent,
+  streamingMode = 'append',
 }: TextEditorProps) {
   const initializedRef = useRef(false)
   const contentRef = useRef('')
@@ -237,15 +242,13 @@ function TextEditor({
   const [content, setContent] = useState('')
   const [savedContent, setSavedContent] = useState('')
   const savedContentRef = useRef('')
+  const wasStreamingRef = useRef(false)
 
   useEffect(() => {
     if (streamingContent !== undefined) {
-      const isSplicedFull =
-        fetchedContent !== undefined &&
-        streamingContent.length > fetchedContent.length * 0.5 &&
-        streamingContent.startsWith(fetchedContent.slice(0, Math.min(100, fetchedContent.length)))
+      wasStreamingRef.current = true
       const nextContent =
-        fetchedContent === undefined || isSplicedFull
+        streamingMode === 'replace' || fetchedContent === undefined
           ? streamingContent
           : fetchedContent.endsWith(streamingContent) ||
               fetchedContent.endsWith(`\n${streamingContent}`)
@@ -255,6 +258,17 @@ function TextEditor({
       contentRef.current = nextContent
       initializedRef.current = true
       return
+    }
+
+    if (wasStreamingRef.current) {
+      wasStreamingRef.current = false
+      if (fetchedContent !== undefined) {
+        setContent(fetchedContent)
+        setSavedContent(fetchedContent)
+        savedContentRef.current = fetchedContent
+        contentRef.current = fetchedContent
+        return
+      }
     }
 
     if (fetchedContent === undefined) return
