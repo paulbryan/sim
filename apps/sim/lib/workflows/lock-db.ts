@@ -1,7 +1,6 @@
 import { db } from '@sim/db'
-import { workflow as workflowTable, workflowFolder } from '@sim/db/schema'
+import { workflowFolder, workflow as workflowTable } from '@sim/db/schema'
 import { eq } from 'drizzle-orm'
-import { isFolderEffectivelyLocked } from '@/lib/workflows/lock'
 
 /**
  * DB-backed cascade lock check for folders.
@@ -52,5 +51,3 @@ export async function isWorkflowEffectivelyLockedDb(workflowId: string): Promise
   if (wf.folderId) return isFolderEffectivelyLockedDb(wf.folderId)
   return false
 }
-
-export { isFolderEffectivelyLocked, isWorkflowEffectivelyLocked } from '@/lib/workflows/lock'

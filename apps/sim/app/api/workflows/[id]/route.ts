@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { AuthType, checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { isFolderEffectivelyLockedDb } from '@/lib/workflows/lock-db'
+import { isWorkflowEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { performDeleteWorkflow } from '@/lib/workflows/orchestration'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { authorizeWorkflowByWorkspacePermission, getWorkflowById } from '@/lib/workflows/utils'
@@ -184,10 +184,7 @@ export async function DELETE(
       )
     }
 
-    const isLocked =
-      workflowData.isLocked ||
-      (workflowData.folderId ? await isFolderEffectivelyLockedDb(workflowData.folderId) : false)
-    if (isLocked) {
+    if (await isWorkflowEffectivelyLockedDb(workflowId)) {
       return NextResponse.json({ error: 'Workflow is locked' }, { status: 403 })
     }
 
@@ -313,9 +310,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // If workflow is effectively locked, only allow isLocked toggle (by admins)
-    const effectivelyLocked =
-      workflowData.isLocked ||
-      (workflowData.folderId ? await isFolderEffectivelyLockedDb(workflowData.folderId) : false)
+    const effectivelyLocked = await isWorkflowEffectivelyLockedDb(workflowId)
     if (effectivelyLocked) {
       const hasNonLockUpdates =
         updates.name !== undefined ||

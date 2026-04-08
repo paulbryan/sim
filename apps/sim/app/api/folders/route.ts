@@ -8,6 +8,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateId } from '@/lib/core/utils/uuid'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { isFolderEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersAPI')
@@ -95,6 +96,16 @@ export async function POST(request: NextRequest) {
         { error: 'Write or Admin access required to create folders' },
         { status: 403 }
       )
+    }
+
+    if (parentId) {
+      const parentLocked = await isFolderEffectivelyLockedDb(parentId)
+      if (parentLocked) {
+        return NextResponse.json(
+          { error: 'Cannot create a folder inside a locked folder' },
+          { status: 403 }
+        )
+      }
     }
 
     const id = clientId || generateId()

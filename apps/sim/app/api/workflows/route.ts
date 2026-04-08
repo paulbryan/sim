@@ -11,6 +11,7 @@ import { generateId } from '@/lib/core/utils/uuid'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import { isFolderEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { deduplicateWorkflowName, listWorkflows, type WorkflowScope } from '@/lib/workflows/utils'
 import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
@@ -161,6 +162,16 @@ export async function POST(req: NextRequest) {
         { error: 'Write or Admin access required to create workflows in this workspace' },
         { status: 403 }
       )
+    }
+
+    if (folderId) {
+      const folderLocked = await isFolderEffectivelyLockedDb(folderId)
+      if (folderLocked) {
+        return NextResponse.json(
+          { error: 'Cannot create a workflow inside a locked folder' },
+          { status: 403 }
+        )
+      }
     }
 
     const workflowId = clientId || generateId()

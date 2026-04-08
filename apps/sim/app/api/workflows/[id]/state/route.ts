@@ -7,12 +7,12 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isWorkflowEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
-import { isFolderEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
@@ -200,11 +200,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    // Check if workflow is effectively locked (directly or via folder cascade)
-    const isLocked =
-      workflowData.isLocked ||
-      (workflowData.folderId ? await isFolderEffectivelyLockedDb(workflowData.folderId) : false)
-    if (isLocked) {
+    if (await isWorkflowEffectivelyLockedDb(workflowId)) {
       return NextResponse.json({ error: 'Workflow is locked' }, { status: 403 })
     }
 

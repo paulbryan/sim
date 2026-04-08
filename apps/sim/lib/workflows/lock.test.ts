@@ -63,6 +63,11 @@ describe('isFolderEffectivelyLocked', () => {
     const map = buildMap(folder('a', 'b', true), folder('b', 'a', false))
     expect(isFolderEffectivelyLocked('b', map)).toBe(true)
   })
+
+  it('terminates on circular chain with no locks', () => {
+    const map = buildMap(folder('a', 'b', false), folder('b', 'a', false))
+    expect(isFolderEffectivelyLocked('a', map)).toBe(false)
+  })
 })
 
 describe('isWorkflowEffectivelyLocked', () => {

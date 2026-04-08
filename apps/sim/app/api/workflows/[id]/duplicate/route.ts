@@ -6,6 +6,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { isFolderEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 
 const logger = createLogger('WorkflowDuplicateAPI')
@@ -36,6 +37,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const body = await req.json()
     const { name, description, color, workspaceId, folderId, newId } =
       DuplicateRequestSchema.parse(body)
+
+    if (folderId) {
+      const folderLocked = await isFolderEffectivelyLockedDb(folderId)
+      if (folderLocked) {
+        return NextResponse.json(
+          { error: 'Cannot duplicate a workflow into a locked folder' },
+          { status: 403 }
+        )
+      }
+    }
 
     logger.info(`[${requestId}] Duplicating workflow ${sourceWorkflowId} for user ${userId}`)
 

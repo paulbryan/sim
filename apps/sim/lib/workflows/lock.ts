@@ -17,8 +17,11 @@ export function isFolderEffectivelyLocked(
   folderId: string,
   folderMap: Record<string, LockableFolder>
 ): boolean {
+  const visited = new Set<string>()
   let current: LockableFolder | undefined = folderMap[folderId]
   while (current) {
+    if (visited.has(current.id)) return false
+    visited.add(current.id)
     if (current.isLocked) return true
     current = current.parentId ? folderMap[current.parentId] : undefined
   }

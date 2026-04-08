@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isWorkflowEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import type { Variable } from '@/stores/variables/types'
 
@@ -63,6 +64,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         { error: authorization.message || 'Access denied' },
         { status: authorization.status || 403 }
       )
+    }
+
+    if (await isWorkflowEffectivelyLockedDb(workflowId)) {
+      return NextResponse.json({ error: 'Workflow is locked' }, { status: 403 })
     }
 
     const body = await req.json()

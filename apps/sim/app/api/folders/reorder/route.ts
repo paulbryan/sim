@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { isFolderEffectivelyLocked } from '@/lib/workflows/lock'
+import { isFolderEffectivelyLocked, type LockableFolder } from '@/lib/workflows/lock'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FolderReorderAPI')
@@ -74,7 +74,7 @@ export async function PUT(req: NextRequest) {
       .from(workflowFolder)
       .where(eq(workflowFolder.workspaceId, workspaceId))
 
-    const folderMap: Record<string, { id: string; parentId: string | null; isLocked: boolean }> = {}
+    const folderMap: Record<string, LockableFolder> = {}
     for (const f of allFolders) {
       folderMap[f.id] = f
     }

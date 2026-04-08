@@ -8,6 +8,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateId } from '@/lib/core/utils/uuid'
+import { isFolderEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -66,11 +67,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const targetWorkspaceId = workspaceId || sourceFolder.workspaceId
+    const targetParentId = parentId ?? sourceFolder.parentId
+
+    if (targetParentId) {
+      const parentLocked = await isFolderEffectivelyLockedDb(targetParentId)
+      if (parentLocked) {
+        return NextResponse.json(
+          { error: 'Cannot duplicate a folder into a locked folder' },
+          { status: 403 }
+        )
+      }
+    }
 
     const { newFolderId, folderMapping } = await db.transaction(async (tx) => {
       const newFolderId = clientNewId || generateId()
       const now = new Date()
-      const targetParentId = parentId ?? sourceFolder.parentId
 
       const folderParentCondition = targetParentId
         ? eq(workflowFolder.parentId, targetParentId)
