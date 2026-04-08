@@ -58,17 +58,15 @@ interface MothershipViewProps {
   onCollapse: () => void
   isCollapsed: boolean
   className?: string
-  streamingFile?:
-    | {
-        toolCallId?: string
-        fileName: string
-        fileId?: string
-        targetKind?: 'new_file' | 'file_id'
-        operation?: string
-        edit?: Record<string, unknown>
-        content: string
-      }
-    | null
+  streamingFile?: {
+    toolCallId?: string
+    fileName: string
+    fileId?: string
+    targetKind?: 'new_file' | 'file_id'
+    operation?: string
+    edit?: Record<string, unknown>
+    content: string
+  } | null
   genericResourceData?: GenericResourceData
 }
 

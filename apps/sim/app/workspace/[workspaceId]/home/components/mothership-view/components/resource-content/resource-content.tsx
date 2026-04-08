@@ -122,7 +122,30 @@ export const ResourceContent = memo(function ResourceContent({
 
   // #region agent log
   if (streamingFile) {
-    fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6f10b0'},body:JSON.stringify({sessionId:'6f10b0',location:'resource-content.tsx:streaming-context',message:'streaming state',data:{resourceId:resource.id,resourceType:resource.type,streamOp:streamOperation,isPatch:isPatchStream,isWrite:isWriteStream,isUpdate:isUpdateStream,hasActiveFileRecord:!!activeFileRecord,hasFetchedContent:!!fetchedFileContent,fetchedContentLen:fetchedFileContent?.length,streamingFileContentLen:streamingFile.content.length,streamingFileName:streamingFile.fileName,streamingFileMode:isWriteStream?'append':'replace'},timestamp:Date.now()})}).catch(()=>{});
+    fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
+      body: JSON.stringify({
+        sessionId: '6f10b0',
+        location: 'resource-content.tsx:streaming-context',
+        message: 'streaming state',
+        data: {
+          resourceId: resource.id,
+          resourceType: resource.type,
+          streamOp: streamOperation,
+          isPatch: isPatchStream,
+          isWrite: isWriteStream,
+          isUpdate: isUpdateStream,
+          hasActiveFileRecord: !!activeFileRecord,
+          hasFetchedContent: !!fetchedFileContent,
+          fetchedContentLen: fetchedFileContent?.length,
+          streamingFileContentLen: streamingFile.content.length,
+          streamingFileName: streamingFile.fileName,
+          streamingFileMode: isWriteStream ? 'append' : 'replace',
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {})
   }
   // #endregion
   const streamingExtractedContent = useMemo(() => {
@@ -132,13 +155,41 @@ export const ResourceContent = memo(function ResourceContent({
     if (isPatchStream) {
       if (!fetchedFileContent) {
         // #region agent log
-        fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6f10b0'},body:JSON.stringify({sessionId:'6f10b0',location:'resource-content.tsx:patch-no-fetched',message:'patch but no fetchedFileContent',data:{resourceId:resource.id,activeFileRecordId:activeFileRecord?.id},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
+          body: JSON.stringify({
+            sessionId: '6f10b0',
+            location: 'resource-content.tsx:patch-no-fetched',
+            message: 'patch but no fetchedFileContent',
+            data: { resourceId: resource.id, activeFileRecordId: activeFileRecord?.id },
+            timestamp: Date.now(),
+            hypothesisId: 'H1',
+          }),
+        }).catch(() => {})
         // #endregion
         return undefined
       }
       const patchResult = extractPatchPreview(streamingFile, fetchedFileContent)
       // #region agent log
-      fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6f10b0'},body:JSON.stringify({sessionId:'6f10b0',location:'resource-content.tsx:patch-result',message:'extractPatchPreview result',data:{hasPatchResult:!!patchResult,patchResultLen:patchResult?.length,fetchedLen:fetchedFileContent.length,contentPreview:streamingFile.content.slice(0,200),edit:streamingFile.edit},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
+        body: JSON.stringify({
+          sessionId: '6f10b0',
+          location: 'resource-content.tsx:patch-result',
+          message: 'extractPatchPreview result',
+          data: {
+            hasPatchResult: !!patchResult,
+            patchResultLen: patchResult?.length,
+            fetchedLen: fetchedFileContent.length,
+            contentPreview: streamingFile.content.slice(0, 200),
+            edit: streamingFile.edit,
+          },
+          timestamp: Date.now(),
+          hypothesisId: 'H4',
+        }),
+      }).catch(() => {})
       // #endregion
       return patchResult
     }
@@ -147,14 +198,36 @@ export const ResourceContent = memo(function ResourceContent({
     if (extracted.length === 0) return undefined
 
     // #region agent log
-    fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6f10b0'},body:JSON.stringify({sessionId:'6f10b0',location:'resource-content.tsx:write-update-content',message:'extracted content for write/update',data:{streamOp:streamOperation,extractedLen:extracted.length,extractedPreview:extracted.slice(0,150)},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
+      body: JSON.stringify({
+        sessionId: '6f10b0',
+        location: 'resource-content.tsx:write-update-content',
+        message: 'extracted content for write/update',
+        data: {
+          streamOp: streamOperation,
+          extractedLen: extracted.length,
+          extractedPreview: extracted.slice(0, 150),
+        },
+        timestamp: Date.now(),
+        hypothesisId: 'H2',
+      }),
+    }).catch(() => {})
     // #endregion
 
     if (isUpdateStream) return extracted
     if (isWriteStream) return extracted
 
     return undefined
-  }, [streamingFile, streamOperation, isWriteStream, isPatchStream, isUpdateStream, fetchedFileContent])
+  }, [
+    streamingFile,
+    streamOperation,
+    isWriteStream,
+    isPatchStream,
+    isUpdateStream,
+    fetchedFileContent,
+  ])
   const syntheticFile = useMemo(() => {
     const ext = getFileExtension(streamFileName)
     const SOURCE_MIME_MAP: Record<string, string> = {
@@ -176,17 +249,14 @@ export const ResourceContent = memo(function ResourceContent({
     }
   }, [workspaceId, streamFileName])
 
-  const streamingFileMode: 'append' | 'replace' =
-    isWriteStream ? 'append' : 'replace'
+  const streamingFileMode: 'append' | 'replace' = isWriteStream ? 'append' : 'replace'
 
   // For existing file resources (not streaming-file), only pass streaming
   // content for patch operations where the preview splices new content into
   // the displayed file. Update operations re-stream the entire file from
   // scratch which causes visual duplication of already-visible content.
   const embeddedStreamingContent =
-    resource.id !== 'streaming-file' && isUpdateStream
-      ? undefined
-      : streamingExtractedContent
+    resource.id !== 'streaming-file' && isUpdateStream ? undefined : streamingExtractedContent
 
   if (streamingFile && resource.id === 'streaming-file') {
     return (
@@ -513,7 +583,13 @@ interface EmbeddedFileProps {
   streamingMode?: 'append' | 'replace'
 }
 
-function EmbeddedFile({ workspaceId, fileId, previewMode, streamingContent, streamingMode }: EmbeddedFileProps) {
+function EmbeddedFile({
+  workspaceId,
+  fileId,
+  previewMode,
+  streamingContent,
+  streamingMode,
+}: EmbeddedFileProps) {
   const { canEdit } = useUserPermissionsContext()
   const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
   const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
@@ -638,9 +714,7 @@ function extractPatchPreview(
   const strategy = typeof edit.strategy === 'string' ? edit.strategy : undefined
   const lines = existingContent.split('\n')
   const occurrence =
-    typeof edit.occurrence === 'number' && Number.isFinite(edit.occurrence)
-      ? edit.occurrence
-      : 1
+    typeof edit.occurrence === 'number' && Number.isFinite(edit.occurrence) ? edit.occurrence : 1
 
   if (strategy === 'search_replace') {
     const search = typeof edit.search === 'string' ? edit.search : ''
@@ -651,7 +725,9 @@ function extractPatchPreview(
     }
     const firstIdx = existingContent.indexOf(search)
     if (firstIdx === -1) return undefined
-    return existingContent.slice(0, firstIdx) + replace + existingContent.slice(firstIdx + search.length)
+    return (
+      existingContent.slice(0, firstIdx) + replace + existingContent.slice(firstIdx + search.length)
+    )
   }
 
   const mode = typeof edit.mode === 'string' ? edit.mode : undefined

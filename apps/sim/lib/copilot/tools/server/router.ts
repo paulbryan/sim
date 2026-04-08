@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { z } from 'zod'
 import {
   DownloadToWorkspaceFile,
   GenerateImage,
@@ -21,6 +22,7 @@ import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/ge
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
 import { downloadToWorkspaceFileServerTool } from '@/lib/copilot/tools/server/files/download-to-workspace-file'
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
+import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
 import { getJobLogsServerTool } from '@/lib/copilot/tools/server/jobs/get-job-logs'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
@@ -33,8 +35,6 @@ import { generateVisualizationServerTool } from '@/lib/copilot/tools/server/visu
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { getExecutionSummaryServerTool } from '@/lib/copilot/tools/server/workflow/get-execution-summary'
 import { getWorkflowLogsServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-logs'
-import { z } from 'zod'
-import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 
 export { ExecuteResponseSuccessSchema }
 export type ExecuteResponseSuccess = (typeof ExecuteResponseSuccessSchema)['_type']

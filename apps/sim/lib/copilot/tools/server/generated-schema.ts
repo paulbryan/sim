@@ -16,7 +16,10 @@ function formatErrors(errors: ErrorObject[] | null | undefined): string {
     .join('; ')
 }
 
-function getValidator(toolName: string, schemaKind: 'parameters' | 'resultSchema'): ValidateFunction | null {
+function getValidator(
+  toolName: string,
+  schemaKind: 'parameters' | 'resultSchema'
+): ValidateFunction | null {
   const cacheKey = `${toolName}:${schemaKind}`
   const cached = validatorCache.get(cacheKey)
   if (cached) return cached

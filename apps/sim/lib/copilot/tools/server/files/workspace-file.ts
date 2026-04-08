@@ -70,8 +70,6 @@ type WorkspaceFileArgs = {
   contentType?: string
   newName?: string
   edit?: WorkspaceFileEdit
-  // Legacy nested shape kept temporarily for compatibility during migration.
-  args?: Record<string, unknown>
 }
 
 type WorkspaceFileResult = {
@@ -140,102 +138,6 @@ function getDocumentFormatInfo(fileName: string): {
   return { isDoc: false }
 }
 
-function normalizeWorkspaceFileParams(params: WorkspaceFileArgs): {
-  operation: WorkspaceFileOperation
-  target?: WorkspaceFileTarget
-  title?: string
-  content?: string
-  contentType?: string
-  newName?: string
-  edit?: WorkspaceFileEdit
-} {
-  if (params.target || params.edit || params.content !== undefined || params.newName !== undefined) {
-    return {
-      operation: params.operation,
-      target: params.target,
-      title: params.title,
-      content: params.content,
-      contentType: params.contentType,
-      newName: params.newName,
-      edit: params.edit,
-    }
-  }
-
-  const legacyArgs = (params.args ?? {}) as Record<string, unknown>
-  const legacyOperation = params.operation
-  const legacyTarget: WorkspaceFileTarget | undefined =
-    legacyOperation === 'create'
-      ? ({
-          kind: 'new_file',
-          fileName: String(legacyArgs.fileName ?? ''),
-        } as WorkspaceFileTarget)
-      : legacyArgs.fileId
-        ? ({
-            kind: 'file_id',
-            fileId: String(legacyArgs.fileId),
-            ...(legacyArgs.fileName ? { fileName: String(legacyArgs.fileName) } : {}),
-          } as WorkspaceFileTarget)
-        : legacyArgs.fileName
-          ? ({
-              kind: 'new_file',
-              fileName: String(legacyArgs.fileName),
-            } as WorkspaceFileTarget)
-          : undefined
-
-  const legacyEdit = (() => {
-    const structured = legacyArgs.edit as Record<string, unknown> | undefined
-    if (structured && typeof structured.mode === 'string') {
-      return {
-        strategy: 'anchored',
-        mode: structured.mode as 'replace_between' | 'insert_after' | 'delete_between',
-        occurrence:
-          typeof structured.occurrence === 'number' ? structured.occurrence : undefined,
-        before_anchor:
-          typeof structured.before_anchor === 'string' ? structured.before_anchor : undefined,
-        after_anchor:
-          typeof structured.after_anchor === 'string' ? structured.after_anchor : undefined,
-        start_anchor:
-          typeof structured.start_anchor === 'string' ? structured.start_anchor : undefined,
-        end_anchor:
-          typeof structured.end_anchor === 'string' ? structured.end_anchor : undefined,
-        anchor: typeof structured.anchor === 'string' ? structured.anchor : undefined,
-        content: typeof structured.content === 'string' ? structured.content : undefined,
-      } satisfies WorkspaceFileEdit
-    }
-
-    const edits = legacyArgs.edits as Array<{ search?: unknown; replace?: unknown }> | undefined
-    if (Array.isArray(edits) && edits.length > 0) {
-      const first = edits[0]
-      if (typeof first?.search === 'string' && typeof first?.replace === 'string') {
-        return {
-          strategy: 'search_replace',
-          search: first.search,
-          replace: first.replace,
-        } satisfies WorkspaceFileEdit
-      }
-    }
-
-    return undefined
-  })()
-
-  const normalizedOperation: WorkspaceFileOperation =
-    (legacyOperation as string) === 'write'
-      ? legacyTarget?.kind === 'new_file'
-        ? 'create'
-        : 'append'
-      : (legacyOperation as WorkspaceFileOperation)
-
-  return {
-    operation: normalizedOperation,
-    target: legacyTarget,
-    title: typeof legacyArgs.title === 'string' ? legacyArgs.title : undefined,
-    content: typeof legacyArgs.content === 'string' ? legacyArgs.content : undefined,
-    contentType: typeof legacyArgs.contentType === 'string' ? legacyArgs.contentType : undefined,
-    newName: typeof legacyArgs.newName === 'string' ? legacyArgs.newName : undefined,
-    edit: legacyEdit,
-  }
-}
-
 export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, WorkspaceFileResult> = {
   name: WorkspaceFile.id,
   async execute(
@@ -250,7 +152,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
       throw new Error('Authentication required')
     }
 
-    const normalized = normalizeWorkspaceFileParams(params)
+    const normalized = params
     const { operation } = normalized
     const workspaceId = context.workspaceId
 
@@ -262,7 +164,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
       switch (operation) {
         case 'create': {
           const target = normalized.target
-          if (!target || target.kind != 'new_file') {
+          if (!target || target.kind !== 'new_file') {
             return {
               success: false,
               message: 'create requires target.kind=new_file with target.fileName',
@@ -342,7 +244,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           if (!existingFile) {
             return { success: false, message: `File with ID "${target.fileId}" not found` }
           }
-          if (target.fileName && target.fileName != existingFile.name) {
+          if (target.fileName && target.fileName !== existingFile.name) {
             return {
               success: false,
               message: `Target mismatch: fileId "${target.fileId}" is "${existingFile.name}", not "${target.fileName}"`,
@@ -369,7 +271,8 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
           const combinedBuffer = Buffer.from(combined, 'utf-8')
           assertServerToolNotAborted(context)
-          const appendMime = docInfo.sourceMime || inferContentType(existingFile.name, normalized.contentType)
+          const appendMime =
+            docInfo.sourceMime || inferContentType(existingFile.name, normalized.contentType)
           await updateWorkspaceFileContent(
             workspaceId,
             existingFile.id,
@@ -414,7 +317,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           if (!fileRecord) {
             return { success: false, message: `File with ID "${target.fileId}" not found` }
           }
-          if (target.fileName && target.fileName != fileRecord.name) {
+          if (target.fileName && target.fileName !== fileRecord.name) {
             return {
               success: false,
               message: `Target mismatch: fileId "${target.fileId}" is "${fileRecord.name}", not "${target.fileName}"`,
@@ -436,7 +339,8 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
           const fileBuffer = Buffer.from(normalized.content, 'utf-8')
           assertServerToolNotAborted(context)
-          const updateMime = docInfo.sourceMime || inferContentType(fileRecord.name, normalized.contentType)
+          const updateMime =
+            docInfo.sourceMime || inferContentType(fileRecord.name, normalized.contentType)
           await updateWorkspaceFileContent(
             workspaceId,
             target.fileId,
@@ -589,7 +493,11 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
               }
               const before = findAnchorLine(normalized.edit.before_anchor)
               if (before.error) return { success: false, message: `Patch failed: ${before.error}` }
-              const after = findAnchorLine(normalized.edit.after_anchor, defaultOccurrence, before.index)
+              const after = findAnchorLine(
+                normalized.edit.after_anchor,
+                defaultOccurrence,
+                before.index
+              )
               if (after.error) return { success: false, message: `Patch failed: ${after.error}` }
               if (after.index <= before.index) {
                 return {
@@ -599,7 +507,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
               }
               const newLines = [
                 ...lines.slice(0, before.index + 1),
-                ...((normalized.edit.content ?? '').split('\n')),
+                ...(normalized.edit.content ?? '').split('\n'),
                 ...lines.slice(after.index),
               ]
               content = newLines.join('\n')
@@ -611,7 +519,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
               if (found.error) return { success: false, message: `Patch failed: ${found.error}` }
               const newLines = [
                 ...lines.slice(0, found.index + 1),
-                ...((normalized.edit.content ?? '').split('\n')),
+                ...(normalized.edit.content ?? '').split('\n'),
                 ...lines.slice(found.index + 1),
               ]
               content = newLines.join('\n')

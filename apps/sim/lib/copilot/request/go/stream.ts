@@ -32,7 +32,7 @@ type FilePreviewServerState = {
   title?: string
   editMetaKey?: string
   targetKey?: string
-  emittedContentLength: number
+  lastContentSnapshot?: string
 }
 
 function extractJsonString(raw: string, key: string): string | undefined {
@@ -74,6 +74,70 @@ function extractJsonNumber(raw: string, key: string): number | undefined {
   return Number.parseInt(match[1], 10)
 }
 
+function decodeJsonStringPrefix(input: string): string {
+  let output = ''
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]
+    if (ch !== '\\') {
+      output += ch
+      continue
+    }
+    const next = input[i + 1]
+    if (!next) break
+    if (next === 'n') {
+      output += '\n'
+      i++
+      continue
+    }
+    if (next === 't') {
+      output += '\t'
+      i++
+      continue
+    }
+    if (next === 'r') {
+      output += '\r'
+      i++
+      continue
+    }
+    if (next === '"') {
+      output += '"'
+      i++
+      continue
+    }
+    if (next === '\\') {
+      output += '\\'
+      i++
+      continue
+    }
+    if (next === '/') {
+      output += '/'
+      i++
+      continue
+    }
+    if (next === 'b') {
+      output += '\b'
+      i++
+      continue
+    }
+    if (next === 'f') {
+      output += '\f'
+      i++
+      continue
+    }
+    if (next === 'u') {
+      const hex = input.slice(i + 2, i + 6)
+      if (hex.length < 4 || !/^[0-9a-fA-F]{4}$/.test(hex)) {
+        break
+      }
+      output += String.fromCharCode(Number.parseInt(hex, 16))
+      i += 5
+      continue
+    }
+    break
+  }
+  return output
+}
+
 function extractStreamedContent(raw: string, preferredKey: 'content' | 'replace'): string {
   const marker = `"${preferredKey}":`
   const idx = raw.indexOf(marker)
@@ -92,13 +156,7 @@ function extractStreamedContent(raw: string, preferredKey: 'content' | 'replace'
     }
   }
   const inner = end === -1 ? rest.slice(1) : rest.slice(1, end)
-  return inner
-    .replace(/\\n/g, '\n')
-    .replace(/\\t/g, '\t')
-    .replace(/\\r/g, '\r')
-    .replace(/\\"/g, '"')
-    .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
-    .replace(/\\\\/g, '\\')
+  return decodeJsonStringPrefix(inner)
 }
 
 function buildPreviewContent(raw: string, strategy?: string): string {
@@ -235,7 +293,6 @@ export async function runStreamLoop(
         const state = filePreviewState.get(toolCallId) ?? {
           raw: '',
           started: false,
-          emittedContentLength: 0,
         }
         state.raw += delta
 
@@ -343,16 +400,15 @@ export async function runStreamLoop(
         }
 
         const streamedContent = buildPreviewContent(state.raw, strategy)
-        if (streamedContent.length > state.emittedContentLength) {
-          const contentDelta = streamedContent.slice(state.emittedContentLength)
-          state.emittedContentLength = streamedContent.length
+        if (streamedContent !== (state.lastContentSnapshot ?? '')) {
+          state.lastContentSnapshot = streamedContent
           await options.onEvent?.({
             type: MothershipStreamV1EventType.tool,
             payload: {
               toolCallId,
               toolName: 'workspace_file',
-              previewPhase: 'file_preview_content_delta',
-              delta: contentDelta,
+              previewPhase: 'file_preview_content',
+              content: streamedContent,
             },
             ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
           })

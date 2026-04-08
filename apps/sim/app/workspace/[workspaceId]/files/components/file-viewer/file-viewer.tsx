@@ -255,7 +255,26 @@ function TextEditor({
             ? fetchedContent
             : `${fetchedContent}\n${streamingContent}`
       // #region agent log
-      fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6f10b0'},body:JSON.stringify({sessionId:'6f10b0',location:'file-viewer.tsx:TextEditor-merge',message:'streaming merge',data:{streamingMode,fetchedContentLen:fetchedContent?.length,streamingContentLen:streamingContent.length,nextContentLen:nextContent.length,fetchedUndefined:fetchedContent===undefined,usedReplace:streamingMode==='replace'||fetchedContent===undefined,nextPreview:nextContent.slice(0,200)},timestamp:Date.now(),hypothesisId:'H2-H3'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
+        body: JSON.stringify({
+          sessionId: '6f10b0',
+          location: 'file-viewer.tsx:TextEditor-merge',
+          message: 'streaming merge',
+          data: {
+            streamingMode,
+            fetchedContentLen: fetchedContent?.length,
+            streamingContentLen: streamingContent.length,
+            nextContentLen: nextContent.length,
+            fetchedUndefined: fetchedContent === undefined,
+            usedReplace: streamingMode === 'replace' || fetchedContent === undefined,
+            nextPreview: nextContent.slice(0, 200),
+          },
+          timestamp: Date.now(),
+          hypothesisId: 'H2-H3',
+        }),
+      }).catch(() => {})
       // #endregion
       setContent(nextContent)
       contentRef.current = nextContent
@@ -264,8 +283,8 @@ function TextEditor({
     }
 
     if (wasStreamingRef.current) {
-      wasStreamingRef.current = false
-      if (fetchedContent !== undefined) {
+      if (fetchedContent !== undefined && fetchedContent !== savedContentRef.current) {
+        wasStreamingRef.current = false
         setContent(fetchedContent)
         setSavedContent(fetchedContent)
         savedContentRef.current = fetchedContent
@@ -377,7 +396,8 @@ function TextEditor({
   )
 
   const isStreaming = streamingContent !== undefined
-  const revealedContent = useStreamingText(content, isStreaming)
+  const shouldAnimateStreaming = isStreaming && streamingMode === 'append'
+  const revealedContent = useStreamingText(content, shouldAnimateStreaming)
 
   const textareaStuckRef = useRef(true)
 

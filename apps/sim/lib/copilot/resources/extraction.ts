@@ -42,7 +42,9 @@ function getOperation(params: Record<string, unknown> | undefined): string | und
   return (args.operation ?? params?.operation) as string | undefined
 }
 
-function getWorkspaceFileTarget(params: Record<string, unknown> | undefined): Record<string, unknown> {
+function getWorkspaceFileTarget(
+  params: Record<string, unknown> | undefined
+): Record<string, unknown> {
   return asRecord(params?.target)
 }
 
@@ -255,10 +257,7 @@ export function extractDeletedResourcesFromToolResult(
     case WorkspaceFile.id: {
       if (operation !== 'delete') return []
       const target = getWorkspaceFileTarget(params)
-      const fileId =
-        (data.id as string) ??
-        (target.fileId as string) ??
-        (args.fileId as string)
+      const fileId = (data.id as string) ?? (target.fileId as string) ?? (args.fileId as string)
       if (fileId) {
         return [{ type: resourceType, id: fileId, title: (data.name as string) || 'File' }]
       }

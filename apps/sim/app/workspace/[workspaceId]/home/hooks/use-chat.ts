@@ -904,13 +904,15 @@ export function useChat(
                   const target = asPayloadRecord(payload.target)
                   const nextSession: StreamingFilePreview = {
                     ...prevSession,
-                    operation: typeof payload.operation === 'string' ? payload.operation : prevSession.operation,
+                    operation:
+                      typeof payload.operation === 'string'
+                        ? payload.operation
+                        : prevSession.operation,
                     targetKind:
                       target?.kind === 'new_file' || target?.kind === 'file_id'
                         ? (target.kind as 'new_file' | 'file_id')
                         : prevSession.targetKind,
-                    fileId:
-                      typeof target?.fileId === 'string' ? target.fileId : prevSession.fileId,
+                    fileId: typeof target?.fileId === 'string' ? target.fileId : prevSession.fileId,
                     fileName:
                       typeof target?.fileName === 'string' ? target.fileName : prevSession.fileName,
                   }
@@ -954,13 +956,11 @@ export function useChat(
                   break
                 }
 
-                if (previewPhase === 'file_preview_content_delta') {
-                  const delta =
-                    typeof payload.delta === 'string' ? payload.delta : ''
-                  if (!delta) break
+                if (previewPhase === 'file_preview_content') {
+                  const content = typeof payload.content === 'string' ? payload.content : ''
                   const nextSession: StreamingFilePreview = {
                     ...prevSession,
-                    content: (prevSession.content ?? '') + delta,
+                    content,
                   }
                   sessions.set(id, nextSession)
                   activeFilePreviewToolCallIdRef.current = id

@@ -21,7 +21,7 @@ import type {
   StreamingContext,
   ToolCallState,
 } from '@/lib/copilot/request/types'
-import { isSimExecuted, getToolEntry } from '@/lib/copilot/tool-executor'
+import { getToolEntry, isSimExecuted } from '@/lib/copilot/tool-executor'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import type { ToolScope } from './types'
 import {
