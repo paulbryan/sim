@@ -13,6 +13,7 @@ interface WorkflowApiRow {
   createdAt: string
   updatedAt?: string | null
   archivedAt?: string | null
+  isLocked?: boolean
 }
 
 export const WORKFLOW_LIST_STALE_TIME = 60 * 1000
@@ -29,6 +30,7 @@ export function mapWorkflow(workflow: WorkflowApiRow): WorkflowMetadata {
     createdAt: new Date(workflow.createdAt),
     lastModified: new Date(workflow.updatedAt || workflow.createdAt),
     archivedAt: workflow.archivedAt ? new Date(workflow.archivedAt) : null,
+    isLocked: workflow.isLocked ?? false,
   }
 }
 

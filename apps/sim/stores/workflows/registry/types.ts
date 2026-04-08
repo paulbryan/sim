@@ -23,6 +23,7 @@ export interface WorkflowMetadata {
   archivedAt?: Date | null
   /** True for sandbox exercises (Sim Academy). Skips real API calls. */
   isSandbox?: boolean
+  isLocked?: boolean
 }
 
 export type HydrationPhase = 'idle' | 'creating' | 'state-loading' | 'ready' | 'error'

@@ -19,6 +19,7 @@ const UpdateWorkflowSchema = z.object({
   color: z.string().optional(),
   folderId: z.string().nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
+  isLocked: z.boolean().optional(),
 })
 
 /**
@@ -182,6 +183,10 @@ export async function DELETE(
       )
     }
 
+    if (workflowData.isLocked) {
+      return NextResponse.json({ error: 'Workflow is locked' }, { status: 403 })
+    }
+
     const { searchParams } = new URL(request.url)
     const checkTemplates = searchParams.get('check-templates') === 'true'
     const deleteTemplatesParam = searchParams.get('deleteTemplates')
@@ -288,12 +293,33 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
+    // If toggling isLocked, require admin permission
+    if (updates.isLocked !== undefined) {
+      const adminAuth = await authorizeWorkflowByWorkspacePermission({
+        workflowId,
+        userId,
+        action: 'admin',
+      })
+      if (!adminAuth.allowed) {
+        return NextResponse.json(
+          { error: 'Admin access required to lock/unlock workflows' },
+          { status: 403 }
+        )
+      }
+    }
+
+    // If workflow is locked, only allow toggling isLocked (by admins)
+    if (workflowData.isLocked && updates.isLocked === undefined) {
+      return NextResponse.json({ error: 'Workflow is locked' }, { status: 403 })
+    }
+
     const updateData: Record<string, unknown> = { updatedAt: new Date() }
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.description !== undefined) updateData.description = updates.description
     if (updates.color !== undefined) updateData.color = updates.color
     if (updates.folderId !== undefined) updateData.folderId = updates.folderId
     if (updates.sortOrder !== undefined) updateData.sortOrder = updates.sortOrder
+    if (updates.isLocked !== undefined) updateData.isLocked = updates.isLocked
 
     if (updates.name !== undefined || updates.folderId !== undefined) {
       const targetName = updates.name ?? workflowData.name

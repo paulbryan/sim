@@ -10,6 +10,7 @@ export interface WorkflowFolder {
   createdAt: Date
   updatedAt: Date
   archivedAt?: Date | null
+  isLocked: boolean
 }
 
 export interface FolderTreeNode extends WorkflowFolder {

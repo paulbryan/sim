@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
-import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
+import { ChevronRight, Folder, FolderOpen, Lock, MoreHorizontal } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { generateId } from '@/lib/core/utils/uuid'
@@ -32,10 +32,11 @@ import {
   useExportFolder,
   useExportSelection,
 } from '@/app/workspace/[workspaceId]/w/hooks'
-import { useCreateFolder, useUpdateFolder } from '@/hooks/queries/folders'
+import { useCreateFolder, useFolderMap, useUpdateFolder } from '@/hooks/queries/folders'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
+import { isFolderEffectivelyLocked } from '@/hooks/use-effective-lock'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -75,6 +76,23 @@ export function FolderItem({
   const userPermissions = useUserPermissionsContext()
   const selectedFolders = useFolderStore((state) => state.selectedFolders)
   const isSelected = selectedFolders.has(folder.id)
+
+  const { data: folderMap } = useFolderMap(workspaceId)
+  const isEffectivelyLocked = useMemo(
+    () => isFolderEffectivelyLocked(folder.id, folderMap ?? {}),
+    [folder.id, folderMap]
+  )
+  const isDirectlyLocked = folder.isLocked ?? false
+  const isLockedByParent = isEffectivelyLocked && !isDirectlyLocked
+
+  const handleToggleLock = useCallback(() => {
+    updateFolderMutation.mutate({
+      workspaceId,
+      id: folder.id,
+      updates: { isLocked: !isDirectlyLocked },
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId, folder.id, isDirectlyLocked])
 
   const { canDeleteFolder, canDeleteWorkflows } = useCanDelete({ workspaceId })
 
@@ -325,11 +343,12 @@ export function FolderItem({
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
+      if (isEffectivelyLocked) return
       e.preventDefault()
       e.stopPropagation()
       handleStartEdit()
     },
-    [handleStartEdit]
+    [handleStartEdit, isEffectivelyLocked]
   )
 
   const handleClick = useCallback(
@@ -529,6 +548,9 @@ export function FolderItem({
             >
               {folder.name}
             </span>
+            {isEffectivelyLocked && (
+              <Lock className='h-3 w-3 flex-shrink-0 text-[var(--text-icon)]' />
+            )}
             <button
               type='button'
               aria-label='Folder options'
@@ -562,14 +584,22 @@ export function FolderItem({
         showRename={!isMixedSelection && selectedFolders.size <= 1}
         showDuplicate={true}
         showExport={true}
-        disableRename={!userPermissions.canEdit}
-        disableCreate={!userPermissions.canEdit || createWorkflowMutation.isPending}
-        disableCreateFolder={!userPermissions.canEdit || createFolderMutation.isPending}
+        disableRename={!userPermissions.canEdit || isEffectivelyLocked}
+        disableCreate={
+          !userPermissions.canEdit || createWorkflowMutation.isPending || isEffectivelyLocked
+        }
+        disableCreateFolder={
+          !userPermissions.canEdit || createFolderMutation.isPending || isEffectivelyLocked
+        }
         disableDuplicate={
           !userPermissions.canEdit || isDuplicatingSelection || !hasExportableContent
         }
         disableExport={!userPermissions.canEdit || isExporting || !hasExportableContent}
-        disableDelete={!userPermissions.canEdit || !canDeleteSelection}
+        disableDelete={!userPermissions.canEdit || !canDeleteSelection || isEffectivelyLocked}
+        onToggleLock={handleToggleLock}
+        showLock={!isMixedSelection && selectedFolders.size <= 1}
+        disableLock={!userPermissions.canAdmin || isLockedByParent}
+        isLocked={isEffectivelyLocked}
       />
 
       <DeleteModal

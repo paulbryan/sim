@@ -74,10 +74,12 @@ import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useWorkspaceEnvironment } from '@/hooks/queries/environment'
+import { useFolderMap } from '@/hooks/queries/folders'
 import { useAutoConnect, useSnapToGridSize } from '@/hooks/queries/general-settings'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { isWorkflowEffectivelyLocked } from '@/hooks/use-effective-lock'
 import { useOAuthReturnForWorkflow } from '@/hooks/use-oauth-return'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useChatStore } from '@/stores/chat/store'
@@ -289,6 +291,8 @@ const WorkflowContent = React.memo(
       isLoading: isWorkflowMapLoading,
       isPlaceholderData: isWorkflowMapPlaceholderData,
     } = useWorkflowMap(workspaceId)
+
+    const { data: folderMap } = useFolderMap(workspaceId)
 
     const {
       activeWorkflowId,
@@ -608,7 +612,16 @@ const WorkflowContent = React.memo(
 
     const { userPermissions, workspacePermissions, permissionsError } =
       useWorkspacePermissionsContext()
-    /** Returns read-only permissions when viewing snapshot, otherwise user permissions. */
+    const activeWorkflowMetadata = activeWorkflowId ? workflows[activeWorkflowId] : undefined
+    const isWorkflowLocked = useMemo(
+      () =>
+        activeWorkflowMetadata
+          ? isWorkflowEffectivelyLocked(activeWorkflowMetadata, folderMap ?? {})
+          : false,
+      [activeWorkflowMetadata, folderMap]
+    )
+
+    /** Returns read-only permissions when viewing snapshot or locked workflow. */
     const effectivePermissions = useMemo(() => {
       if (currentWorkflow.isSnapshotView) {
         return {
@@ -618,8 +631,15 @@ const WorkflowContent = React.memo(
           canRead: userPermissions.canRead,
         }
       }
+      if (isWorkflowLocked) {
+        return {
+          ...userPermissions,
+          canEdit: false,
+          canRead: userPermissions.canRead,
+        }
+      }
       return userPermissions
-    }, [userPermissions, currentWorkflow.isSnapshotView])
+    }, [userPermissions, currentWorkflow.isSnapshotView, isWorkflowLocked])
     const {
       collaborativeBatchAddEdges,
       collaborativeBatchRemoveEdges,

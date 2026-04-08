@@ -2,13 +2,12 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { MoreHorizontal } from 'lucide-react'
+import { Lock, MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { Avatars } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/avatars/avatars'
@@ -31,13 +30,13 @@ import {
   useExportSelection,
   useExportWorkflow,
 } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useFolderMap } from '@/hooks/queries/folders'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
+import { isWorkflowEffectivelyLocked } from '@/hooks/use-effective-lock'
 import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
@@ -180,28 +179,21 @@ export function WorkflowItem({
     [workflow.id, workspaceId]
   )
 
-  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const isActiveWorkflow = workflow.id === activeWorkflowId
-
-  const isWorkflowLocked = useWorkflowStore(
-    useCallback(
-      (state) => {
-        if (!isActiveWorkflow) return false
-        const blockValues = Object.values(state.blocks)
-        if (blockValues.length === 0) return false
-        return blockValues.every((block) => block.locked)
-      },
-      [isActiveWorkflow]
-    )
+  const { data: folderMap } = useFolderMap(workspaceId)
+  const isEffectivelyLocked = useMemo(
+    () => isWorkflowEffectivelyLocked(workflow, folderMap ?? {}),
+    [workflow, folderMap]
   )
+  const isLockedByFolder = isEffectivelyLocked && !workflow.isLocked
 
   const handleToggleLock = useCallback(() => {
-    if (!isActiveWorkflow) return
-    const blocks = useWorkflowStore.getState().blocks
-    const blockIds = getWorkflowLockToggleIds(blocks, !isWorkflowLocked)
-    if (blockIds.length === 0) return
-    window.dispatchEvent(new CustomEvent('toggle-workflow-lock', { detail: { blockIds } }))
-  }, [isActiveWorkflow, isWorkflowLocked])
+    updateWorkflowMutation.mutate({
+      workspaceId,
+      workflowId: workflow.id,
+      metadata: { isLocked: !workflow.isLocked },
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId, workflow.id, workflow.isLocked])
 
   const isEditingRef = useRef(false)
   const dragGhostRef = useRef<HTMLElement | null>(null)
@@ -385,11 +377,12 @@ export function WorkflowItem({
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
+      if (isEffectivelyLocked) return
       e.preventDefault()
       e.stopPropagation()
       handleStartEdit()
     },
-    [handleStartEdit]
+    [handleStartEdit, isEffectivelyLocked]
   )
 
   const handleClick = useCallback(
@@ -473,6 +466,9 @@ export function WorkflowItem({
                 {workflow.name}
               </div>
             )}
+            {!isEditing && isEffectivelyLocked && (
+              <Lock className='h-3 w-3 flex-shrink-0 text-[var(--text-icon)]' />
+            )}
             {!isEditing && <Avatars workflowId={workflow.id} />}
           </div>
         </div>
@@ -512,15 +508,15 @@ export function WorkflowItem({
         showDuplicate={true}
         showExport={true}
         showColorChange={!isMixedSelection && selectedWorkflows.size <= 1}
-        disableRename={!userPermissions.canEdit}
+        disableRename={!userPermissions.canEdit || isEffectivelyLocked}
         disableDuplicate={!userPermissions.canEdit || isDuplicatingSelection}
         disableExport={!userPermissions.canEdit}
-        disableColorChange={!userPermissions.canEdit}
-        disableDelete={!userPermissions.canEdit || !canDeleteSelection}
+        disableColorChange={!userPermissions.canEdit || isEffectivelyLocked}
+        disableDelete={!userPermissions.canEdit || !canDeleteSelection || isEffectivelyLocked}
         onToggleLock={handleToggleLock}
-        showLock={isActiveWorkflow && !isMixedSelection && selectedWorkflows.size <= 1}
-        disableLock={!userPermissions.canAdmin}
-        isLocked={isWorkflowLocked}
+        showLock={!isMixedSelection && selectedWorkflows.size <= 1}
+        disableLock={!userPermissions.canAdmin || isLockedByFolder}
+        isLocked={isEffectivelyLocked}
       />
 
       <DeleteModal

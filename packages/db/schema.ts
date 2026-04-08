@@ -131,6 +131,7 @@ export const workflowFolder = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     archivedAt: timestamp('archived_at'),
+    isLocked: boolean('is_locked').notNull().default(false),
   },
   (table) => ({
     userIdx: index('workflow_folder_user_idx').on(table.userId),
@@ -166,6 +167,7 @@ export const workflow = pgTable(
     lastRunAt: timestamp('last_run_at'),
     variables: json('variables').default('{}'),
     archivedAt: timestamp('archived_at'),
+    isLocked: boolean('is_locked').notNull().default(false),
   },
   (table) => ({
     userIdIdx: index('workflow_user_id_idx').on(table.userId),

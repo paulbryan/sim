@@ -27,6 +27,7 @@ function mapFolder(folder: any): WorkflowFolder {
     createdAt: new Date(folder.createdAt),
     updatedAt: new Date(folder.updatedAt),
     archivedAt: folder.archivedAt ? new Date(folder.archivedAt) : null,
+    isLocked: folder.isLocked ?? false,
   }
 }
 
@@ -79,7 +80,7 @@ interface CreateFolderVariables {
 interface UpdateFolderVariables {
   workspaceId: string
   id: string
-  updates: Partial<Pick<WorkflowFolder, 'name' | 'parentId' | 'color' | 'sortOrder'>>
+  updates: Partial<Pick<WorkflowFolder, 'name' | 'parentId' | 'color' | 'sortOrder' | 'isLocked'>>
 }
 
 interface DeleteFolderVariables {
@@ -165,6 +166,7 @@ export function useCreateFolder() {
         createdAt: new Date(),
         updatedAt: new Date(),
         archivedAt: null,
+        isLocked: false,
       }
     },
     (variables) => variables.id ?? generateId()
@@ -296,6 +298,7 @@ export function useDuplicateFolderMutation() {
         createdAt: new Date(),
         updatedAt: new Date(),
         archivedAt: null,
+        isLocked: false,
       }
     },
     (variables) => variables.newId ?? generateId()

@@ -1,5 +1,5 @@
 {
-  "id": "14bc9493-4949-4fa7-8854-a3cc19745863",
+  "id": "92334e01-beb7-4e60-ae46-fc0804a849c3",
   "prevId": "c30a5e0e-2a25-4755-91cf-16ec58d7e0ec",
   "version": "7",
   "dialect": "postgresql",
@@ -11207,6 +11207,13 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_locked": {
+          "name": "is_locked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
       "indexes": {
@@ -12553,6 +12560,13 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_locked": {
+          "name": "is_locked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
       "indexes": {
@@ -14617,8 +14631,7 @@
         "workspace-chat",
         "mcp_copilot",
         "mothership_block",
-        "knowledge-base",
-        "voice-input"
+        "knowledge-base"
       ]
     },
     "public.workspace_invitation_status": {

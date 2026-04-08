@@ -18,6 +18,7 @@ const updateFolderSchema = z.object({
   isExpanded: z.boolean().optional(),
   parentId: z.string().nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
+  isLocked: z.boolean().optional(),
 })
 
 // PUT - Update a folder
@@ -42,7 +43,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: `Validation failed: ${errorMessages}` }, { status: 400 })
     }
 
-    const { name, color, isExpanded, parentId, sortOrder } = validationResult.data
+    const { name, color, isExpanded, parentId, sortOrder, isLocked } = validationResult.data
 
     // Verify the folder exists
     const existingFolder = await db
@@ -69,6 +70,27 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
+    // If toggling isLocked, require admin permission
+    if (isLocked !== undefined && workspacePermission !== 'admin') {
+      return NextResponse.json(
+        { error: 'Admin access required to lock/unlock folders' },
+        { status: 403 }
+      )
+    }
+
+    // If folder is locked, only allow toggling isLocked and isExpanded (by admins)
+    if (existingFolder.isLocked && isLocked === undefined) {
+      // Allow isExpanded toggle on locked folders (UI collapse/expand)
+      const hasNonExpandUpdates =
+        name !== undefined ||
+        color !== undefined ||
+        parentId !== undefined ||
+        sortOrder !== undefined
+      if (hasNonExpandUpdates) {
+        return NextResponse.json({ error: 'Folder is locked' }, { status: 403 })
+      }
+    }
+
     // Prevent setting a folder as its own parent or creating circular references
     if (parentId && parentId === id) {
       return NextResponse.json({ error: 'Folder cannot be its own parent' }, { status: 400 })
@@ -91,6 +113,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (isExpanded !== undefined) updates.isExpanded = isExpanded
     if (parentId !== undefined) updates.parentId = parentId || null
     if (sortOrder !== undefined) updates.sortOrder = sortOrder
+    if (isLocked !== undefined) updates.isLocked = isLocked
 
     const [updatedFolder] = await db
       .update(workflowFolder)
@@ -142,6 +165,10 @@ export async function DELETE(
         { error: 'Admin access required to delete folders' },
         { status: 403 }
       )
+    }
+
+    if (existingFolder.isLocked) {
+      return NextResponse.json({ error: 'Folder is locked' }, { status: 403 })
     }
 
     const result = await performDeleteFolder({
