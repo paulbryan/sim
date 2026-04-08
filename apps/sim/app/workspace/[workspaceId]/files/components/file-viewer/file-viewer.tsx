@@ -240,26 +240,6 @@ function TextEditor({
 
   useEffect(() => {
     if (streamingContent !== undefined) {
-      // #region agent log
-      fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
-        body: JSON.stringify({
-          sessionId: '6f10b0',
-          location: 'file-viewer.tsx:streaming-merge',
-          message: 'TextEditor streaming merge',
-          data: {
-            fileId: file.id,
-            fileName: file.name,
-            fetchedLen: fetchedContent?.length ?? 0,
-            streamingLen: streamingContent.length,
-            mode: fetchedContent !== undefined ? 'append_to_fetched' : 'stream_only',
-          },
-          timestamp: Date.now(),
-          hypothesisId: 'H9',
-        }),
-      }).catch(() => {})
-      // #endregion
       const nextContent =
         fetchedContent === undefined
           ? streamingContent

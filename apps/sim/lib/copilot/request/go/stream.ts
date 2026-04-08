@@ -136,46 +136,6 @@ export async function runStreamLoop(
         return
       }
 
-      if (streamEvent.type === MothershipStreamV1EventType.tool) {
-        const tp = streamEvent.payload as Record<string, unknown> | undefined
-        if (tp?.phase === 'args_delta' && tp?.toolName === 'workspace_file') {
-          logger.info('[file-stream] args_delta FROM GO', {
-            toolCallId: tp.toolCallId,
-            deltaLen:
-              typeof tp.argumentsDelta === 'string' ? (tp.argumentsDelta as string).length : 0,
-            scope: streamEvent.scope?.agentId,
-            parentToolCallId: streamEvent.scope?.parentToolCallId,
-          })
-        }
-        if (tp?.phase === 'call' && tp?.toolName === 'workspace_file') {
-          logger.info('[file-stream] workspace_file CALL event', {
-            toolCallId: tp.toolCallId,
-            phase: tp.phase,
-            status: tp.status,
-            hasArgs: !!tp.arguments,
-          })
-        }
-        if (tp?.phase === 'result' && tp?.toolName === 'workspace_file') {
-          const resultData = tp.result as Record<string, unknown> | undefined
-          const innerData = resultData?.data as Record<string, unknown> | undefined
-          logger.info('[file-stream] workspace_file RESULT', {
-            toolCallId: tp.toolCallId,
-            success: tp.success,
-            fileId: innerData?.id,
-            fileName: innerData?.name,
-          })
-        }
-      }
-      if (streamEvent.type === MothershipStreamV1EventType.span) {
-        const sp = streamEvent.payload as Record<string, unknown> | undefined
-        if (sp?.agent === 'file_write') {
-          logger.info('[file-stream] file_write SPAN', {
-            event: sp.event,
-            parentToolCallId: streamEvent.scope?.parentToolCallId,
-          })
-        }
-      }
-
       try {
         await options.onEvent?.(streamEvent)
       } catch (error) {

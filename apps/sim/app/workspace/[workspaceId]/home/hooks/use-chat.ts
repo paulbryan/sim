@@ -777,16 +777,6 @@ export function useChat(
           }
 
           logger.debug('SSE event received', parsed)
-          if (parsed.type === 'tool') {
-            const _p = getPayloadData(parsed)
-            if (_p.phase === 'args_delta' && _p.toolName === 'workspace_file') {
-              console.warn('[FILE-STREAM-BROWSER] workspace_file args_delta arrived', {
-                seq: parsed.seq,
-                deltaLen:
-                  typeof _p.argumentsDelta === 'string' ? (_p.argumentsDelta as string).length : 0,
-              })
-            }
-          }
           switch (parsed.type) {
             case MothershipStreamV1EventType.session: {
               const payload = getPayloadData(parsed)
@@ -891,26 +881,6 @@ export function useChat(
                     : (blocks[toolMap.get(id) ?? -1]?.toolCall?.name ?? '')
                 const streamWorkspaceFile = toolName === WorkspaceFile.id
 
-                // #region agent log
-                fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
-                  body: JSON.stringify({
-                    sessionId: '6f10b0',
-                    location: 'use-chat.ts:args_delta',
-                    message: 'args_delta entry',
-                    data: {
-                      toolName,
-                      streamWorkspaceFile,
-                      deltaLen: delta.length,
-                      seq: parsed.seq,
-                    },
-                    timestamp: Date.now(),
-                    hypothesisId: 'H1',
-                  }),
-                }).catch(() => {})
-                // #endregion
-
                 if (streamWorkspaceFile) {
                   let prev = streamingFileRef.current
                   if (!prev || (!prev.fileName && !prev.fileId)) {
@@ -942,32 +912,6 @@ export function useChat(
                     resourcesRef.current.some(
                       (resource) => resource.type === 'file' && resource.id === matchedResourceId
                     )
-
-                  // #region agent log
-                  const hasContent = raw.indexOf('"content":') >= 0
-                  fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
-                    body: JSON.stringify({
-                      sessionId: '6f10b0',
-                      location: 'use-chat.ts:resource-decision',
-                      message: 'resource routing',
-                      data: {
-                        fileName,
-                        matchedResourceId,
-                        existingFileMatch: !!existingFileMatch,
-                        hasContent,
-                        rawLen: raw.length,
-                        activeResourceId: activeResourceIdRef.current,
-                        resourceIds: resourcesRef.current.map((r: { id: string }) => r.id),
-                        activeFileCtx: activeFileContextRef.current,
-                        seq: parsed.seq,
-                      },
-                      timestamp: Date.now(),
-                      hypothesisId: 'H4',
-                    }),
-                  }).catch(() => {})
-                  // #endregion
 
                   if (existingFileMatch) {
                     setActiveResourceId(matchedResourceId)
@@ -1132,26 +1076,6 @@ export function useChat(
                   if (fileId || fileName) {
                     activeFileContextRef.current = { fileId, fileName }
                   }
-                  // #region agent log
-                  fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
-                    body: JSON.stringify({
-                      sessionId: '6f10b0',
-                      location: 'use-chat.ts:create_file_result',
-                      message: 'create_file result processed',
-                      data: {
-                        toolName: tc.name,
-                        fileId,
-                        fileName,
-                        status: tc.status,
-                        activeFileCtx: activeFileContextRef.current,
-                      },
-                      timestamp: Date.now(),
-                      hypothesisId: 'H5',
-                    }),
-                  }).catch(() => {})
-                  // #endregion
                 }
 
                 if (isWorkflowToolName(tc.name)) {
@@ -1160,27 +1084,6 @@ export function useChat(
 
                 if (tc.name === WorkspaceFile.id) {
                   const fileResource = extractedResources.find((r) => r.type === 'file')
-                  // #region agent log
-                  fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
-                    body: JSON.stringify({
-                      sessionId: '6f10b0',
-                      location: 'use-chat.ts:workspace_file_result_cleanup',
-                      message: 'workspace_file result cleanup',
-                      data: {
-                        toolCallId: id,
-                        activeResourceIdBefore: activeResourceIdRef.current,
-                        streamingFileExists: !!streamingFileRef.current,
-                        fileResourceId: fileResource?.id,
-                        fileResourceTitle: fileResource?.title,
-                        resourceIds: resourcesRef.current.map((r: { id: string }) => r.id),
-                      },
-                      timestamp: Date.now(),
-                      hypothesisId: 'H6',
-                    }),
-                  }).catch(() => {})
-                  // #endregion
                   if (fileResource) {
                     setResources((rs) => {
                       const without = rs.filter((r) => r.id !== 'streaming-file')
@@ -1221,6 +1124,8 @@ export function useChat(
                 const chunkTitle = innerArgs?.title as string | undefined
                 if (chunkTitle) {
                   displayTitle = `Writing ${chunkTitle}`
+                } else if (activeFileContextRef.current?.fileName) {
+                  displayTitle = `Writing ${activeFileContextRef.current.fileName}`
                 }
               }
 
@@ -1385,26 +1290,6 @@ export function useChat(
                   blocks.push({ type: 'subagent', content: name })
                 }
                 if (name === FileWrite.id) {
-                  // #region agent log
-                  fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
-                    body: JSON.stringify({
-                      sessionId: '6f10b0',
-                      location: 'use-chat.ts:file_write_span_start',
-                      message: 'file_write span start',
-                      data: {
-                        parentToolCallId,
-                        activeResourceIdBefore: activeResourceIdRef.current,
-                        existingStreamingFile: streamingFileRef.current,
-                        activeFileCtx: activeFileContextRef.current,
-                        resourceIds: resourcesRef.current.map((r: { id: string }) => r.id),
-                      },
-                      timestamp: Date.now(),
-                      hypothesisId: 'H7',
-                    }),
-                  }).catch(() => {})
-                  // #endregion
                   const emptyFile = { fileName: '', content: '' }
                   streamingFileRef.current = emptyFile
                   setStreamingFile(emptyFile)
@@ -1415,28 +1300,6 @@ export function useChat(
                   break
                 }
                 if (streamingFileRef.current) {
-                  // #region agent log
-                  fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
-                    body: JSON.stringify({
-                      sessionId: '6f10b0',
-                      location: 'use-chat.ts:file_write_span_end',
-                      message: 'file_write span end clear',
-                      data: {
-                        activeResourceIdBefore: activeResourceIdRef.current,
-                        streamingFileBefore: streamingFileRef.current,
-                        lastRealFileId: resourcesRef.current.find(
-                          (r: { type: string; id: string }) =>
-                            r.type === 'file' && r.id !== 'streaming-file'
-                        )?.id,
-                        resourceIds: resourcesRef.current.map((r: { id: string }) => r.id),
-                      },
-                      timestamp: Date.now(),
-                      hypothesisId: 'H8',
-                    }),
-                  }).catch(() => {})
-                  // #endregion
                   setStreamingFile(null)
                   streamingFileRef.current = null
                   const lastFileResource = resourcesRef.current.find(

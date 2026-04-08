@@ -110,30 +110,6 @@ export const ResourceContent = memo(function ResourceContent({
     }
   }, [workspaceId, streamFileName])
 
-  // #region agent log
-  if (streamingFile) {
-    fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
-      body: JSON.stringify({
-        sessionId: '6f10b0',
-        location: 'resource-content.tsx:render',
-        message: 'ResourceContent render with streamingFile',
-        data: {
-          resourceId: resource.id,
-          resourceType: resource.type,
-          streamFileName: streamFileName,
-          hasExtractedContent: streamingExtractedContent !== undefined,
-          extractedLen: streamingExtractedContent?.length ?? 0,
-          rawContentLen: streamingFile.content.length,
-        },
-        timestamp: Date.now(),
-        hypothesisId: 'H3',
-      }),
-    }).catch(() => {})
-  }
-  // #endregion
-
   if (streamingFile && resource.id === 'streaming-file') {
     return (
       <div className='flex h-full flex-col overflow-hidden'>
