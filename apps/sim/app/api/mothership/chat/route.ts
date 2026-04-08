@@ -18,6 +18,7 @@ import { createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/
 import { taskPubSub } from '@/lib/copilot/task-events'
 import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
 import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
@@ -88,7 +89,7 @@ const MothershipMessageSchema = z.object({
  * POST /api/mothership/chat
  * Workspace-scoped chat — no workflowId, proxies to Go /api/mothership.
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const tracker = createRequestTracker()
   let userMessageIdForLogs: string | undefined
 
@@ -414,4 +415,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

@@ -6,6 +6,7 @@ import {
   validateJiraCloudId,
   validatePaginationCursor,
 } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
 const logger = createLogger('ConfluenceSpacePropertiesAPI')
@@ -17,7 +18,7 @@ export const dynamic = 'force-dynamic'
  * Uses GET/POST /wiki/api/v2/spaces/{id}/properties
  * and DELETE /wiki/api/v2/spaces/{id}/properties/{propertyId}
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -206,4 +207,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

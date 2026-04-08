@@ -7,6 +7,7 @@ import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { checkInternalApiKey } from '@/lib/copilot/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('BillingUpdateCostAPI')
 
@@ -25,7 +26,7 @@ const UpdateCostSchema = z.object({
  * POST /api/billing/update-cost
  * Update user cost with a pre-calculated cost value (internal API key auth required)
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   const startTime = Date.now()
 
@@ -158,4 +159,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

@@ -7,6 +7,7 @@ import { verifyCronAuth } from '@/lib/auth/internal'
 import { sqlIsPaid } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { isUsingCloudStorage, StorageService } from '@/lib/uploads'
 
@@ -16,7 +17,7 @@ const logger = createLogger('LogsCleanupAPI')
 
 const BATCH_SIZE = 2000
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const authError = verifyCronAuth(request, 'logs cleanup')
     if (authError) {
@@ -217,4 +218,4 @@ export async function GET(request: NextRequest) {
     logger.error('Error in log cleanup process:', { error })
     return NextResponse.json({ error: 'Failed to process log cleanup' }, { status: 500 })
   }
-}
+})

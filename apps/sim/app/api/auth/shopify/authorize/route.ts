@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('ShopifyAuthorize')
 
@@ -18,7 +19,7 @@ const SHOPIFY_SCOPES = [
   'write_merchant_managed_fulfillment_orders',
 ].join(',')
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -213,4 +214,4 @@ export async function GET(request: NextRequest) {
     logger.error('Error initiating Shopify authorization:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

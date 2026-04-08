@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
 
@@ -12,7 +13,7 @@ const logger = createLogger('TrelloStore')
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -115,4 +116,4 @@ export async function POST(request: NextRequest) {
     logger.error('Error storing Trello token:', error)
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
-}
+})

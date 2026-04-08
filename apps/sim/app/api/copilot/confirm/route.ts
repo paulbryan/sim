@@ -17,6 +17,7 @@ import {
   createUnauthorizedResponse,
   type NotificationStatus,
 } from '@/lib/copilot/request-helpers'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotConfirmAPI')
 
@@ -93,7 +94,7 @@ async function updateToolCallStatus(
  * POST /api/copilot/confirm
  * Update tool call status (Accept/Reject)
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const tracker = createRequestTracker()
 
   try {
@@ -166,4 +167,4 @@ export async function POST(req: NextRequest) {
       error instanceof Error ? error.message : 'Internal server error'
     )
   }
-}
+})

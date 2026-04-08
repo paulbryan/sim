@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -21,7 +22,7 @@ interface RouteParams {
 /**
  * GET - Get a specific tool
  */
-export const GET = withMcpAuth<RouteParams>('read')(
+export const GET = withRouteHandler(withMcpAuth<RouteParams>('read'))(
   async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
     try {
       const { id: serverId, toolId } = await params
@@ -75,7 +76,7 @@ export const GET = withMcpAuth<RouteParams>('read')(
 /**
  * PATCH - Update a tool's configuration
  */
-export const PATCH = withMcpAuth<RouteParams>('write')(
+export const PATCH = withRouteHandler(withMcpAuth<RouteParams>('write'))(
   async (
     request: NextRequest,
     { userId, userName, userEmail, workspaceId, requestId },
@@ -171,7 +172,7 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
 /**
  * DELETE - Remove a tool from an MCP server
  */
-export const DELETE = withMcpAuth<RouteParams>('write')(
+export const DELETE = withRouteHandler(withMcpAuth<RouteParams>('write'))(
   async (
     request: NextRequest,
     { userId, userName, userEmail, workspaceId, requestId },

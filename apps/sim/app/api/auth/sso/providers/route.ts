@@ -3,10 +3,11 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SSOProvidersRoute')
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   try {
     const session = await getSession()
 
@@ -60,4 +61,4 @@ export async function GET() {
     logger.error('Failed to fetch SSO providers', { error })
     return NextResponse.json({ error: 'Failed to fetch SSO providers' }, { status: 500 })
   }
-}
+})

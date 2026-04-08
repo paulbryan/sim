@@ -5,6 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   McpDnsResolutionError,
   McpDomainNotAllowedError,
@@ -28,7 +29,7 @@ export const dynamic = 'force-dynamic'
 /**
  * GET - List all registered MCP servers for the workspace
  */
-export const GET = withMcpAuth('read')(
+export const GET = withRouteHandler(withMcpAuth('read'))(
   async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       logger.info(`[${requestId}] Listing MCP servers for workspace ${workspaceId}`)
@@ -63,7 +64,7 @@ export const GET = withMcpAuth('read')(
  * If a server with the same ID already exists (same URL in same workspace),
  * it will be updated instead of creating a duplicate.
  */
-export const POST = withMcpAuth('write')(
+export const POST = withRouteHandler(withMcpAuth('write'))(
   async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
     try {
       const body = getParsedBody(request) || (await request.json())
@@ -225,7 +226,7 @@ export const POST = withMcpAuth('write')(
 /**
  * DELETE - Delete an MCP server from the workspace (requires admin permission)
  */
-export const DELETE = withMcpAuth('admin')(
+export const DELETE = withRouteHandler(withMcpAuth('admin'))(
   async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
     try {
       const { searchParams } = new URL(request.url)

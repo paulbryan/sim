@@ -6,6 +6,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('ImageProxyAPI')
 
@@ -13,7 +14,7 @@ const logger = createLogger('ImageProxyAPI')
  * Proxy for fetching images
  * This allows client-side requests to fetch images from various sources while avoiding CORS issues
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const url = new URL(request.url)
   const imageUrl = url.searchParams.get('url')
   const requestId = generateRequestId()
@@ -90,9 +91,9 @@ export async function GET(request: NextRequest) {
       status: 500,
     })
   }
-}
+})
 
-export async function OPTIONS() {
+export const OPTIONS = withRouteHandler(async () => {
   return new NextResponse(null, {
     status: 204,
     headers: {
@@ -102,4 +103,4 @@ export async function OPTIONS() {
       'Access-Control-Max-Age': '86400',
     },
   })
-}
+})

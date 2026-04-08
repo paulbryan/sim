@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { validateCronExpression } from '@/lib/workflows/schedules/utils'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
@@ -20,7 +21,7 @@ const logger = createLogger('ScheduledAPI')
  *   - workflowId + optional blockId  → single schedule for one workflow
  *   - workspaceId                    → all schedules across the workspace
  */
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   const url = new URL(req.url)
   const workflowId = url.searchParams.get('workflowId')
@@ -115,7 +116,7 @@ export async function GET(req: NextRequest) {
     logger.error(`[${requestId}] Error retrieving workflow schedule`, error)
     return NextResponse.json({ error: 'Failed to retrieve workflow schedule' }, { status: 500 })
   }
-}
+})
 
 async function handleWorkspaceSchedules(requestId: string, userId: string, workspaceId: string) {
   const hasPermission = await verifyWorkspaceMembership(userId, workspaceId)
@@ -190,7 +191,7 @@ async function handleWorkspaceSchedules(requestId: string, userId: string, works
  *
  * Body: { workspaceId, title, prompt, cronExpression, timezone, lifecycle?, maxRuns?, startDate? }
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -294,4 +295,4 @@ export async function POST(req: NextRequest) {
     logger.error(`[${requestId}] Error creating schedule`, error)
     return NextResponse.json({ error: 'Failed to create schedule' }, { status: 500 })
   }
-}
+})

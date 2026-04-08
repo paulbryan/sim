@@ -3,6 +3,7 @@ import { mcpServers, workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpServerStatusConfig, McpTool, McpToolSchema } from '@/lib/mcp/types'
@@ -153,8 +154,9 @@ async function syncToolSchemasToWorkflows(
   }
 }
 
-export const POST = withMcpAuth<{ id: string }>('read')(
-  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+export const POST =
+  withRouteHandler(withMcpAuth < { id: string }) >
+  'read'(async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
     const { id: serverId } = await params
 
     try {
@@ -255,5 +257,4 @@ export const POST = withMcpAuth<{ id: string }>('read')(
         500
       )
     }
-  }
-)
+  })

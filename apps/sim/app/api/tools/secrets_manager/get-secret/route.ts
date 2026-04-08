@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createSecretsManagerClient, getSecretValue } from '../utils'
 
 const logger = createLogger('SecretsManagerGetSecretAPI')
@@ -16,7 +17,7 @@ const GetSecretSchema = z.object({
   versionStage: z.string().nullish(),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   const auth = await checkInternalAuth(request)
@@ -67,4 +68,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

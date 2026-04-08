@@ -13,6 +13,7 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatUpdateAPI')
 
@@ -54,7 +55,7 @@ const UpdateMessagesSchema = z.object({
     .optional(),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const tracker = createRequestTracker()
 
   try {
@@ -129,4 +130,4 @@ export async function POST(req: NextRequest) {
     logger.error(`[${tracker.requestId}] Error updating chat messages:`, error)
     return createInternalServerErrorResponse('Failed to update chat messages')
   }
-}
+})

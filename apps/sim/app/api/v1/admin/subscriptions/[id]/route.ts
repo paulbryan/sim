@@ -28,6 +28,7 @@ import { subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -43,110 +44,114 @@ interface RouteParams {
   id: string
 }
 
-export const GET = withAdminAuthParams<RouteParams>(async (_, context) => {
-  const { id: subscriptionId } = await context.params
+export const GET = withRouteHandler(
+  withAdminAuthParams<RouteParams>(async (_, context) => {
+    const { id: subscriptionId } = await context.params
 
-  try {
-    const [subData] = await db
-      .select()
-      .from(subscription)
-      .where(eq(subscription.id, subscriptionId))
-      .limit(1)
+    try {
+      const [subData] = await db
+        .select()
+        .from(subscription)
+        .where(eq(subscription.id, subscriptionId))
+        .limit(1)
 
-    if (!subData) {
-      return notFoundResponse('Subscription')
+      if (!subData) {
+        return notFoundResponse('Subscription')
+      }
+
+      logger.info(`Admin API: Retrieved subscription ${subscriptionId}`)
+
+      return singleResponse(toAdminSubscription(subData))
+    } catch (error) {
+      logger.error('Admin API: Failed to get subscription', { error, subscriptionId })
+      return internalErrorResponse('Failed to get subscription')
     }
+  })
+)
 
-    logger.info(`Admin API: Retrieved subscription ${subscriptionId}`)
+export const DELETE = withRouteHandler(
+  withAdminAuthParams<RouteParams>(async (request, context) => {
+    const { id: subscriptionId } = await context.params
+    const url = new URL(request.url)
+    const atPeriodEnd = url.searchParams.get('atPeriodEnd') === 'true'
+    const reason = url.searchParams.get('reason') || 'Admin cancellation (no reason provided)'
 
-    return singleResponse(toAdminSubscription(subData))
-  } catch (error) {
-    logger.error('Admin API: Failed to get subscription', { error, subscriptionId })
-    return internalErrorResponse('Failed to get subscription')
-  }
-})
+    try {
+      const [existing] = await db
+        .select()
+        .from(subscription)
+        .where(eq(subscription.id, subscriptionId))
+        .limit(1)
 
-export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) => {
-  const { id: subscriptionId } = await context.params
-  const url = new URL(request.url)
-  const atPeriodEnd = url.searchParams.get('atPeriodEnd') === 'true'
-  const reason = url.searchParams.get('reason') || 'Admin cancellation (no reason provided)'
+      if (!existing) {
+        return notFoundResponse('Subscription')
+      }
 
-  try {
-    const [existing] = await db
-      .select()
-      .from(subscription)
-      .where(eq(subscription.id, subscriptionId))
-      .limit(1)
+      if (existing.status === 'canceled') {
+        return badRequestResponse('Subscription is already canceled')
+      }
 
-    if (!existing) {
-      return notFoundResponse('Subscription')
-    }
+      if (!existing.stripeSubscriptionId) {
+        return badRequestResponse('Subscription has no Stripe subscription ID')
+      }
 
-    if (existing.status === 'canceled') {
-      return badRequestResponse('Subscription is already canceled')
-    }
+      const stripe = requireStripeClient()
 
-    if (!existing.stripeSubscriptionId) {
-      return badRequestResponse('Subscription has no Stripe subscription ID')
-    }
+      if (atPeriodEnd) {
+        // Schedule cancellation at period end
+        await stripe.subscriptions.update(existing.stripeSubscriptionId, {
+          cancel_at_period_end: true,
+        })
 
-    const stripe = requireStripeClient()
+        // Update DB (webhooks don't sync cancelAtPeriodEnd)
+        await db
+          .update(subscription)
+          .set({ cancelAtPeriodEnd: true })
+          .where(eq(subscription.id, subscriptionId))
 
-    if (atPeriodEnd) {
-      // Schedule cancellation at period end
-      await stripe.subscriptions.update(existing.stripeSubscriptionId, {
-        cancel_at_period_end: true,
+        logger.info('Admin API: Scheduled subscription cancellation at period end', {
+          subscriptionId,
+          stripeSubscriptionId: existing.stripeSubscriptionId,
+          plan: existing.plan,
+          referenceId: existing.referenceId,
+          periodEnd: existing.periodEnd,
+          reason,
+        })
+
+        return singleResponse({
+          success: true,
+          message: 'Subscription scheduled to cancel at period end.',
+          subscriptionId,
+          stripeSubscriptionId: existing.stripeSubscriptionId,
+          atPeriodEnd: true,
+          periodEnd: existing.periodEnd?.toISOString() ?? null,
+        })
+      }
+
+      // Immediate cancellation
+      await stripe.subscriptions.cancel(existing.stripeSubscriptionId, {
+        prorate: true,
+        invoice_now: true,
       })
 
-      // Update DB (webhooks don't sync cancelAtPeriodEnd)
-      await db
-        .update(subscription)
-        .set({ cancelAtPeriodEnd: true })
-        .where(eq(subscription.id, subscriptionId))
-
-      logger.info('Admin API: Scheduled subscription cancellation at period end', {
+      logger.info('Admin API: Triggered immediate subscription cancellation on Stripe', {
         subscriptionId,
         stripeSubscriptionId: existing.stripeSubscriptionId,
         plan: existing.plan,
         referenceId: existing.referenceId,
-        periodEnd: existing.periodEnd,
         reason,
       })
 
       return singleResponse({
         success: true,
-        message: 'Subscription scheduled to cancel at period end.',
+        message: 'Subscription cancellation triggered. Webhook will complete cleanup.',
         subscriptionId,
         stripeSubscriptionId: existing.stripeSubscriptionId,
-        atPeriodEnd: true,
-        periodEnd: existing.periodEnd?.toISOString() ?? null,
+        atPeriodEnd: false,
       })
+    } catch (error) {
+      logger.error('Admin API: Failed to cancel subscription', { error, subscriptionId })
+      return internalErrorResponse('Failed to cancel subscription')
     }
-
-    // Immediate cancellation
-    await stripe.subscriptions.cancel(existing.stripeSubscriptionId, {
-      prorate: true,
-      invoice_now: true,
-    })
-
-    logger.info('Admin API: Triggered immediate subscription cancellation on Stripe', {
-      subscriptionId,
-      stripeSubscriptionId: existing.stripeSubscriptionId,
-      plan: existing.plan,
-      referenceId: existing.referenceId,
-      reason,
-    })
-
-    return singleResponse({
-      success: true,
-      message: 'Subscription cancellation triggered. Webhook will complete cleanup.',
-      subscriptionId,
-      stripeSubscriptionId: existing.stripeSubscriptionId,
-      atPeriodEnd: false,
-    })
-  } catch (error) {
-    logger.error('Admin API: Failed to cancel subscription', { error, subscriptionId })
-    return internalErrorResponse('Failed to cancel subscription')
-  }
-})
+  })
+)

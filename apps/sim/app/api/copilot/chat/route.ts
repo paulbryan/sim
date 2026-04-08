@@ -28,6 +28,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
 import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   authorizeWorkflowByWorkspacePermission,
@@ -112,7 +113,7 @@ const ChatMessageSchema = z.object({
  * POST /api/copilot/chat
  * Send messages to sim agent and handle chat persistence
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const tracker = createRequestTracker()
   let actualChatId: string | undefined
   let pendingChatStreamAcquired = false
@@ -671,9 +672,9 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   try {
     const { searchParams } = new URL(req.url)
     const workflowId = searchParams.get('workflowId')
@@ -801,4 +802,4 @@ export async function GET(req: NextRequest) {
     logger.error('Error fetching copilot chats', error)
     return createInternalServerErrorResponse('Failed to fetch chats')
   }
-}
+})

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 function formatStarCount(num: number): string {
   if (num < 1000) return String(num)
@@ -7,7 +8,7 @@ function formatStarCount(num: number): string {
   return formatted.endsWith('.0') ? `${formatted.slice(0, -2)}k` : `${formatted}k`
 }
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   try {
     const token = env.GITHUB_TOKEN
     const response = await fetch('https://api.github.com/repos/simstudioai/sim', {
@@ -32,4 +33,4 @@ export async function GET() {
     console.warn('Error fetching GitHub stars:', error)
     return NextResponse.json({ stars: formatStarCount(19400) })
   }
-}
+})

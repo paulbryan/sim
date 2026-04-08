@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData } from '@/lib/table'
 import { updateRow } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
@@ -29,7 +30,7 @@ interface RowRouteParams {
 }
 
 /** GET /api/v1/tables/[tableId]/rows/[rowId] — Get a single row. */
-export async function GET(request: NextRequest, { params }: RowRouteParams) {
+export const GET = withRouteHandler(async (request: NextRequest, { params }: RowRouteParams) => {
   const requestId = generateRequestId()
 
   try {
@@ -100,10 +101,10 @@ export async function GET(request: NextRequest, { params }: RowRouteParams) {
     logger.error(`[${requestId}] Error getting row:`, error)
     return NextResponse.json({ error: 'Failed to get row' }, { status: 500 })
   }
-}
+})
 
 /** PATCH /api/v1/tables/[tableId]/rows/[rowId] — Partial update a single row. */
-export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
+export const PATCH = withRouteHandler(async (request: NextRequest, { params }: RowRouteParams) => {
   const requestId = generateRequestId()
 
   try {
@@ -215,10 +216,10 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
     logger.error(`[${requestId}] Error updating row:`, error)
     return NextResponse.json({ error: 'Failed to update row' }, { status: 500 })
   }
-}
+})
 
 /** DELETE /api/v1/tables/[tableId]/rows/[rowId] — Delete a single row. */
-export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
+export const DELETE = withRouteHandler(async (request: NextRequest, { params }: RowRouteParams) => {
   const requestId = generateRequestId()
 
   try {
@@ -275,4 +276,4 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
     logger.error(`[${requestId}] Error deleting row:`, error)
     return NextResponse.json({ error: 'Failed to delete row' }, { status: 500 })
   }
-}
+})

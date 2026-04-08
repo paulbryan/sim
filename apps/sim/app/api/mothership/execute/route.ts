@@ -7,6 +7,7 @@ import { buildIntegrationToolSchemas } from '@/lib/copilot/chat-payload'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
 import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
@@ -36,7 +37,7 @@ const ExecuteRequestSchema = z.object({
  * Called by the executor via internal JWT auth, not by the browser directly.
  * Consumes the Go SSE stream internally and returns a single JSON response.
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   let messageId: string | undefined
 
   try {
@@ -145,4 +146,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

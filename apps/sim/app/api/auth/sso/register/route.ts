@@ -9,6 +9,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SSORegisterRoute')
 
@@ -70,7 +71,7 @@ const ssoRegistrationSchema = z.discriminatedUnion('providerType', [
   }),
 ])
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     if (!env.SSO_ENABLED) {
       return NextResponse.json({ error: 'SSO is not enabled' }, { status: 400 })
@@ -411,4 +412,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

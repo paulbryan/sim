@@ -12,6 +12,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
 import type { ChatResource, ResourceType } from '@/lib/copilot/resources'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatResourcesAPI')
 
@@ -50,7 +51,7 @@ const ReorderResourcesSchema = z.object({
   ),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
@@ -111,9 +112,9 @@ export async function POST(req: NextRequest) {
     logger.error('Error adding chat resource:', error)
     return createInternalServerErrorResponse('Failed to add resource')
   }
-}
+})
 
-export async function PATCH(req: NextRequest) {
+export const PATCH = withRouteHandler(async (req: NextRequest) => {
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
@@ -156,9 +157,9 @@ export async function PATCH(req: NextRequest) {
     logger.error('Error reordering chat resources:', error)
     return createInternalServerErrorResponse('Failed to reorder resources')
   }
-}
+})
 
-export async function DELETE(req: NextRequest) {
+export const DELETE = withRouteHandler(async (req: NextRequest) => {
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
@@ -197,4 +198,4 @@ export async function DELETE(req: NextRequest) {
     logger.error('Error removing chat resource:', error)
     return createInternalServerErrorResponse('Failed to remove resource')
   }
-}
+})

@@ -4,10 +4,11 @@ import { abortActiveStream, waitForPendingChatStream } from '@/lib/copilot/chat-
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const GO_EXPLICIT_ABORT_TIMEOUT_MS = 3000
 
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: Request) => {
   const { userId: authenticatedUserId, isAuthenticated } =
     await authenticateCopilotRequestSessionOnly()
 
@@ -61,4 +62,4 @@ export async function POST(request: Request) {
     )
   }
   return NextResponse.json({ aborted })
-}
+})

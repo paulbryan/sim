@@ -6,10 +6,11 @@ import { NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { createOrganizationForTeamPlan } from '@/lib/billing/organization'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationsAPI')
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   try {
     const session = await getSession()
 
@@ -50,9 +51,9 @@ export async function GET() {
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: Request) => {
   try {
     const session = await getSession()
 
@@ -147,4 +148,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
+})

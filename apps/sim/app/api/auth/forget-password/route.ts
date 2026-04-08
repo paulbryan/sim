@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auth } from '@/lib/auth'
 import { isSameOrigin } from '@/lib/core/utils/validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,7 @@ const forgetPasswordSchema = z.object({
     ),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const body = await request.json()
 
@@ -65,4 +66,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

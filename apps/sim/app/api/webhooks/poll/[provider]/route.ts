@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { generateShortId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { pollProvider, VALID_POLLING_PROVIDERS } from '@/lib/webhooks/polling'
 
 const logger = createLogger('PollingAPI')
@@ -13,10 +14,10 @@ const LOCK_TTL_SECONDS = 180
 export const dynamic = 'force-dynamic'
 export const maxDuration = 180
 
-export async function GET(
+export const GET = withRouteHandler(async (
   request: NextRequest,
   { params }: { params: Promise<{ provider: string }> }
-) {
+) => {
   const { provider } = await params
   const requestId = generateShortId()
 
@@ -70,4 +71,4 @@ export async function GET(
       await releaseLock(LOCK_KEY, lockValue).catch(() => {})
     }
   }
-}
+})

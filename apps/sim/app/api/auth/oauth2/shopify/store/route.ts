@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
 
@@ -12,7 +13,7 @@ const logger = createLogger('ShopifyStore')
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const baseUrl = getBaseUrl()
 
   try {
@@ -128,4 +129,4 @@ export async function GET(request: NextRequest) {
     logger.error('Error storing Shopify token:', error)
     return NextResponse.redirect(`${baseUrl}/workspace?error=shopify_store_error`)
   }
-}
+})

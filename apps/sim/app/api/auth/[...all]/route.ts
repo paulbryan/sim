@@ -3,12 +3,13 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createAnonymousGetSessionResponse, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { isAuthDisabled } from '@/lib/core/config/feature-flags'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
 const { GET: betterAuthGET, POST: betterAuthPOST } = toNextJsHandler(auth.handler)
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const url = new URL(request.url)
   const path = url.pathname.replace('/api/auth/', '')
 
@@ -18,6 +19,6 @@ export async function GET(request: NextRequest) {
   }
 
   return betterAuthGET(request)
-}
+})
 
-export const POST = betterAuthPOST
+export const POST = withRouteHandler(betterAuthPOST)

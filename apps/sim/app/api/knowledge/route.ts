@@ -5,6 +5,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createKnowledgeBase,
   getKnowledgeBases,
@@ -55,7 +56,7 @@ const CreateKnowledgeBaseSchema = z.object({
     ),
 })
 
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -82,9 +83,9 @@ export async function GET(req: NextRequest) {
     logger.error(`[${requestId}] Error fetching knowledge bases`, error)
     return NextResponse.json({ error: 'Failed to fetch knowledge bases' }, { status: 500 })
   }
-}
+})
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -172,4 +173,4 @@ export async function POST(req: NextRequest) {
     logger.error(`[${requestId}] Error creating knowledge base`, error)
     return NextResponse.json({ error: 'Failed to create knowledge base' }, { status: 500 })
   }
-}
+})

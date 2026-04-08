@@ -8,6 +8,7 @@ import { getSession } from '@/lib/auth'
 import { releasePendingChatStream } from '@/lib/copilot/chat-streaming'
 import { taskPubSub } from '@/lib/copilot/task-events'
 import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('MothershipChatStopAPI')
 
@@ -51,7 +52,7 @@ const StopSchema = z.object({
  * Persists partial assistant content when the user stops a stream mid-response.
  * Clears conversationId so the server-side onComplete won't duplicate the message.
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -111,4 +112,4 @@ export async function POST(req: NextRequest) {
     logger.error('Error stopping chat stream:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

@@ -5,6 +5,7 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -19,7 +20,7 @@ export const dynamic = 'force-dynamic'
 /**
  * GET - List all workflow MCP servers for the workspace
  */
-export const GET = withMcpAuth('read')(
+export const GET = withRouteHandler(withMcpAuth('read'))(
   async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       logger.info(`[${requestId}] Listing workflow MCP servers for workspace ${workspaceId}`)
@@ -94,7 +95,7 @@ export const GET = withMcpAuth('read')(
 /**
  * POST - Create a new workflow MCP server
  */
-export const POST = withMcpAuth('write')(
+export const POST = withRouteHandler(withMcpAuth('write'))(
   async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
     try {
       const body = getParsedBody(request) || (await request.json())

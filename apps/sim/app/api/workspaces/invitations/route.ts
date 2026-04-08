@@ -17,6 +17,7 @@ import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -33,7 +34,7 @@ const logger = createLogger('WorkspaceInvitationsAPI')
 type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
 // Get all invitations for the user's workspaces
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   const session = await getSession()
 
   if (!session?.user?.id) {
@@ -70,10 +71,10 @@ export async function GET(req: NextRequest) {
     logger.error('Error fetching workspace invitations:', error)
     return NextResponse.json({ error: 'Failed to fetch invitations' }, { status: 500 })
   }
-}
+})
 
 // Create a new invitation
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const session = await getSession()
 
   if (!session?.user?.id) {
@@ -255,7 +256,7 @@ export async function POST(req: NextRequest) {
     logger.error('Error creating workspace invitation:', error)
     return NextResponse.json({ error: 'Failed to create invitation' }, { status: 500 })
   }
-}
+})
 
 async function sendInvitationEmail({
   to,

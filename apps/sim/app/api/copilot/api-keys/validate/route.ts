@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { checkInternalApiKey } from '@/lib/copilot/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotApiKeysValidate')
 
@@ -10,7 +11,7 @@ const ValidateApiKeySchema = z.object({
   userId: z.string().min(1, 'userId is required'),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
     const auth = checkInternalApiKey(req)
     if (!auth.success) {
@@ -55,4 +56,4 @@ export async function POST(req: NextRequest) {
     logger.error('Error validating usage limit', { error })
     return NextResponse.json({ error: 'Failed to validate usage' }, { status: 500 })
   }
-}
+})

@@ -5,6 +5,7 @@ import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { generateId } from '@/lib/core/utils/uuid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
@@ -33,7 +34,7 @@ const RequestSchema = z.object({
  * - Otherwise uses the user's first workflow as context
  * - The copilot can still operate on any workflow using list_user_workflows
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   let messageId: string | undefined
   const auth = await authenticateV1Request(req)
   if (!auth.authenticated || !auth.userId) {
@@ -147,4 +148,4 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
-}
+})

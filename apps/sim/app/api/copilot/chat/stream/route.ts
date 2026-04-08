@@ -7,6 +7,7 @@ import {
 } from '@/lib/copilot/orchestrator/stream/buffer'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const maxDuration = 3600
 
@@ -18,7 +19,7 @@ function encodeEvent(event: Record<string, any>): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`)
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const { userId: authenticatedUserId, isAuthenticated } =
     await authenticateCopilotRequestSessionOnly()
 
@@ -184,4 +185,4 @@ export async function GET(request: NextRequest) {
   })
 
   return new Response(stream, { headers: SSE_HEADERS })
-}
+})
