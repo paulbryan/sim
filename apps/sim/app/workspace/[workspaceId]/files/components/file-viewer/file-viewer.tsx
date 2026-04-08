@@ -240,8 +240,12 @@ function TextEditor({
 
   useEffect(() => {
     if (streamingContent !== undefined) {
+      const isSplicedFull =
+        fetchedContent !== undefined &&
+        streamingContent.length > fetchedContent.length * 0.5 &&
+        streamingContent.startsWith(fetchedContent.slice(0, Math.min(100, fetchedContent.length)))
       const nextContent =
-        fetchedContent === undefined
+        fetchedContent === undefined || isSplicedFull
           ? streamingContent
           : fetchedContent.endsWith(streamingContent) ||
               fetchedContent.endsWith(`\n${streamingContent}`)

@@ -46,7 +46,7 @@ import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/com
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFileContent, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -84,11 +84,41 @@ export const ResourceContent = memo(function ResourceContent({
   genericResourceData,
 }: ResourceContentProps) {
   const streamFileName = streamingFile?.fileName || 'file.md'
+
+  const isPatchStream = useMemo(() => {
+    if (!streamingFile) return false
+    return /"operation"\s*:\s*"patch"/.test(streamingFile.content)
+  }, [streamingFile])
+
+  const { data: allFiles = [] } = useWorkspaceFiles(workspaceId)
+  const activeFileRecord = useMemo(() => {
+    if (!isPatchStream || resource.type !== 'file') return undefined
+    return allFiles.find((f) => f.id === resource.id)
+  }, [isPatchStream, resource, allFiles])
+
+  const isSourceMime =
+    activeFileRecord?.type === 'text/x-pptxgenjs' ||
+    activeFileRecord?.type === 'text/x-docxjs' ||
+    activeFileRecord?.type === 'text/x-pdflibjs'
+
+  const { data: fetchedFileContent } = useWorkspaceFileContent(
+    workspaceId,
+    activeFileRecord?.id ?? '',
+    activeFileRecord?.key ?? '',
+    isSourceMime
+  )
+
   const streamingExtractedContent = useMemo(() => {
     if (!streamingFile) return undefined
-    const extracted = extractFileContent(streamingFile.content)
+    const raw = streamingFile.content
+
+    if (isPatchStream && fetchedFileContent) {
+      return extractPatchPreview(raw, fetchedFileContent)
+    }
+
+    const extracted = extractFileContent(raw)
     return extracted.length > 0 ? extracted : undefined
-  }, [streamingFile])
+  }, [streamingFile, isPatchStream, fetchedFileContent])
   const syntheticFile = useMemo(() => {
     const ext = getFileExtension(streamFileName)
     const SOURCE_MIME_MAP: Record<string, string> = {
@@ -563,4 +593,101 @@ function extractFileContent(raw: string): string {
     .replace(/\\"/g, '"')
     .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
     .replace(/\\\\/g, '\\')
+}
+
+function extractJsonString(raw: string, key: string): string | undefined {
+  const pattern = new RegExp(`"${key}"\\s*:\\s*"`)
+  const m = pattern.exec(raw)
+  if (!m) return undefined
+  const start = m.index + m[0].length
+  let end = -1
+  for (let i = start; i < raw.length; i++) {
+    if (raw[i] === '\\') {
+      i++
+      continue
+    }
+    if (raw[i] === '"') {
+      end = i
+      break
+    }
+  }
+  if (end === -1) return undefined
+  return raw
+    .slice(start, end)
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\r/g, '\r')
+    .replace(/\\"/g, '"')
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+    .replace(/\\\\/g, '\\')
+}
+
+function findAnchorIndex(lines: string[], anchor: string, occurrence = 1, afterIndex = -1): number {
+  const trimmed = anchor.trim()
+  let count = 0
+  for (let i = afterIndex + 1; i < lines.length; i++) {
+    if (lines[i].trim() === trimmed) {
+      count++
+      if (count === occurrence) return i
+    }
+  }
+  return -1
+}
+
+function extractPatchPreview(raw: string, existingContent: string): string | undefined {
+  const mode = extractJsonString(raw, 'mode')
+  if (!mode) return undefined
+
+  const lines = existingContent.split('\n')
+  const occurrenceMatch = raw.match(/"occurrence"\s*:\s*(\d+)/)
+  const occurrence = occurrenceMatch ? Number.parseInt(occurrenceMatch[1], 10) : 1
+
+  if (mode === 'replace_between') {
+    const beforeAnchor = extractJsonString(raw, 'before_anchor')
+    const afterAnchor = extractJsonString(raw, 'after_anchor')
+    if (!beforeAnchor || !afterAnchor) return undefined
+
+    const beforeIdx = findAnchorIndex(lines, beforeAnchor, occurrence)
+    const afterIdx = findAnchorIndex(lines, afterAnchor, occurrence, beforeIdx)
+    if (beforeIdx === -1 || afterIdx === -1 || afterIdx <= beforeIdx) return undefined
+
+    const newContent = extractFileContent(raw)
+    const spliced = [
+      ...lines.slice(0, beforeIdx + 1),
+      ...(newContent.length > 0 ? newContent.split('\n') : []),
+      ...lines.slice(afterIdx),
+    ]
+    return spliced.join('\n')
+  }
+
+  if (mode === 'insert_after') {
+    const anchor = extractJsonString(raw, 'anchor')
+    if (!anchor) return undefined
+
+    const anchorIdx = findAnchorIndex(lines, anchor, occurrence)
+    if (anchorIdx === -1) return undefined
+
+    const newContent = extractFileContent(raw)
+    const spliced = [
+      ...lines.slice(0, anchorIdx + 1),
+      ...(newContent.length > 0 ? newContent.split('\n') : []),
+      ...lines.slice(anchorIdx + 1),
+    ]
+    return spliced.join('\n')
+  }
+
+  if (mode === 'delete_between') {
+    const startAnchor = extractJsonString(raw, 'start_anchor')
+    const endAnchor = extractJsonString(raw, 'end_anchor')
+    if (!startAnchor || !endAnchor) return undefined
+
+    const startIdx = findAnchorIndex(lines, startAnchor, occurrence)
+    const endIdx = findAnchorIndex(lines, endAnchor, occurrence, startIdx)
+    if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) return undefined
+
+    const spliced = [...lines.slice(0, startIdx), ...lines.slice(endIdx)]
+    return spliced.join('\n')
+  }
+
+  return undefined
 }
