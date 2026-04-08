@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isFolderEffectivelyLocked } from '@/lib/workflows/lock'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FolderReorderAPI')
@@ -44,7 +45,12 @@ export async function PUT(req: NextRequest) {
 
     const folderIds = updates.map((u) => u.id)
     const existingFolders = await db
-      .select({ id: workflowFolder.id, workspaceId: workflowFolder.workspaceId })
+      .select({
+        id: workflowFolder.id,
+        workspaceId: workflowFolder.workspaceId,
+        parentId: workflowFolder.parentId,
+        isLocked: workflowFolder.isLocked,
+      })
       .from(workflowFolder)
       .where(inArray(workflowFolder.id, folderIds))
 
@@ -56,6 +62,37 @@ export async function PUT(req: NextRequest) {
 
     if (validUpdates.length === 0) {
       return NextResponse.json({ error: 'No valid folders to update' }, { status: 400 })
+    }
+
+    // Build folder map for cascade lock checks
+    const allFolders = await db
+      .select({
+        id: workflowFolder.id,
+        parentId: workflowFolder.parentId,
+        isLocked: workflowFolder.isLocked,
+      })
+      .from(workflowFolder)
+      .where(eq(workflowFolder.workspaceId, workspaceId))
+
+    const folderMap: Record<string, { id: string; parentId: string | null; isLocked: boolean }> = {}
+    for (const f of allFolders) {
+      folderMap[f.id] = f
+    }
+
+    // Block if any source folder or destination parent is effectively locked
+    for (const update of validUpdates) {
+      if (isFolderEffectivelyLocked(update.id, folderMap)) {
+        return NextResponse.json(
+          { error: 'Cannot move or reorder a locked folder' },
+          { status: 403 }
+        )
+      }
+      if (update.parentId && isFolderEffectivelyLocked(update.parentId, folderMap)) {
+        return NextResponse.json(
+          { error: 'Cannot move folders into a locked folder' },
+          { status: 403 }
+        )
+      }
     }
 
     await db.transaction(async (tx) => {

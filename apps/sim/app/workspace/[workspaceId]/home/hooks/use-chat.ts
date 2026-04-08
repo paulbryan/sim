@@ -326,6 +326,7 @@ function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId
     workspaceId,
     folderId: null,
     sortOrder,
+    isLocked: false,
   }
   const queryClient = getQueryClient()
   const key = workflowKeys.list(workspaceId, 'active')

@@ -423,7 +423,7 @@ export function WorkflowItem({
             'hover-hover:bg-[var(--surface-hover)]',
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
-        draggable={!isEditing && !dragDisabled}
+        draggable={!isEditing && !dragDisabled && !isEffectivelyLocked}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onClick={handleClick}
@@ -509,7 +509,7 @@ export function WorkflowItem({
         showExport={true}
         showColorChange={!isMixedSelection && selectedWorkflows.size <= 1}
         disableRename={!userPermissions.canEdit || isEffectivelyLocked}
-        disableDuplicate={!userPermissions.canEdit || isDuplicatingSelection}
+        disableDuplicate={!userPermissions.canEdit || isDuplicatingSelection || isEffectivelyLocked}
         disableExport={!userPermissions.canEdit}
         disableColorChange={!userPermissions.canEdit || isEffectivelyLocked}
         disableDelete={!userPermissions.canEdit || !canDeleteSelection || isEffectivelyLocked}

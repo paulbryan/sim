@@ -498,7 +498,7 @@ export function FolderItem({
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
-        draggable={!isEditing && !dragDisabled}
+        draggable={!isEditing && !dragDisabled && !isEffectivelyLocked}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         {...hoverHandlers}
@@ -592,7 +592,10 @@ export function FolderItem({
           !userPermissions.canEdit || createFolderMutation.isPending || isEffectivelyLocked
         }
         disableDuplicate={
-          !userPermissions.canEdit || isDuplicatingSelection || !hasExportableContent
+          !userPermissions.canEdit ||
+          isDuplicatingSelection ||
+          !hasExportableContent ||
+          isEffectivelyLocked
         }
         disableExport={!userPermissions.canEdit || isExporting || !hasExportableContent}
         disableDelete={!userPermissions.canEdit || !canDeleteSelection || isEffectivelyLocked}

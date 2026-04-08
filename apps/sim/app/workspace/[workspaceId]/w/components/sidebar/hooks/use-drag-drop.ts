@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getFolderPath } from '@/lib/folders/tree'
+import { isFolderEffectivelyLocked } from '@/lib/workflows/lock'
 import { useReorderFolders } from '@/hooks/queries/folders'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
@@ -408,6 +409,15 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
 
       try {
         const destinationFolderId = getDestinationFolderId(indicator)
+
+        // Block drops into locked folders
+        if (destinationFolderId) {
+          const folders = getFolderMap(workspaceId)
+          if (folders && isFolderEffectivelyLocked(destinationFolderId, folders)) {
+            return
+          }
+        }
+
         const validFolderIds = folderIds.filter((id) => canMoveFolderTo(id, destinationFolderId))
         if (workflowIds.length === 0 && validFolderIds.length === 0) {
           return

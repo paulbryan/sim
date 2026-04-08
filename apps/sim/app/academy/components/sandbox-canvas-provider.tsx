@@ -216,6 +216,7 @@ export function SandboxCanvasProvider({
       workspaceId: SANDBOX_WORKSPACE_ID,
       sortOrder: 0,
       isSandbox: true,
+      isLocked: false,
     }
 
     useWorkflowStore.getState().replaceWorkflowState(workflowState)

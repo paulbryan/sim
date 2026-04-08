@@ -1,11 +1,12 @@
 import { db } from '@sim/db'
-import { workflow } from '@sim/db/schema'
+import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isFolderEffectivelyLocked, isWorkflowEffectivelyLocked } from '@/lib/workflows/lock'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkflowReorderAPI')
@@ -44,7 +45,12 @@ export async function PUT(req: NextRequest) {
 
     const workflowIds = updates.map((u) => u.id)
     const existingWorkflows = await db
-      .select({ id: workflow.id, workspaceId: workflow.workspaceId })
+      .select({
+        id: workflow.id,
+        workspaceId: workflow.workspaceId,
+        isLocked: workflow.isLocked,
+        folderId: workflow.folderId,
+      })
       .from(workflow)
       .where(inArray(workflow.id, workflowIds))
 
@@ -56,6 +62,41 @@ export async function PUT(req: NextRequest) {
 
     if (validUpdates.length === 0) {
       return NextResponse.json({ error: 'No valid workflows to update' }, { status: 400 })
+    }
+
+    // Build folder map for cascade lock checks
+    const allFolders = await db
+      .select({
+        id: workflowFolder.id,
+        parentId: workflowFolder.parentId,
+        isLocked: workflowFolder.isLocked,
+      })
+      .from(workflowFolder)
+      .where(eq(workflowFolder.workspaceId, workspaceId))
+
+    const folderMap: Record<string, { id: string; parentId: string | null; isLocked: boolean }> = {}
+    for (const f of allFolders) {
+      folderMap[f.id] = f
+    }
+
+    // Build workflow lookup for lock checks
+    const workflowLookup = new Map(existingWorkflows.map((w) => [w.id, w]))
+
+    // Block if any source workflow or destination folder is effectively locked
+    for (const update of validUpdates) {
+      const wf = workflowLookup.get(update.id)
+      if (wf && isWorkflowEffectivelyLocked(wf, folderMap)) {
+        return NextResponse.json(
+          { error: 'Cannot move or reorder a locked workflow' },
+          { status: 403 }
+        )
+      }
+      if (update.folderId && isFolderEffectivelyLocked(update.folderId, folderMap)) {
+        return NextResponse.json(
+          { error: 'Cannot move workflows into a locked folder' },
+          { status: 403 }
+        )
+      }
     }
 
     await db.transaction(async (tx) => {

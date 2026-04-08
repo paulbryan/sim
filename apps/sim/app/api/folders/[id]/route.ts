@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { isFolderEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { performDeleteFolder } from '@/lib/workflows/orchestration'
 import { checkForCircularReference } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -78,15 +79,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    // If folder is locked, only allow toggling isLocked and isExpanded (by admins)
-    if (existingFolder.isLocked && isLocked === undefined) {
-      // Allow isExpanded toggle on locked folders (UI collapse/expand)
-      const hasNonExpandUpdates =
+    // If folder is effectively locked, only allow isLocked toggle (admin) and isExpanded toggle
+    const effectivelyLocked = await isFolderEffectivelyLockedDb(id)
+    if (effectivelyLocked) {
+      const hasNonAllowedUpdates =
         name !== undefined ||
         color !== undefined ||
         parentId !== undefined ||
         sortOrder !== undefined
-      if (hasNonExpandUpdates) {
+      if (hasNonAllowedUpdates) {
         return NextResponse.json({ error: 'Folder is locked' }, { status: 403 })
       }
     }
@@ -167,7 +168,8 @@ export async function DELETE(
       )
     }
 
-    if (existingFolder.isLocked) {
+    const effectivelyLocked = await isFolderEffectivelyLockedDb(id)
+    if (effectivelyLocked) {
       return NextResponse.json({ error: 'Folder is locked' }, { status: 403 })
     }
 

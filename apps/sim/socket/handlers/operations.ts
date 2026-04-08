@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { ZodError } from 'zod'
 import { generateId } from '@/lib/core/utils/uuid'
+import { isWorkflowEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import {
   BLOCK_OPERATIONS,
   BLOCKS_OPERATIONS,
@@ -132,6 +133,21 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           emitOperationError({
             type: 'INSUFFICIENT_PERMISSIONS',
             message: `${permissionCheck.reason} on '${target}'`,
+            operation,
+            target,
+          })
+          return
+        }
+      }
+
+      // Check workflow lock for any operation that would persist changes
+      // Non-committed position updates are ephemeral broadcasts and exempt
+      if (!(isPositionUpdate && !commitPositionUpdate)) {
+        const locked = await isWorkflowEffectivelyLockedDb(workflowId)
+        if (locked) {
+          emitOperationError({
+            type: 'WORKFLOW_LOCKED',
+            message: 'Workflow is locked',
             operation,
             target,
           })

@@ -12,6 +12,7 @@ import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
+import { isFolderEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
@@ -197,6 +198,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         { error: authorization.message || 'Access denied' },
         { status: authorization.status || 403 }
       )
+    }
+
+    // Check if workflow is effectively locked (directly or via folder cascade)
+    const isLocked =
+      workflowData.isLocked ||
+      (workflowData.folderId ? await isFolderEffectivelyLockedDb(workflowData.folderId) : false)
+    if (isLocked) {
+      return NextResponse.json({ error: 'Workflow is locked' }, { status: 403 })
     }
 
     // Sanitize custom tools in agent blocks before saving

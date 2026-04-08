@@ -191,6 +191,7 @@ export function useCreateWorkflow() {
         workspaceId: variables.workspaceId,
         folderId: variables.folderId || null,
         sortOrder,
+        isLocked: false,
       }
 
       queryClient.setQueryData<WorkflowMetadata[]>(
@@ -220,6 +221,7 @@ export function useCreateWorkflow() {
                   workspaceId: data.workspaceId,
                   folderId: data.folderId,
                   sortOrder: data.sortOrder,
+                  isLocked: false,
                 }
               : w
           )
@@ -367,6 +369,7 @@ export function useDuplicateWorkflowMutation() {
           variables.workspaceId,
           targetFolderId
         ),
+        isLocked: false,
       }
 
       queryClient.setQueryData<WorkflowMetadata[]>(
@@ -396,6 +399,7 @@ export function useDuplicateWorkflowMutation() {
                   workspaceId: data.workspaceId,
                   folderId: data.folderId,
                   sortOrder: data.sortOrder,
+                  isLocked: false,
                 }
               : w
           )
