@@ -106,7 +106,12 @@ export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: 
     if (!titleMatch?.[1]) return null
     const opMatch = streamingArgs.match(/"operation"\s*:\s*"(\w+)"/)
     const op = opMatch?.[1] ?? ''
-    const verb = op === 'patch' || op === 'update' ? 'Editing' : 'Writing'
+    const verb =
+      op === 'patch' || op === 'update' || op === 'rename'
+        ? 'Editing'
+        : op === 'delete'
+          ? 'Deleting'
+          : 'Writing'
     const unescaped = titleMatch[1]
       .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) =>
         String.fromCharCode(Number.parseInt(hex, 16))

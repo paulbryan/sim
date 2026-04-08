@@ -20,7 +20,6 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
-  CreateFile,
   CreateFolder,
   DeleteFolder,
   DeleteWorkflow,
@@ -33,7 +32,6 @@ import {
   Read as ReadTool,
   Redeploy,
   RenameWorkflow,
-  SetFileContext,
   ToolSearchToolRegex,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -105,7 +103,7 @@ export interface UseChatReturn {
   removeFromQueue: (id: string) => void
   sendNow: (id: string) => Promise<void>
   editQueuedMessage: (id: string) => QueuedMessage | undefined
-  streamingFile: { fileName: string; content: string } | null
+  streamingFile: StreamingFilePreview | null
   genericResourceData: GenericResourceData | null
 }
 
@@ -138,6 +136,16 @@ type StreamToolUI = {
   title?: string
   phaseLabel?: string
   clientExecutable?: boolean
+}
+
+type StreamingFilePreview = {
+  toolCallId: string
+  fileName: string
+  fileId?: string
+  targetKind?: 'new_file' | 'file_id'
+  operation?: string
+  edit?: Record<string, unknown>
+  content: string
 }
 
 type StreamBatchEvent = {
@@ -341,14 +349,11 @@ export function useChat(
   const activeResourceIdRef = useRef(effectiveActiveResourceId)
   activeResourceIdRef.current = effectiveActiveResourceId
 
-  const [streamingFile, setStreamingFile] = useState<{
-    fileName: string
-    fileId?: string
-    content: string
-  } | null>(null)
+  const [streamingFile, setStreamingFile] = useState<StreamingFilePreview | null>(null)
   const streamingFileRef = useRef(streamingFile)
   streamingFileRef.current = streamingFile
-  const activeFileContextRef = useRef<{ fileId?: string; fileName?: string } | null>(null)
+  const filePreviewSessionsRef = useRef<Map<string, StreamingFilePreview>>(new Map())
+  const activeFilePreviewToolCallIdRef = useRef<string | null>(null)
 
   const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const messageQueueRef = useRef<QueuedMessage[]>([])
@@ -511,6 +516,8 @@ export function useChat(
     setActiveResourceId(null)
     setStreamingFile(null)
     streamingFileRef.current = null
+    filePreviewSessionsRef.current.clear()
+    activeFilePreviewToolCallIdRef.current = null
     setMessageQueue([])
   }, [initialChatId, queryClient])
 
@@ -532,6 +539,8 @@ export function useChat(
     setActiveResourceId(null)
     setStreamingFile(null)
     streamingFileRef.current = null
+    filePreviewSessionsRef.current.clear()
+    activeFilePreviewToolCallIdRef.current = null
     setMessageQueue([])
   }, [isHomePage])
 
@@ -860,6 +869,8 @@ export function useChat(
             }
             case MothershipStreamV1EventType.tool: {
               const payload = getPayloadData(parsed)
+              const previewPhase =
+                typeof payload.previewPhase === 'string' ? payload.previewPhase : undefined
               const phase =
                 typeof payload.phase === 'string' ? payload.phase : MothershipStreamV1ToolPhase.call
               const id =
@@ -870,60 +881,43 @@ export function useChat(
                     : undefined
               if (!id) break
 
-              if (phase === MothershipStreamV1ToolPhase.args_delta) {
-                const delta =
-                  typeof payload.argumentsDelta === 'string' ? payload.argumentsDelta : ''
-                if (!delta) break
+              if (previewPhase) {
+                const sessions = filePreviewSessionsRef.current
+                const prevSession = sessions.get(id) ?? {
+                  toolCallId: id,
+                  fileName: '',
+                  content: '',
+                }
 
-                const toolName =
-                  typeof payload.toolName === 'string'
-                    ? payload.toolName
-                    : (blocks[toolMap.get(id) ?? -1]?.toolCall?.name ?? '')
-                const streamWorkspaceFile = toolName === WorkspaceFile.id
-
-                if (streamWorkspaceFile) {
-                  let prev = streamingFileRef.current
-                  if (!prev || (!prev.fileName && !prev.fileId)) {
-                    const ctx = activeFileContextRef.current
-                    prev = {
-                      fileName: ctx?.fileName || prev?.fileName || '',
-                      fileId: ctx?.fileId || prev?.fileId,
-                      content: prev?.content || '',
-                    }
-                    streamingFileRef.current = prev
-                    setStreamingFile(prev)
+                if (previewPhase === 'file_preview_start') {
+                  const nextSession: StreamingFilePreview = {
+                    ...prevSession,
+                    toolCallId: id,
                   }
-                  const raw = prev.content + delta
-                  let fileName = prev.fileName
-                  if (!fileName) {
-                    fileName = activeFileContextRef.current?.fileName || ''
-                    if (!fileName) {
-                      const match = raw.match(/"fileName"\s*:\s*"([^"]+)"/)
-                      if (match) {
-                        fileName = match[1]
-                      }
-                    }
-                  }
-                  const fileIdMatch = raw.match(/"fileId"\s*:\s*"([^"]+)"/)
-                  const matchedResourceId =
-                    fileIdMatch?.[1] || prev.fileId || activeFileContextRef.current?.fileId
-                  const existingFileMatch =
-                    matchedResourceId &&
-                    resourcesRef.current.some(
-                      (resource) => resource.type === 'file' && resource.id === matchedResourceId
-                    )
+                  sessions.set(id, nextSession)
+                  activeFilePreviewToolCallIdRef.current = id
+                  setStreamingFile(nextSession)
+                  break
+                }
 
-                  if (existingFileMatch) {
-                    const hadStreamingResource = resourcesRef.current.some(
-                      (resource) => resource.id === 'streaming-file'
-                    )
-                    if (hadStreamingResource) {
-                      setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
-                      setActiveResourceId(matchedResourceId)
-                    } else if (activeResourceIdRef.current === null) {
-                      setActiveResourceId(matchedResourceId)
-                    }
-                  } else if (fileName || fileIdMatch || activeSubagent === FileTool.id) {
+                if (previewPhase === 'file_preview_target') {
+                  const target = asPayloadRecord(payload.target)
+                  const nextSession: StreamingFilePreview = {
+                    ...prevSession,
+                    operation: typeof payload.operation === 'string' ? payload.operation : prevSession.operation,
+                    targetKind:
+                      target?.kind === 'new_file' || target?.kind === 'file_id'
+                        ? (target.kind as 'new_file' | 'file_id')
+                        : prevSession.targetKind,
+                    fileId:
+                      typeof target?.fileId === 'string' ? target.fileId : prevSession.fileId,
+                    fileName:
+                      typeof target?.fileName === 'string' ? target.fileName : prevSession.fileName,
+                  }
+                  sessions.set(id, nextSession)
+                  activeFilePreviewToolCallIdRef.current = id
+
+                  if (nextSession.targetKind === 'new_file') {
                     const hasStreamingResource = resourcesRef.current.some(
                       (resource) => resource.id === 'streaming-file'
                     )
@@ -931,15 +925,54 @@ export function useChat(
                       addResource({
                         type: 'file',
                         id: 'streaming-file',
-                        title: fileName || 'Writing file...',
+                        title: nextSession.fileName || 'Writing file...',
                       })
                       setActiveResourceId('streaming-file')
                     }
+                  } else if (nextSession.fileId) {
+                    setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
+                    if (
+                      activeResourceIdRef.current === null ||
+                      activeResourceIdRef.current === 'streaming-file'
+                    ) {
+                      setActiveResourceId(nextSession.fileId)
+                    }
                   }
-                  const next = { fileName, fileId: matchedResourceId, content: raw }
-                  streamingFileRef.current = next
-                  setStreamingFile(next)
+
+                  setStreamingFile(nextSession)
+                  break
                 }
+
+                if (previewPhase === 'file_preview_edit_meta') {
+                  const nextSession: StreamingFilePreview = {
+                    ...prevSession,
+                    edit: asPayloadRecord(payload.edit),
+                  }
+                  sessions.set(id, nextSession)
+                  activeFilePreviewToolCallIdRef.current = id
+                  setStreamingFile(nextSession)
+                  break
+                }
+
+                if (previewPhase === 'file_preview_content_delta') {
+                  const delta =
+                    typeof payload.delta === 'string' ? payload.delta : ''
+                  if (!delta) break
+                  const nextSession: StreamingFilePreview = {
+                    ...prevSession,
+                    content: (prevSession.content ?? '') + delta,
+                  }
+                  sessions.set(id, nextSession)
+                  activeFilePreviewToolCallIdRef.current = id
+                  setStreamingFile(nextSession)
+                  break
+                }
+              }
+
+              if (phase === MothershipStreamV1ToolPhase.args_delta) {
+                const delta =
+                  typeof payload.argumentsDelta === 'string' ? payload.argumentsDelta : ''
+                if (!delta) break
 
                 const idx = toolMap.get(id)
                 if (idx !== undefined && blocks[idx].toolCall) {
@@ -949,7 +982,12 @@ export function useChat(
                   if (tc.name === WorkspaceFile.id) {
                     const opMatch = tc.streamingArgs.match(/"operation"\s*:\s*"(\w+)"/)
                     const op = opMatch?.[1] ?? ''
-                    const verb = op === 'patch' || op === 'update' ? 'Editing' : 'Writing'
+                    const verb =
+                      op === 'patch' || op === 'update' || op === 'rename'
+                        ? 'Editing'
+                        : op === 'delete'
+                          ? 'Deleting'
+                          : 'Writing'
                     const titleMatch = tc.streamingArgs.match(/"title"\s*:\s*"([^"]*)"/)
                     if (titleMatch?.[1]) {
                       const unescaped = titleMatch[1]
@@ -969,21 +1007,6 @@ export function useChat(
 
               if (phase === MothershipStreamV1ToolPhase.result) {
                 const resultToolName = typeof payload.toolName === 'string' ? payload.toolName : ''
-                if (
-                  (resultToolName === CreateFile.id || resultToolName === SetFileContext.id) &&
-                  (payload.success === true ||
-                    payload.status === MothershipStreamV1ToolOutcome.success)
-                ) {
-                  const resultOutput = asPayloadRecord(payload.result)
-                  const ctxFileId =
-                    typeof resultOutput?.fileId === 'string' ? resultOutput.fileId : undefined
-                  const ctxFileName =
-                    typeof resultOutput?.fileName === 'string' ? resultOutput.fileName : undefined
-                  if (ctxFileId || ctxFileName) {
-                    activeFileContextRef.current = { fileId: ctxFileId, fileName: ctxFileName }
-                  }
-                }
-
                 const idx = toolMap.get(id)
                 if (idx === undefined || !blocks[idx].toolCall) {
                   break
@@ -1073,24 +1096,17 @@ export function useChat(
 
                 onToolResultRef.current?.(tc.name, tc.status === 'success', tc.result?.output)
 
-                if (
-                  (tc.name === CreateFile.id || tc.name === SetFileContext.id) &&
-                  tc.status === 'success'
-                ) {
-                  const output = tc.result?.output as Record<string, unknown> | undefined
-                  const fileId = typeof output?.fileId === 'string' ? output.fileId : undefined
-                  const fileName =
-                    typeof output?.fileName === 'string' ? output.fileName : undefined
-                  if (fileId || fileName) {
-                    activeFileContextRef.current = { fileId, fileName }
-                  }
-                }
-
                 if (isWorkflowToolName(tc.name)) {
                   clientExecutionStartedRef.current.delete(id)
                 }
 
                 if (tc.name === WorkspaceFile.id) {
+                  filePreviewSessionsRef.current.delete(id)
+                  if (activeFilePreviewToolCallIdRef.current === id) {
+                    activeFilePreviewToolCallIdRef.current = null
+                    setStreamingFile(null)
+                    streamingFileRef.current = null
+                  }
                   const fileResource = extractedResources.find((r) => r.type === 'file')
                   if (fileResource) {
                     setResources((rs) => {
@@ -1116,7 +1132,7 @@ export function useChat(
                     ? payload.name
                     : 'unknown'
               const isPartial = payload.partial === true
-              if (name === ToolSearchToolRegex.id || name === SetFileContext.id) {
+              if (name === ToolSearchToolRegex.id) {
                 break
               }
               const ui = getToolUI(payload)
@@ -1129,13 +1145,19 @@ export function useChat(
 
               if (name === WorkspaceFile.id) {
                 const operation = typeof args?.operation === 'string' ? args.operation : ''
-                const verb = operation === 'patch' || operation === 'update' ? 'Editing' : 'Writing'
-                const innerArgs = args ? asPayloadRecord(args.args) : undefined
-                const chunkTitle = innerArgs?.title as string | undefined
+                const verb =
+                  operation === 'patch' || operation === 'update' || operation === 'rename'
+                    ? 'Editing'
+                    : operation === 'delete'
+                      ? 'Deleting'
+                      : 'Writing'
+                const chunkTitle = args?.title as string | undefined
+                const target = args ? asPayloadRecord(args.target) : undefined
+                const targetFileName = target?.fileName as string | undefined
                 if (chunkTitle) {
                   displayTitle = `${verb} ${chunkTitle}`
-                } else if (activeFileContextRef.current?.fileName) {
-                  displayTitle = `${verb} ${activeFileContextRef.current.fileName}`
+                } else if (targetFileName) {
+                  displayTitle = `${verb} ${targetFileName}`
                 }
               }
 
@@ -1300,7 +1322,11 @@ export function useChat(
                   blocks.push({ type: 'subagent', content: name })
                 }
                 if (name === FileTool.id) {
-                  const emptyFile = { fileName: '', content: '' }
+                  const emptyFile: StreamingFilePreview = {
+                    toolCallId: parentToolCallId || 'file-preview',
+                    fileName: '',
+                    content: '',
+                  }
                   streamingFileRef.current = emptyFile
                   setStreamingFile(emptyFile)
                 }
@@ -1950,6 +1976,8 @@ export function useChat(
     invalidateChatQueries()
     setStreamingFile(null)
     streamingFileRef.current = null
+    filePreviewSessionsRef.current.clear()
+    activeFilePreviewToolCallIdRef.current = null
     setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
 
     const execState = useExecutionStore.getState()

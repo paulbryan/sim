@@ -19,30 +19,29 @@ const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
   preview: 'editor',
 } as const
 
-function streamFileBasename(name: string): string {
-  const n = name.replace(/\\/g, '/').trim()
-  const parts = n.split('/').filter(Boolean)
-  return parts.length ? parts[parts.length - 1]! : n
-}
-
-function fileTitlesEquivalent(streamFileName: string, resourceTitle: string): boolean {
-  return streamFileBasename(streamFileName) === streamFileBasename(resourceTitle)
-}
-
 /**
  * Whether the active resource should show the in-progress file stream.
- * The synthetic `streaming-file` tab always shows it; a real file tab shows it when
- * the streamed `fileName` matches that resource (so users who stay on the open file see live text).
+ * The synthetic `streaming-file` tab always shows it; a real file tab only shows it
+ * when the streamed fileId matches that exact resource.
  */
 function shouldShowStreamingFilePanel(
-  streamingFile: { fileName: string; fileId?: string; content: string } | null | undefined,
+  streamingFile:
+    | {
+        toolCallId?: string
+        fileName: string
+        fileId?: string
+        targetKind?: 'new_file' | 'file_id'
+        operation?: string
+        edit?: Record<string, unknown>
+        content: string
+      }
+    | null
+    | undefined,
   active: MothershipResource | null
 ): boolean {
   if (!streamingFile || !active) return false
   if (active.id === 'streaming-file') return true
   if (active.type !== 'file') return false
-  const fn = streamingFile.fileName.trim()
-  if (fn && fileTitlesEquivalent(fn, active.title)) return true
   if (active.id && streamingFile.fileId === active.id) return true
   return false
 }
@@ -59,7 +58,17 @@ interface MothershipViewProps {
   onCollapse: () => void
   isCollapsed: boolean
   className?: string
-  streamingFile?: { fileName: string; fileId?: string; content: string } | null
+  streamingFile?:
+    | {
+        toolCallId?: string
+        fileName: string
+        fileId?: string
+        targetKind?: 'new_file' | 'file_id'
+        operation?: string
+        edit?: Record<string, unknown>
+        content: string
+      }
+    | null
   genericResourceData?: GenericResourceData
 }
 

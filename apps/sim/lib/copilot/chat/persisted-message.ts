@@ -55,6 +55,8 @@ export interface PersistedMessageContext {
   knowledgeId?: string
   tableId?: string
   fileId?: string
+  folderId?: string
+  chatId?: string
 }
 
 export interface PersistedMessage {
@@ -199,6 +201,8 @@ export function buildPersistedUserMessage(params: UserMessageParams): PersistedM
       ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
       ...(c.tableId ? { tableId: c.tableId } : {}),
       ...(c.fileId ? { fileId: c.fileId } : {}),
+      ...(c.folderId ? { folderId: c.folderId } : {}),
+      ...(c.chatId ? { chatId: c.chatId } : {}),
     }))
   }
 
@@ -462,6 +466,8 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
       ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
       ...(c.tableId ? { tableId: c.tableId } : {}),
       ...(c.fileId ? { fileId: c.fileId } : {}),
+      ...(c.folderId ? { folderId: c.folderId } : {}),
+      ...(c.chatId ? { chatId: c.chatId } : {}),
     }))
   }
 

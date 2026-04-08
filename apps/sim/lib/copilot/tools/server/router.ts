@@ -33,10 +33,16 @@ import { generateVisualizationServerTool } from '@/lib/copilot/tools/server/visu
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { getExecutionSummaryServerTool } from '@/lib/copilot/tools/server/workflow/get-execution-summary'
 import { getWorkflowLogsServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-logs'
-import { ExecuteResponseSuccessSchema } from '@/lib/copilot/tools/shared/schemas'
+import { z } from 'zod'
+import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 
 export { ExecuteResponseSuccessSchema }
 export type ExecuteResponseSuccess = (typeof ExecuteResponseSuccessSchema)['_type']
+
+const ExecuteResponseSuccessSchema = z.object({
+  success: z.literal(true),
+  result: z.unknown(),
+})
 
 const logger = createLogger('ServerToolRouter')
 
@@ -76,7 +82,7 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [ManageMcpTool.id]: ['add', 'edit', 'delete'],
   [ManageSkill.id]: ['add', 'edit', 'delete'],
   [ManageCredential.id]: ['rename', 'delete'],
-  [WorkspaceFile.id]: ['write', 'update', 'delete', 'rename', 'patch'],
+  [WorkspaceFile.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
   [DownloadToWorkspaceFile.id]: ['*'],
   [GenerateVisualization.id]: ['generate'],
   [GenerateImage.id]: ['generate'],
@@ -153,14 +159,20 @@ export async function routeExecution(
 
   assertServerToolNotAborted(context)
 
-  // Validate input if tool declares a schema
-  const args = tool.inputSchema ? tool.inputSchema.parse(payload ?? {}) : (payload ?? {})
+  // Validate input if tool declares a schema; otherwise fall back to the
+  // generated JSON schema contract emitted from Go.
+  const args = tool.inputSchema
+    ? tool.inputSchema.parse(payload ?? {})
+    : validateGeneratedToolPayload(toolName, 'parameters', payload ?? {})
 
   assertServerToolNotAborted(context)
 
   // Execute
   const result = await tool.execute(args, context)
 
-  // Validate output if tool declares a schema
-  return tool.outputSchema ? tool.outputSchema.parse(result) : result
+  // Validate output if tool declares a schema; otherwise fall back to the
+  // generated JSON schema contract emitted from Go.
+  return tool.outputSchema
+    ? tool.outputSchema.parse(result)
+    : validateGeneratedToolPayload(toolName, 'resultSchema', result)
 }

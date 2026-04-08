@@ -65,7 +65,15 @@ interface ResourceContentProps {
   workspaceId: string
   resource: MothershipResource
   previewMode?: PreviewMode
-  streamingFile?: { fileName: string; fileId?: string; content: string } | null
+  streamingFile?: {
+    toolCallId?: string
+    fileName: string
+    fileId?: string
+    targetKind?: 'new_file' | 'file_id'
+    operation?: string
+    edit?: Record<string, unknown>
+    content: string
+  } | null
   genericResourceData?: GenericResourceData
 }
 
@@ -87,11 +95,10 @@ export const ResourceContent = memo(function ResourceContent({
 
   const streamOperation = useMemo(() => {
     if (!streamingFile) return undefined
-    const m = streamingFile.content.match(/"operation"\s*:\s*"(\w+)"/)
-    return m?.[1]
+    return streamingFile.operation
   }, [streamingFile])
 
-  const isWriteStream = streamOperation === 'write'
+  const isWriteStream = streamOperation === 'create' || streamOperation === 'append'
   const isPatchStream = streamOperation === 'patch'
   const isUpdateStream = streamOperation === 'update'
 
@@ -113,23 +120,35 @@ export const ResourceContent = memo(function ResourceContent({
     isSourceMime
   )
 
+  // #region agent log
+  if (streamingFile) {
+    fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6f10b0'},body:JSON.stringify({sessionId:'6f10b0',location:'resource-content.tsx:streaming-context',message:'streaming state',data:{resourceId:resource.id,resourceType:resource.type,streamOp:streamOperation,isPatch:isPatchStream,isWrite:isWriteStream,isUpdate:isUpdateStream,hasActiveFileRecord:!!activeFileRecord,hasFetchedContent:!!fetchedFileContent,fetchedContentLen:fetchedFileContent?.length,streamingFileContentLen:streamingFile.content.length,streamingFileName:streamingFile.fileName,streamingFileMode:isWriteStream?'append':'replace'},timestamp:Date.now()})}).catch(()=>{});
+  }
+  // #endregion
   const streamingExtractedContent = useMemo(() => {
     if (!streamingFile) return undefined
-    const raw = streamingFile.content
-
-    // Do not guess. Until the operation key has streamed in, we don't know
-    // whether the payload should append, replace, or splice into the file.
-    // Rendering early here can show content at the end of the file and then
-    // "snap" to the right place once the operation/mode becomes known.
     if (!streamOperation) return undefined
 
     if (isPatchStream) {
-      if (!fetchedFileContent) return undefined
-      return extractPatchPreview(raw, fetchedFileContent)
+      if (!fetchedFileContent) {
+        // #region agent log
+        fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6f10b0'},body:JSON.stringify({sessionId:'6f10b0',location:'resource-content.tsx:patch-no-fetched',message:'patch but no fetchedFileContent',data:{resourceId:resource.id,activeFileRecordId:activeFileRecord?.id},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+        // #endregion
+        return undefined
+      }
+      const patchResult = extractPatchPreview(streamingFile, fetchedFileContent)
+      // #region agent log
+      fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6f10b0'},body:JSON.stringify({sessionId:'6f10b0',location:'resource-content.tsx:patch-result',message:'extractPatchPreview result',data:{hasPatchResult:!!patchResult,patchResultLen:patchResult?.length,fetchedLen:fetchedFileContent.length,contentPreview:streamingFile.content.slice(0,200),edit:streamingFile.edit},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
+      return patchResult
     }
 
-    const extracted = extractFileContent(raw)
+    const extracted = streamingFile.content
     if (extracted.length === 0) return undefined
+
+    // #region agent log
+    fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6f10b0'},body:JSON.stringify({sessionId:'6f10b0',location:'resource-content.tsx:write-update-content',message:'extracted content for write/update',data:{streamOp:streamOperation,extractedLen:extracted.length,extractedPreview:extracted.slice(0,150)},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
 
     if (isUpdateStream) return extracted
     if (isWriteStream) return extracted
@@ -159,6 +178,15 @@ export const ResourceContent = memo(function ResourceContent({
 
   const streamingFileMode: 'append' | 'replace' =
     isWriteStream ? 'append' : 'replace'
+
+  // For existing file resources (not streaming-file), only pass streaming
+  // content for patch operations where the preview splices new content into
+  // the displayed file. Update operations re-stream the entire file from
+  // scratch which causes visual duplication of already-visible content.
+  const embeddedStreamingContent =
+    resource.id !== 'streaming-file' && isUpdateStream
+      ? undefined
+      : streamingExtractedContent
 
   if (streamingFile && resource.id === 'streaming-file') {
     return (
@@ -192,7 +220,7 @@ export const ResourceContent = memo(function ResourceContent({
           workspaceId={workspaceId}
           fileId={resource.id}
           previewMode={previewMode}
-          streamingContent={streamingExtractedContent}
+          streamingContent={embeddedStreamingContent}
           streamingMode={streamingFileMode}
         />
       )
@@ -587,65 +615,6 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
   )
 }
 
-function extractFileContent(raw: string): string {
-  const marker = '"content":'
-  const idx = raw.indexOf(marker)
-  if (idx === -1) return ''
-  const rest = raw.slice(idx + marker.length).trimStart()
-  if (!rest.startsWith('"')) return rest
-
-  // Walk the JSON string value to find the unescaped closing quote.
-  // While streaming, the closing quote may not have arrived yet — in that
-  // case we treat everything received so far as the content (no trim).
-  let end = -1
-  for (let i = 1; i < rest.length; i++) {
-    if (rest[i] === '\\') {
-      i++ // skip escaped character
-      continue
-    }
-    if (rest[i] === '"') {
-      end = i
-      break
-    }
-  }
-
-  const inner = end === -1 ? rest.slice(1) : rest.slice(1, end)
-  return inner
-    .replace(/\\n/g, '\n')
-    .replace(/\\t/g, '\t')
-    .replace(/\\r/g, '\r')
-    .replace(/\\"/g, '"')
-    .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
-    .replace(/\\\\/g, '\\')
-}
-
-function extractJsonString(raw: string, key: string): string | undefined {
-  const pattern = new RegExp(`"${key}"\\s*:\\s*"`)
-  const m = pattern.exec(raw)
-  if (!m) return undefined
-  const start = m.index + m[0].length
-  let end = -1
-  for (let i = start; i < raw.length; i++) {
-    if (raw[i] === '\\') {
-      i++
-      continue
-    }
-    if (raw[i] === '"') {
-      end = i
-      break
-    }
-  }
-  if (end === -1) return undefined
-  return raw
-    .slice(start, end)
-    .replace(/\\n/g, '\n')
-    .replace(/\\t/g, '\t')
-    .replace(/\\r/g, '\r')
-    .replace(/\\"/g, '"')
-    .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
-    .replace(/\\\\/g, '\\')
-}
-
 function findAnchorIndex(lines: string[], anchor: string, occurrence = 1, afterIndex = -1): number {
   const trimmed = anchor.trim()
   let count = 0
@@ -658,24 +627,46 @@ function findAnchorIndex(lines: string[], anchor: string, occurrence = 1, afterI
   return -1
 }
 
-function extractPatchPreview(raw: string, existingContent: string): string | undefined {
-  const mode = extractJsonString(raw, 'mode')
+function extractPatchPreview(
+  streamingFile: {
+    content: string
+    edit?: Record<string, unknown>
+  },
+  existingContent: string
+): string | undefined {
+  const edit = streamingFile.edit ?? {}
+  const strategy = typeof edit.strategy === 'string' ? edit.strategy : undefined
+  const lines = existingContent.split('\n')
+  const occurrence =
+    typeof edit.occurrence === 'number' && Number.isFinite(edit.occurrence)
+      ? edit.occurrence
+      : 1
+
+  if (strategy === 'search_replace') {
+    const search = typeof edit.search === 'string' ? edit.search : ''
+    if (!search) return undefined
+    const replace = streamingFile.content
+    if ((edit.replaceAll as boolean | undefined) === true) {
+      return existingContent.split(search).join(replace)
+    }
+    const firstIdx = existingContent.indexOf(search)
+    if (firstIdx === -1) return undefined
+    return existingContent.slice(0, firstIdx) + replace + existingContent.slice(firstIdx + search.length)
+  }
+
+  const mode = typeof edit.mode === 'string' ? edit.mode : undefined
   if (!mode) return undefined
 
-  const lines = existingContent.split('\n')
-  const occurrenceMatch = raw.match(/"occurrence"\s*:\s*(\d+)/)
-  const occurrence = occurrenceMatch ? Number.parseInt(occurrenceMatch[1], 10) : 1
-
   if (mode === 'replace_between') {
-    const beforeAnchor = extractJsonString(raw, 'before_anchor')
-    const afterAnchor = extractJsonString(raw, 'after_anchor')
+    const beforeAnchor = typeof edit.before_anchor === 'string' ? edit.before_anchor : undefined
+    const afterAnchor = typeof edit.after_anchor === 'string' ? edit.after_anchor : undefined
     if (!beforeAnchor || !afterAnchor) return undefined
 
     const beforeIdx = findAnchorIndex(lines, beforeAnchor, occurrence)
     const afterIdx = findAnchorIndex(lines, afterAnchor, occurrence, beforeIdx)
     if (beforeIdx === -1 || afterIdx === -1 || afterIdx <= beforeIdx) return undefined
 
-    const newContent = extractFileContent(raw)
+    const newContent = streamingFile.content
     const spliced = [
       ...lines.slice(0, beforeIdx + 1),
       ...(newContent.length > 0 ? newContent.split('\n') : []),
@@ -685,13 +676,13 @@ function extractPatchPreview(raw: string, existingContent: string): string | und
   }
 
   if (mode === 'insert_after') {
-    const anchor = extractJsonString(raw, 'anchor')
+    const anchor = typeof edit.anchor === 'string' ? edit.anchor : undefined
     if (!anchor) return undefined
 
     const anchorIdx = findAnchorIndex(lines, anchor, occurrence)
     if (anchorIdx === -1) return undefined
 
-    const newContent = extractFileContent(raw)
+    const newContent = streamingFile.content
     const spliced = [
       ...lines.slice(0, anchorIdx + 1),
       ...(newContent.length > 0 ? newContent.split('\n') : []),
@@ -701,8 +692,8 @@ function extractPatchPreview(raw: string, existingContent: string): string | und
   }
 
   if (mode === 'delete_between') {
-    const startAnchor = extractJsonString(raw, 'start_anchor')
-    const endAnchor = extractJsonString(raw, 'end_anchor')
+    const startAnchor = typeof edit.start_anchor === 'string' ? edit.start_anchor : undefined
+    const endAnchor = typeof edit.end_anchor === 'string' ? edit.end_anchor : undefined
     if (!startAnchor || !endAnchor) return undefined
 
     const startIdx = findAnchorIndex(lines, startAnchor, occurrence)

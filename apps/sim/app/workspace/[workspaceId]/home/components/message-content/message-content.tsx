@@ -210,7 +210,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     if (block.type === 'tool_call') {
       if (!block.toolCall) continue
       const tc = block.toolCall
-      if (tc.name === ToolSearchToolRegex.id || tc.name === 'set_file_context') continue
+      if (tc.name === ToolSearchToolRegex.id) continue
       if (tc.name === ReadTool.id && isToolResultRead(tc.params)) continue
       const isDispatch = SUBAGENT_KEYS.has(tc.name) && !tc.calledBy
 

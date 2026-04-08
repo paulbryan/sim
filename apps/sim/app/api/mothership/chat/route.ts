@@ -189,7 +189,6 @@ export async function POST(req: NextRequest) {
           logger.error(`[${tracker.requestId}] Failed to process contexts`, e)
         }
       }
-    }
       if (Array.isArray(resourceAttachments) && resourceAttachments.length > 0) {
         const results = await Promise.allSettled(
           resourceAttachments.map(async (r) => {

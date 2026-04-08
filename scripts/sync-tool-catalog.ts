@@ -9,6 +9,10 @@ const DEFAULT_CATALOG_PATH = resolve(
   '../copilot/copilot/contracts/tool-catalog-v1.json'
 )
 const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/tool-catalog-v1.ts')
+const RUNTIME_SCHEMA_OUTPUT_PATH = resolve(
+  ROOT,
+  'apps/sim/lib/copilot/generated/tool-schemas-v1.ts'
+)
 
 function snakeToPascal(s: string): string {
   return s.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
@@ -22,7 +26,43 @@ function inferTSType(values: unknown[]): string {
   }
   if (unique.every((v) => typeof v === 'boolean')) return 'boolean'
   if (unique.every((v) => typeof v === 'number')) return 'number'
-  return 'string'
+  return 'unknown'
+}
+
+function renderRuntimeSchemaModule(catalog: { tools: Record<string, unknown>[] }): string {
+  const lines: string[] = [
+    '// AUTO-GENERATED FILE. DO NOT EDIT.',
+    '// Generated from copilot/contracts/tool-catalog-v1.json',
+    '//',
+    '',
+    'export type JsonSchema = unknown',
+    '',
+    'export interface ToolRuntimeSchemaEntry {',
+    '  parameters?: JsonSchema;',
+    '  resultSchema?: JsonSchema;',
+    '}',
+    '',
+    'export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {',
+  ]
+
+  for (const tool of catalog.tools) {
+    const id = JSON.stringify(tool.id)
+    const parameters = 'parameters' in tool ? JSON.stringify(tool.parameters ?? null, null, 2) : 'undefined'
+    const resultSchema =
+      'resultSchema' in tool ? JSON.stringify(tool.resultSchema ?? null, null, 2) : 'undefined'
+    lines.push(`  [${id}]: {`)
+    lines.push(
+      `    parameters: ${parameters === 'null' ? 'undefined' : parameters.replace(/\n/g, '\n    ')},`
+    )
+    lines.push(
+      `    resultSchema: ${resultSchema === 'null' ? 'undefined' : resultSchema.replace(/\n/g, '\n    ')},`
+    )
+    lines.push('  },')
+  }
+
+  lines.push('}')
+  lines.push('')
+  return lines.join('\n')
 }
 
 function generateInterface(tools: Record<string, unknown>[]): string {
@@ -95,10 +135,12 @@ async function main() {
   lines.push('')
 
   const rendered = lines.join('\n')
+  const runtimeSchemaRendered = renderRuntimeSchemaModule(catalog)
 
   if (checkOnly) {
     const existing = await readFile(OUTPUT_PATH, 'utf8').catch(() => null)
-    if (existing !== rendered) {
+    const existingRuntime = await readFile(RUNTIME_SCHEMA_OUTPUT_PATH, 'utf8').catch(() => null)
+    if (existing !== rendered || existingRuntime !== runtimeSchemaRendered) {
       throw new Error(
         `Generated tool catalog is stale. Run: bun run mship-tools:generate`
       )
@@ -108,6 +150,8 @@ async function main() {
 
   await mkdir(dirname(OUTPUT_PATH), { recursive: true })
   await writeFile(OUTPUT_PATH, rendered, 'utf8')
+  await mkdir(dirname(RUNTIME_SCHEMA_OUTPUT_PATH), { recursive: true })
+  await writeFile(RUNTIME_SCHEMA_OUTPUT_PATH, runtimeSchemaRendered, 'utf8')
 }
 
 await main()

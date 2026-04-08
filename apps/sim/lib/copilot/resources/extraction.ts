@@ -42,6 +42,10 @@ function getOperation(params: Record<string, unknown> | undefined): string | und
   return (args.operation ?? params?.operation) as string | undefined
 }
 
+function getWorkspaceFileTarget(params: Record<string, unknown> | undefined): Record<string, unknown> {
+  return asRecord(params?.target)
+}
+
 const READ_ONLY_TABLE_OPS = new Set(['get', 'get_schema', 'get_row', 'query_rows'])
 const READ_ONLY_KB_OPS = new Set(['get', 'query', 'list_tags', 'get_tag_usage'])
 const READ_ONLY_KNOWLEDGE_ACTIONS = new Set(['listed', 'queried'])
@@ -250,7 +254,11 @@ export function extractDeletedResourcesFromToolResult(
 
     case WorkspaceFile.id: {
       if (operation !== 'delete') return []
-      const fileId = (data.id as string) ?? (args.fileId as string)
+      const target = getWorkspaceFileTarget(params)
+      const fileId =
+        (data.id as string) ??
+        (target.fileId as string) ??
+        (args.fileId as string)
       if (fileId) {
         return [{ type: resourceType, id: fileId, title: (data.name as string) || 'File' }]
       }

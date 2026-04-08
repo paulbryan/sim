@@ -5,6 +5,7 @@ import {
   MothershipStreamV1ToolOutcome,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
+  type ChatContextKind,
   type ChatMessage,
   type ChatMessageAttachment,
   type ChatMessageContext,
@@ -83,12 +84,14 @@ function toDisplayContexts(
 ): ChatMessageContext[] | undefined {
   if (!contexts || contexts.length === 0) return undefined
   return contexts.map((c) => ({
-    kind: c.kind,
+    kind: c.kind as ChatContextKind,
     label: c.label,
     ...(c.workflowId ? { workflowId: c.workflowId } : {}),
     ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
     ...(c.tableId ? { tableId: c.tableId } : {}),
     ...(c.fileId ? { fileId: c.fileId } : {}),
+    ...(c.folderId ? { folderId: c.folderId } : {}),
+    ...(c.chatId ? { chatId: c.chatId } : {}),
   }))
 }
 

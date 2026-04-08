@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import {
   CheckDeploymentStatus,
   CompleteJob,
-  CreateFile,
   CreateFolder,
   CreateJob,
   CreateWorkflow,
@@ -45,7 +44,6 @@ import {
   RunFromBlock,
   RunWorkflow,
   RunWorkflowUntilBlock,
-  SetFileContext,
   SetGlobalWorkflowVariables,
   UpdateJobHistory,
   UpdateWorkspaceMcpServer,
@@ -67,8 +65,6 @@ import {
   executeRevertToVersion,
   executeUpdateWorkspaceMcpServer,
 } from '../tools/handlers/deployment/manage'
-import { executeCreateFile } from '../tools/handlers/files/create-file'
-import { executeSetFileContext } from '../tools/handlers/files/set-file-context'
 import { executeFunctionExecute } from '../tools/handlers/function-execute'
 import {
   executeCompleteJob,
@@ -183,8 +179,6 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [GetPlatformActions.id]: h(executeGetPlatformActions),
     [MaterializeFile.id]: h(executeMaterializeFile),
     [FunctionExecute.id]: h(executeFunctionExecute),
-    [CreateFile.id]: h(executeCreateFile),
-    [SetFileContext.id]: h(executeSetFileContext),
 
     ...buildServerToolHandlers(),
   }

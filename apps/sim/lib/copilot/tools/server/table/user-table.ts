@@ -5,7 +5,6 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import type { UserTableArgs, UserTableResult } from '@/lib/copilot/tools/shared/schemas'
 import { generateId } from '@/lib/core/utils/uuid'
 import { COLUMN_TYPES } from '@/lib/table/constants'
 import {
@@ -37,6 +36,17 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('UserTableServerTool')
+
+type UserTableArgs = {
+  operation: string
+  args?: Record<string, any>
+}
+
+type UserTableResult = {
+  success: boolean
+  message: string
+  data?: any
+}
 
 const MAX_BATCH_SIZE = 1000
 const SCHEMA_SAMPLE_SIZE = 100

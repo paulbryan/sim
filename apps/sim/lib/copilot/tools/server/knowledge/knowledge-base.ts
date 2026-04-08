@@ -9,7 +9,6 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import type { KnowledgeBaseArgs, KnowledgeBaseResult } from '@/lib/copilot/tools/shared/schemas'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
 import {
@@ -39,6 +38,17 @@ import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/
 import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/search/utils'
 
 const logger = createLogger('KnowledgeBaseServerTool')
+
+type KnowledgeBaseArgs = {
+  operation: string
+  args?: Record<string, any>
+}
+
+type KnowledgeBaseResult = {
+  success: boolean
+  message: string
+  data?: any
+}
 
 /**
  * Knowledge base tool for copilot to create, list, and get knowledge bases

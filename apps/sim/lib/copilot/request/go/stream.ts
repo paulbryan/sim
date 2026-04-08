@@ -22,6 +22,92 @@ import type {
 
 const logger = createLogger('CopilotGoStream')
 
+type FilePreviewServerState = {
+  raw: string
+  started: boolean
+  operation?: string
+  targetKind?: string
+  fileId?: string
+  fileName?: string
+  title?: string
+  editMetaKey?: string
+  targetKey?: string
+  emittedContentLength: number
+}
+
+function extractJsonString(raw: string, key: string): string | undefined {
+  const pattern = new RegExp(`"${key}"\\s*:\\s*"`)
+  const m = pattern.exec(raw)
+  if (!m) return undefined
+  const start = m.index + m[0].length
+  let end = -1
+  for (let i = start; i < raw.length; i++) {
+    if (raw[i] === '\\') {
+      i++
+      continue
+    }
+    if (raw[i] === '"') {
+      end = i
+      break
+    }
+  }
+  if (end === -1) return undefined
+  return raw
+    .slice(start, end)
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\r/g, '\r')
+    .replace(/\\"/g, '"')
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+    .replace(/\\\\/g, '\\')
+}
+
+function extractJsonBoolean(raw: string, key: string): boolean | undefined {
+  const match = raw.match(new RegExp(`"${key}"\\s*:\\s*(true|false)`))
+  if (!match) return undefined
+  return match[1] === 'true'
+}
+
+function extractJsonNumber(raw: string, key: string): number | undefined {
+  const match = raw.match(new RegExp(`"${key}"\\s*:\\s*(\\d+)`))
+  if (!match) return undefined
+  return Number.parseInt(match[1], 10)
+}
+
+function extractStreamedContent(raw: string, preferredKey: 'content' | 'replace'): string {
+  const marker = `"${preferredKey}":`
+  const idx = raw.indexOf(marker)
+  if (idx === -1) return ''
+  const rest = raw.slice(idx + marker.length).trimStart()
+  if (!rest.startsWith('"')) return rest
+  let end = -1
+  for (let i = 1; i < rest.length; i++) {
+    if (rest[i] === '\\') {
+      i++
+      continue
+    }
+    if (rest[i] === '"') {
+      end = i
+      break
+    }
+  }
+  const inner = end === -1 ? rest.slice(1) : rest.slice(1, end)
+  return inner
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\r/g, '\r')
+    .replace(/\\"/g, '"')
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+    .replace(/\\\\/g, '\\')
+}
+
+function buildPreviewContent(raw: string, strategy?: string): string {
+  if (strategy === 'search_replace') {
+    return extractStreamedContent(raw, 'replace')
+  }
+  return extractStreamedContent(raw, 'content')
+}
+
 export class CopilotBackendError extends Error {
   status?: number
   body?: string
@@ -74,6 +160,7 @@ export async function runStreamLoop(
   options: StreamLoopOptions
 ): Promise<void> {
   const { timeout = ORCHESTRATION_TIMEOUT_MS, abortSignal } = options
+  const filePreviewState = new Map<string, FilePreviewServerState>()
 
   const fetchSpan = context.trace.startSpan(
     `HTTP Request → ${new URL(fetchUrl).pathname}`,
@@ -134,6 +221,144 @@ export async function runStreamLoop(
 
       if (shouldSkipToolCallEvent(streamEvent) || shouldSkipToolResultEvent(streamEvent)) {
         return
+      }
+
+      if (
+        streamEvent.type === MothershipStreamV1EventType.tool &&
+        streamEvent.payload.phase === 'args_delta' &&
+        streamEvent.payload.toolName === 'workspace_file' &&
+        typeof streamEvent.payload.toolCallId === 'string' &&
+        typeof streamEvent.payload.argumentsDelta === 'string'
+      ) {
+        const toolCallId = streamEvent.payload.toolCallId as string
+        const delta = streamEvent.payload.argumentsDelta as string
+        const state = filePreviewState.get(toolCallId) ?? {
+          raw: '',
+          started: false,
+          emittedContentLength: 0,
+        }
+        state.raw += delta
+
+        if (!state.started) {
+          state.started = true
+          await options.onEvent?.({
+            type: MothershipStreamV1EventType.tool,
+            payload: {
+              toolCallId,
+              toolName: 'workspace_file',
+              previewPhase: 'file_preview_start',
+            },
+            ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
+          })
+        }
+
+        const operation = extractJsonString(state.raw, 'operation')
+        const targetKind = extractJsonString(state.raw, 'kind')
+        const fileId = extractJsonString(state.raw, 'fileId')
+        const fileName = extractJsonString(state.raw, 'fileName')
+        const title = extractJsonString(state.raw, 'title')
+        if (operation) state.operation = operation
+        if (targetKind) state.targetKind = targetKind
+        if (fileId) state.fileId = fileId
+        if (fileName) state.fileName = fileName
+        if (title) state.title = title
+
+        const targetKey = JSON.stringify({
+          operation: state.operation,
+          targetKind: state.targetKind,
+          fileId: state.fileId,
+          fileName: state.fileName,
+          title: state.title,
+        })
+        if (
+          state.targetKind &&
+          (state.targetKind === 'new_file' ? !!state.fileName : !!state.fileId) &&
+          state.targetKey !== targetKey
+        ) {
+          state.targetKey = targetKey
+          await options.onEvent?.({
+            type: MothershipStreamV1EventType.tool,
+            payload: {
+              toolCallId,
+              toolName: 'workspace_file',
+              previewPhase: 'file_preview_target',
+              operation: state.operation,
+              target: {
+                kind: state.targetKind,
+                ...(state.fileId ? { fileId: state.fileId } : {}),
+                ...(state.fileName ? { fileName: state.fileName } : {}),
+              },
+              ...(state.title ? { title: state.title } : {}),
+            },
+            ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
+          })
+        }
+
+        const strategy = extractJsonString(state.raw, 'strategy')
+        const editMetaPayload = strategy
+          ? {
+              strategy,
+              ...(extractJsonString(state.raw, 'mode')
+                ? { mode: extractJsonString(state.raw, 'mode') }
+                : {}),
+              ...(extractJsonNumber(state.raw, 'occurrence') !== undefined
+                ? { occurrence: extractJsonNumber(state.raw, 'occurrence') }
+                : {}),
+              ...(extractJsonString(state.raw, 'search')
+                ? { search: extractJsonString(state.raw, 'search') }
+                : {}),
+              ...(extractJsonBoolean(state.raw, 'replaceAll') !== undefined
+                ? { replaceAll: extractJsonBoolean(state.raw, 'replaceAll') }
+                : {}),
+              ...(extractJsonString(state.raw, 'before_anchor')
+                ? { before_anchor: extractJsonString(state.raw, 'before_anchor') }
+                : {}),
+              ...(extractJsonString(state.raw, 'after_anchor')
+                ? { after_anchor: extractJsonString(state.raw, 'after_anchor') }
+                : {}),
+              ...(extractJsonString(state.raw, 'anchor')
+                ? { anchor: extractJsonString(state.raw, 'anchor') }
+                : {}),
+              ...(extractJsonString(state.raw, 'start_anchor')
+                ? { start_anchor: extractJsonString(state.raw, 'start_anchor') }
+                : {}),
+              ...(extractJsonString(state.raw, 'end_anchor')
+                ? { end_anchor: extractJsonString(state.raw, 'end_anchor') }
+                : {}),
+            }
+          : undefined
+        const editMetaKey = editMetaPayload ? JSON.stringify(editMetaPayload) : undefined
+        if (editMetaPayload && state.editMetaKey !== editMetaKey) {
+          state.editMetaKey = editMetaKey
+          await options.onEvent?.({
+            type: MothershipStreamV1EventType.tool,
+            payload: {
+              toolCallId,
+              toolName: 'workspace_file',
+              previewPhase: 'file_preview_edit_meta',
+              edit: editMetaPayload,
+            },
+            ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
+          })
+        }
+
+        const streamedContent = buildPreviewContent(state.raw, strategy)
+        if (streamedContent.length > state.emittedContentLength) {
+          const contentDelta = streamedContent.slice(state.emittedContentLength)
+          state.emittedContentLength = streamedContent.length
+          await options.onEvent?.({
+            type: MothershipStreamV1EventType.tool,
+            payload: {
+              toolCallId,
+              toolName: 'workspace_file',
+              previewPhase: 'file_preview_content_delta',
+              delta: contentDelta,
+            },
+            ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
+          })
+        }
+
+        filePreviewState.set(toolCallId, state)
       }
 
       try {
