@@ -365,15 +365,24 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
         case 'patch': {
           const fileId = (args as Record<string, unknown>).fileId as string | undefined
-          const edits = (args as Record<string, unknown>).edits as
+          const edit = (args as Record<string, unknown>).edit as
+            | {
+                mode: string
+                before_anchor?: string
+                after_anchor?: string
+                start_anchor?: string
+                end_anchor?: string
+                anchor?: string
+                content?: string
+                occurrence?: number
+              }
+            | undefined
+          const legacyEdits = (args as Record<string, unknown>).edits as
             | { search: string; replace: string }[]
             | undefined
 
           if (!fileId) {
             return { success: false, message: 'fileId is required for patch operation' }
-          }
-          if (!edits || !Array.isArray(edits) || edits.length === 0) {
-            return { success: false, message: 'edits array is required for patch operation' }
           }
 
           const fileRecord = await getWorkspaceFile(workspaceId, fileId)
@@ -384,24 +393,122 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           const currentBuffer = await downloadWsFile(fileRecord)
           let content = currentBuffer.toString('utf-8')
 
-          for (const edit of edits) {
-            const firstIdx = content.indexOf(edit.search)
-            if (firstIdx === -1) {
+          if (edit && typeof edit.mode === 'string') {
+            const lines = content.split('\n')
+
+            const defaultOccurrence = edit.occurrence ?? 1
+
+            const findAnchorLine = (
+              anchor: string,
+              occurrence = defaultOccurrence,
+              afterIndex = -1
+            ): { index: number; error?: string } => {
+              const trimmed = anchor.trim()
+              let count = 0
+              for (let i = afterIndex + 1; i < lines.length; i++) {
+                if (lines[i].trim() === trimmed) {
+                  count++
+                  if (count === occurrence) return { index: i }
+                }
+              }
+              if (count === 0) {
+                return {
+                  index: -1,
+                  error: `Anchor line not found in "${fileRecord.name}": "${anchor.slice(0, 100)}"`,
+                }
+              }
               return {
-                success: false,
-                message: `Patch failed: search string not found in file "${fileRecord.name}". Search: "${edit.search.slice(0, 100)}${edit.search.length > 100 ? '...' : ''}"`,
+                index: -1,
+                error: `Anchor line occurrence ${occurrence} not found (only ${count} match${count > 1 ? 'es' : ''}) in "${fileRecord.name}": "${anchor.slice(0, 100)}"`,
               }
             }
-            if (content.indexOf(edit.search, firstIdx + 1) !== -1) {
+
+            if (edit.mode === 'replace_between') {
+              if (!edit.before_anchor || !edit.after_anchor) {
+                return {
+                  success: false,
+                  message: 'replace_between requires before_anchor and after_anchor',
+                }
+              }
+              const before = findAnchorLine(edit.before_anchor)
+              if (before.error) return { success: false, message: `Patch failed: ${before.error}` }
+              const after = findAnchorLine(edit.after_anchor, defaultOccurrence, before.index)
+              if (after.error) return { success: false, message: `Patch failed: ${after.error}` }
+              if (after.index <= before.index) {
+                return {
+                  success: false,
+                  message: 'Patch failed: after_anchor must appear after before_anchor in the file',
+                }
+              }
+
+              const newLines = [
+                ...lines.slice(0, before.index + 1),
+                ...(edit.content ?? '').split('\n'),
+                ...lines.slice(after.index),
+              ]
+              content = newLines.join('\n')
+            } else if (edit.mode === 'insert_after') {
+              if (!edit.anchor) {
+                return { success: false, message: 'insert_after requires anchor' }
+              }
+              const found = findAnchorLine(edit.anchor)
+              if (found.error) return { success: false, message: `Patch failed: ${found.error}` }
+
+              const newLines = [
+                ...lines.slice(0, found.index + 1),
+                ...(edit.content ?? '').split('\n'),
+                ...lines.slice(found.index + 1),
+              ]
+              content = newLines.join('\n')
+            } else if (edit.mode === 'delete_between') {
+              if (!edit.start_anchor || !edit.end_anchor) {
+                return {
+                  success: false,
+                  message: 'delete_between requires start_anchor and end_anchor',
+                }
+              }
+              const start = findAnchorLine(edit.start_anchor)
+              if (start.error) return { success: false, message: `Patch failed: ${start.error}` }
+              const end = findAnchorLine(edit.end_anchor, defaultOccurrence, start.index)
+              if (end.error) return { success: false, message: `Patch failed: ${end.error}` }
+              if (end.index <= start.index) {
+                return {
+                  success: false,
+                  message: 'Patch failed: end_anchor must appear after start_anchor in the file',
+                }
+              }
+
+              const newLines = [...lines.slice(0, start.index), ...lines.slice(end.index)]
+              content = newLines.join('\n')
+            } else {
               return {
                 success: false,
-                message: `Patch failed: search string is ambiguous — found at multiple locations in "${fileRecord.name}". Use a longer, unique search string.`,
+                message: `Unknown edit mode: "${edit.mode}". Use "replace_between", "insert_after", or "delete_between".`,
               }
             }
-            content =
-              content.slice(0, firstIdx) +
-              edit.replace +
-              content.slice(firstIdx + edit.search.length)
+          } else if (legacyEdits && Array.isArray(legacyEdits) && legacyEdits.length > 0) {
+            for (const le of legacyEdits) {
+              const firstIdx = content.indexOf(le.search)
+              if (firstIdx === -1) {
+                return {
+                  success: false,
+                  message: `Patch failed: search string not found in file "${fileRecord.name}". Search: "${le.search.slice(0, 100)}${le.search.length > 100 ? '...' : ''}"`,
+                }
+              }
+              if (content.indexOf(le.search, firstIdx + 1) !== -1) {
+                return {
+                  success: false,
+                  message: `Patch failed: search string is ambiguous — found at multiple locations in "${fileRecord.name}". Use a longer, unique search string.`,
+                }
+              }
+              content =
+                content.slice(0, firstIdx) + le.replace + content.slice(firstIdx + le.search.length)
+            }
+          } else {
+            return {
+              success: false,
+              message: 'patch requires either an edit object (with mode) or a legacy edits array',
+            }
           }
 
           const patchLowerName = fileRecord.name?.toLowerCase() ?? ''
@@ -445,16 +552,17 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             patchSourceMime
           )
 
+          const editMode = edit?.mode ?? 'legacy'
           logger.info('Workspace file patched via copilot', {
             fileId,
             name: fileRecord.name,
-            editCount: edits.length,
+            editMode,
             userId: context.userId,
           })
 
           return {
             success: true,
-            message: `File "${fileRecord.name}" patched successfully (${edits.length} edit${edits.length > 1 ? 's' : ''} applied)`,
+            message: `File "${fileRecord.name}" patched successfully (${editMode} edit applied)`,
             data: {
               id: fileId,
               name: fileRecord.name,

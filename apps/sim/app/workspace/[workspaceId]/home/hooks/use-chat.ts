@@ -942,6 +942,9 @@ export function useChat(
                   tc.streamingArgs = (tc.streamingArgs ?? '') + delta
 
                   if (tc.name === WorkspaceFile.id) {
+                    const opMatch = tc.streamingArgs.match(/"operation"\s*:\s*"(\w+)"/)
+                    const op = opMatch?.[1] ?? ''
+                    const verb = op === 'patch' || op === 'update' ? 'Editing' : 'Writing'
                     const titleMatch = tc.streamingArgs.match(/"title"\s*:\s*"([^"]*)"/)
                     if (titleMatch?.[1]) {
                       const unescaped = titleMatch[1]
@@ -950,7 +953,7 @@ export function useChat(
                         )
                         .replace(/\\"/g, '"')
                         .replace(/\\\\/g, '\\')
-                      tc.displayTitle = `Writing ${unescaped}`
+                      tc.displayTitle = `${verb} ${unescaped}`
                     }
                   }
 
@@ -1120,12 +1123,14 @@ export function useChat(
                 | undefined
 
               if (name === WorkspaceFile.id) {
+                const operation = typeof args?.operation === 'string' ? args.operation : ''
+                const verb = operation === 'patch' || operation === 'update' ? 'Editing' : 'Writing'
                 const innerArgs = args ? asPayloadRecord(args.args) : undefined
                 const chunkTitle = innerArgs?.title as string | undefined
                 if (chunkTitle) {
-                  displayTitle = `Writing ${chunkTitle}`
+                  displayTitle = `${verb} ${chunkTitle}`
                 } else if (activeFileContextRef.current?.fileName) {
-                  displayTitle = `Writing ${activeFileContextRef.current.fileName}`
+                  displayTitle = `${verb} ${activeFileContextRef.current.fileName}`
                 }
               }
 

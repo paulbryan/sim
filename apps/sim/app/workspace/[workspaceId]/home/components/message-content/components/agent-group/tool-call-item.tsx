@@ -104,13 +104,16 @@ export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: 
     if (toolName !== WorkspaceFile.id || !streamingArgs) return null
     const titleMatch = streamingArgs.match(/"title"\s*:\s*"([^"]+)"/)
     if (!titleMatch?.[1]) return null
+    const opMatch = streamingArgs.match(/"operation"\s*:\s*"(\w+)"/)
+    const op = opMatch?.[1] ?? ''
+    const verb = op === 'patch' || op === 'update' ? 'Editing' : 'Writing'
     const unescaped = titleMatch[1]
       .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) =>
         String.fromCharCode(Number.parseInt(hex, 16))
       )
       .replace(/\\"/g, '"')
       .replace(/\\\\/g, '\\')
-    return `Writing ${unescaped}`
+    return `${verb} ${unescaped}`
   }, [toolName, streamingArgs])
   const extracted = useMemo(() => {
     if (toolName !== FunctionExecute.id || !streamingArgs) return null
