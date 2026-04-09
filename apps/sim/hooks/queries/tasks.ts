@@ -85,7 +85,9 @@ export async function fetchChatHistory(
     return {
       id: chat.id,
       title: chat.title,
-      messages: Array.isArray(chat.messages) ? chat.messages : [],
+      messages: Array.isArray(chat.messages)
+        ? chat.messages.map((m: Record<string, unknown>) => normalizeMessage(m))
+        : [],
       activeStreamId: chat.conversationId || null,
       resources: Array.isArray(chat.resources) ? chat.resources : [],
       streamSnapshot: chat.streamSnapshot || null,
