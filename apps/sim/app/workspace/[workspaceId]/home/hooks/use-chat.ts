@@ -368,6 +368,15 @@ export function useChat(
       options?: { preserveExistingState?: boolean }
     ) => Promise<{ sawStreamError: boolean; sawComplete: boolean }>
   >(async () => ({ sawStreamError: false, sawComplete: false }))
+  const attachToExistingStreamRef = useRef<
+    (opts: {
+      streamId: string
+      assistantId: string
+      expectedGen: number
+      initialBatch?: StreamBatchResponse | null
+      afterCursor?: string
+    }) => Promise<{ error: boolean; aborted: boolean }>
+  >(async () => ({ error: false, aborted: true }))
   const retryReconnectRef = useRef<
     (opts: { streamId: string; assistantId: string; gen: number }) => Promise<boolean>
   >(async () => false)
@@ -617,7 +626,7 @@ export function useChat(
 
         const reconnectResult =
           snapshotEvents.length > 0
-            ? await attachToExistingStream({
+            ? await attachToExistingStreamRef.current({
                 streamId: activeStreamId,
                 assistantId,
                 expectedGen: gen,
@@ -1613,6 +1622,7 @@ export function useChat(
     },
     [fetchStreamBatch]
   )
+  attachToExistingStreamRef.current = attachToExistingStream
 
   const resumeOrFinalize = useCallback(
     async (opts: {

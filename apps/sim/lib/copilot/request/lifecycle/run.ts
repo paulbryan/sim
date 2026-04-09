@@ -282,6 +282,12 @@ async function runCheckpointLoop(
       )
     }
 
+    if (isAborted(options, context)) {
+      cancelPendingTools(context)
+      context.awaitingAsyncContinuation = undefined
+      break
+    }
+
     const results: Array<{
       callId: string
       name: string
@@ -289,6 +295,11 @@ async function runCheckpointLoop(
       success: boolean
     }> = []
     for (const toolCallId of continuation.pendingToolCallIds) {
+      if (isAborted(options, context)) {
+        cancelPendingTools(context)
+        context.awaitingAsyncContinuation = undefined
+        break
+      }
       const tool = context.toolCalls.get(toolCallId)
       if (!tool || (!tool.result && !tool.error)) {
         logger.error('Missing tool result for pending tool call', {
@@ -309,6 +320,12 @@ async function runCheckpointLoop(
       })
     }
 
+    if (isAborted(options, context)) {
+      cancelPendingTools(context)
+      context.awaitingAsyncContinuation = undefined
+      break
+    }
+
     logger.info('Resuming with tool results', {
       checkpointId: continuation.checkpointId,
       runId: continuation.runId,
@@ -324,6 +341,13 @@ async function runCheckpointLoop(
       checkpointId: continuation.checkpointId,
       results,
     }
+
+    if (isAborted(options, context)) {
+      cancelPendingTools(context)
+      context.awaitingAsyncContinuation = undefined
+      break
+    }
+
     logger.info('Prepared resume request payload', {
       route,
       streamId: context.messageId,
