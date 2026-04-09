@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentPropsWithoutRef, useMemo } from 'react'
+import { type ComponentPropsWithoutRef, useEffect, useMemo, useRef } from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import 'prismjs/components/prism-typescript'
@@ -181,6 +181,18 @@ export function ChatContent({
   onOptionSelect,
   smoothStreaming = true,
 }: ChatContentProps) {
+  const hydratedStreamingRef = useRef(isStreaming && content.trim().length > 0)
+  const previousIsStreamingRef = useRef(isStreaming)
+
+  useEffect(() => {
+    if (!previousIsStreamingRef.current && isStreaming && content.trim().length > 0) {
+      hydratedStreamingRef.current = true
+    } else if (!isStreaming) {
+      hydratedStreamingRef.current = false
+    }
+    previousIsStreamingRef.current = isStreaming
+  }, [content, isStreaming])
+
   const rendered = useStreamingText(content, isStreaming && smoothStreaming)
 
   const parsed = useMemo(() => parseSpecialTags(rendered, isStreaming), [rendered, isStreaming])
@@ -216,7 +228,7 @@ export function ChatContent({
       <Streamdown
         mode={isStreaming ? undefined : 'static'}
         isAnimating={isStreaming}
-        animated={isStreaming}
+        animated={isStreaming && !hydratedStreamingRef.current}
         components={MARKDOWN_COMPONENTS}
       >
         {rendered}
