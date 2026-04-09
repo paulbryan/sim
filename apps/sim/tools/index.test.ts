@@ -488,7 +488,10 @@ describe('Automatic Internal Route Detection', () => {
 
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
     mockSecureFetchWithPinnedIP.mockResolvedValue(
-      new Response(JSON.stringify({}), { status: 200, headers: { 'content-type': 'application/json' } })
+      new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
     )
   })
 
