@@ -106,7 +106,13 @@ vi.mock('@/lib/core/config/redis', () => ({
   getRedisClient: () => mockRedis,
 }))
 
-import { allocateCursor, appendEvent, readEvents } from '@/lib/copilot/request/session/buffer'
+import {
+  allocateCursor,
+  appendEvent,
+  clearBuffer,
+  readEvents,
+  scheduleBufferCleanup,
+} from '@/lib/copilot/request/session/buffer'
 
 describe('mothership-stream-outbox', () => {
   beforeEach(() => {
@@ -114,7 +120,7 @@ describe('mothership-stream-outbox', () => {
     vi.clearAllMocks()
   })
 
-  it.concurrent('replays envelopes after a given cursor', async () => {
+  it('replays envelopes after a given cursor', async () => {
     const firstCursor = await allocateCursor('stream-1')
     const secondCursor = await allocateCursor('stream-1')
 
@@ -144,5 +150,67 @@ describe('mothership-stream-outbox', () => {
 
     const replayed = await readEvents('stream-1', '1')
     expect(replayed.map((entry) => entry.payload.text)).toEqual(['world'])
+  })
+
+  it('does not trim active stream history while appending events', async () => {
+    const cursor = await allocateCursor('stream-1')
+
+    await appendEvent(
+      createEvent({
+        streamId: 'stream-1',
+        cursor: cursor.cursor,
+        seq: cursor.seq,
+        requestId: 'req-1',
+        type: MothershipStreamV1EventType.text,
+        payload: { channel: MothershipStreamV1TextChannel.assistant, text: 'hello' },
+      })
+    )
+
+    expect(mockRedis.zremrangebyrank).not.toHaveBeenCalled()
+  })
+
+  it('clears persisted stream state during teardown cleanup', async () => {
+    const cursor = await allocateCursor('stream-1')
+
+    await appendEvent(
+      createEvent({
+        streamId: 'stream-1',
+        cursor: cursor.cursor,
+        seq: cursor.seq,
+        requestId: 'req-1',
+        type: MothershipStreamV1EventType.text,
+        payload: { channel: MothershipStreamV1TextChannel.assistant, text: 'hello' },
+      })
+    )
+
+    expect((await readEvents('stream-1', '0')).length).toBe(1)
+
+    await clearBuffer('stream-1')
+
+    expect(await readEvents('stream-1', '0')).toEqual([])
+  })
+
+  it('shortens completed stream retention without deleting replay data immediately', async () => {
+    const cursor = await allocateCursor('stream-1')
+
+    await appendEvent(
+      createEvent({
+        streamId: 'stream-1',
+        cursor: cursor.cursor,
+        seq: cursor.seq,
+        requestId: 'req-1',
+        type: MothershipStreamV1EventType.text,
+        payload: { channel: MothershipStreamV1TextChannel.assistant, text: 'hello' },
+      })
+    )
+
+    await scheduleBufferCleanup('stream-1', 30)
+
+    expect(mockRedis.expire).toHaveBeenCalledWith('mothership_stream:stream-1:events', 30)
+    expect(mockRedis.expire).toHaveBeenCalledWith('mothership_stream:stream-1:seq', 30)
+    expect(mockRedis.expire).toHaveBeenCalledWith('mothership_stream:stream-1:abort', 30)
+    expect((await readEvents('stream-1', '0')).map((entry) => entry.payload.text)).toEqual([
+      'hello',
+    ])
   })
 })

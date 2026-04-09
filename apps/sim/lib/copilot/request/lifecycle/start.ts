@@ -18,6 +18,7 @@ import {
   releasePendingChatStream,
   resetBuffer,
   StreamWriter,
+  scheduleBufferCleanup,
   startAbortPoller,
   unregisterActiveStream,
 } from '@/lib/copilot/request/session'
@@ -205,6 +206,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         if (chatId) {
           await releasePendingChatStream(chatId, streamId)
         }
+        await scheduleBufferCleanup(streamId)
         await cleanupAbortMarker(streamId)
 
         const trace = collector.build({

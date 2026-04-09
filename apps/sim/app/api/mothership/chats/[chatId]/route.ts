@@ -12,6 +12,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { readEvents } from '@/lib/copilot/request/session/buffer'
+import { type StreamBatchEvent, toStreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -47,7 +48,7 @@ export async function GET(
     }
 
     let streamSnapshot: {
-      events: unknown[]
+      events: StreamBatchEvent[]
       status: string
     } | null = null
 
@@ -56,7 +57,7 @@ export async function GET(
         const events = await readEvents(chat.conversationId, '0')
 
         streamSnapshot = {
-          events: events || [],
+          events: events.map(toStreamBatchEvent),
           status: events.length > 0 ? 'active' : 'unknown',
         }
       } catch (error) {

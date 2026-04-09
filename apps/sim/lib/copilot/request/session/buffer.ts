@@ -7,6 +7,7 @@ const logger = createLogger('SessionBuffer')
 
 const STREAM_OUTBOX_PREFIX = 'mothership_stream:'
 const DEFAULT_TTL_SECONDS = 60 * 60
+const DEFAULT_COMPLETED_TTL_SECONDS = 5 * 60
 const DEFAULT_EVENT_LIMIT = 5_000
 const RETRY_DELAYS_MS = [0, 50, 150] as const
 
@@ -97,9 +98,34 @@ export async function allocateCursor(streamId: string): Promise<{
 }
 
 export async function resetBuffer(streamId: string): Promise<void> {
-  await withRedisRetry({ operation: 'reset_outbox', streamId }, async (redis) => {
+  await clearBuffer(streamId, 'reset_outbox')
+}
+
+export async function clearBuffer(streamId: string, operation = 'clear_outbox'): Promise<void> {
+  await withRedisRetry({ operation, streamId }, async (redis) => {
     await redis.del(getEventsKey(streamId), getSeqKey(streamId), getAbortKey(streamId))
   })
+}
+
+export async function scheduleBufferCleanup(
+  streamId: string,
+  ttlSeconds = DEFAULT_COMPLETED_TTL_SECONDS
+): Promise<void> {
+  try {
+    await withRedisRetry({ operation: 'schedule_outbox_cleanup', streamId }, async (redis) => {
+      const pipeline = redis.pipeline()
+      pipeline.expire(getEventsKey(streamId), ttlSeconds)
+      pipeline.expire(getSeqKey(streamId), ttlSeconds)
+      pipeline.expire(getAbortKey(streamId), ttlSeconds)
+      await pipeline.exec()
+    })
+  } catch (error) {
+    logger.warn('Failed to shorten stream buffer TTL during cleanup', {
+      streamId,
+      ttlSeconds,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
 }
 
 export async function appendEvents(
@@ -123,9 +149,6 @@ export async function appendEvents(
     pipeline.zadd(key, ...(zaddArgs as [number, string, ...Array<number | string>]))
     pipeline.expire(key, config.ttlSeconds)
     pipeline.set(seqKey, String(envelopes[envelopes.length - 1].seq), 'EX', config.ttlSeconds)
-    if (config.eventLimit > 0) {
-      pipeline.zremrangebyrank(key, 0, -config.eventLimit - 1)
-    }
     await pipeline.exec()
   })
 

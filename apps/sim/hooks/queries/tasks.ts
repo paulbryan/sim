@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
+import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 
 export interface TaskMetadata {
@@ -17,7 +18,7 @@ export interface TaskChatHistory {
   messages: PersistedMessage[]
   activeStreamId: string | null
   resources: MothershipResource[]
-  streamSnapshot?: { events: unknown[]; status: string } | null
+  streamSnapshot?: { events: StreamBatchEvent[]; status: string } | null
 }
 
 export const taskKeys = {

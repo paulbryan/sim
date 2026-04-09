@@ -144,6 +144,12 @@ export const env = createEnv({
     // Admin API
     ADMIN_API_KEY:                         z.string().min(32).optional(),          // Admin API key for self-hosted GitOps access (generate with: openssl rand -hex 32)
 
+    // Mothership Admin
+    MOTHERSHIP_API_ADMIN_KEY:              z.string().min(1).optional(),           // Admin API key for mothership/copilot admin endpoints
+    MOTHERSHIP_DEV_URL:                    z.string().url().optional(),            // Mothership dev environment URL
+    MOTHERSHIP_STAGING_URL:                z.string().url().optional(),            // Mothership staging environment URL
+    MOTHERSHIP_PROD_URL:                   z.string().url().optional(),            // Mothership production environment URL
+
     // Infrastructure & Deployment
     NEXT_RUNTIME:                          z.string().optional(),                  // Next.js runtime environment
     DOCKER_BUILD:                          z.boolean().optional(),                 // Flag indicating Docker build environment

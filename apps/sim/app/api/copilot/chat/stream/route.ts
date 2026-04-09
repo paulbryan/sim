@@ -13,6 +13,7 @@ import {
   readEvents,
   SSE_RESPONSE_HEADERS,
 } from '@/lib/copilot/request/session'
+import { toStreamBatchEvent } from '@/lib/copilot/request/session/types'
 
 export const maxDuration = 3600
 
@@ -113,11 +114,7 @@ export async function GET(request: NextRequest) {
   if (batchMode) {
     const afterSeq = afterCursor || '0'
     const events = await readEvents(streamId, afterSeq)
-    const batchEvents = events.map((envelope) => ({
-      eventId: envelope.seq,
-      streamId: envelope.stream.streamId,
-      event: envelope,
-    }))
+    const batchEvents = events.map(toStreamBatchEvent)
     logger.info('[Resume] Batch response', {
       streamId,
       afterCursor: afterSeq,

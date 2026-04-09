@@ -10,6 +10,7 @@ const {
   createRunSegment,
   updateRunStatus,
   resetBuffer,
+  scheduleBufferCleanup,
   allocateCursor,
   appendEvent,
   cleanupAbortMarker,
@@ -20,6 +21,7 @@ const {
   createRunSegment: vi.fn(),
   updateRunStatus: vi.fn(),
   resetBuffer: vi.fn(),
+  scheduleBufferCleanup: vi.fn(),
   allocateCursor: vi.fn(),
   appendEvent: vi.fn(),
   cleanupAbortMarker: vi.fn(),
@@ -27,7 +29,7 @@ const {
   releasePendingChatStream: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/lifecycle/continue', () => ({
+vi.mock('@/lib/copilot/request/lifecycle/run', () => ({
   runCopilotLifecycle,
 }))
 
@@ -40,6 +42,7 @@ let mockPublisherController: ReadableStreamDefaultController | null = null
 
 vi.mock('@/lib/copilot/request/session', () => ({
   resetBuffer,
+  scheduleBufferCleanup,
   allocateCursor,
   appendEvent,
   cleanupAbortMarker,
@@ -107,6 +110,7 @@ describe('createSSEStream terminal error handling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetBuffer.mockResolvedValue(undefined)
+    scheduleBufferCleanup.mockResolvedValue(undefined)
     allocateCursor
       .mockResolvedValueOnce({ seq: 1, cursor: '1' })
       .mockResolvedValueOnce({ seq: 2, cursor: '2' })
@@ -149,6 +153,7 @@ describe('createSSEStream terminal error handling', () => {
         type: MothershipStreamV1EventType.error,
       })
     )
+    expect(scheduleBufferCleanup).toHaveBeenCalledWith('stream-1')
   })
 
   it('writes the thrown terminal error event before close for replay durability', async () => {
@@ -175,5 +180,6 @@ describe('createSSEStream terminal error handling', () => {
         type: MothershipStreamV1EventType.error,
       })
     )
+    expect(scheduleBufferCleanup).toHaveBeenCalledWith('stream-1')
   })
 })

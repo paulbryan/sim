@@ -14,12 +14,14 @@ export {
   appendEvent,
   appendEvents,
   clearAbortMarker,
+  clearBuffer,
   getLatestSeq,
   getOldestSeq,
   hasAbortMarker,
   InvalidCursorError,
   readEvents,
   resetBuffer,
+  scheduleBufferCleanup,
   writeAbortMarker,
 } from './buffer'
 export { createEvent, eventToStreamEvent, isEventRecord, TOOL_CALL_STATUS } from './event'

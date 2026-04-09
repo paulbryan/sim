@@ -35,6 +35,7 @@ import {
   ToolSearchToolRegex,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
+import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import {
   extractResourcesFromToolResult,
   isResourceToolName,
@@ -146,12 +147,6 @@ type StreamingFilePreview = {
   operation?: string
   edit?: Record<string, unknown>
   content: string
-}
-
-type StreamBatchEvent = {
-  eventId: number
-  streamId: string
-  event: Record<string, unknown>
 }
 
 type StreamBatchResponse = {
