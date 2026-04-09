@@ -226,13 +226,13 @@ async function isDriveFileUnchanged(
   requestId: string,
   logger: ReturnType<typeof import('@sim/logger').createLogger>
 ): Promise<{ unchanged: boolean; currentModifiedTime?: string }> {
-  if (!lastModifiedTime) return { unchanged: false }
-
   try {
     const currentModifiedTime = await getDriveFileModifiedTime(accessToken, spreadsheetId, logger)
+    if (!lastModifiedTime || !currentModifiedTime) {
+      return { unchanged: false, currentModifiedTime }
+    }
     return { unchanged: currentModifiedTime === lastModifiedTime, currentModifiedTime }
   } catch (error) {
-    // If Drive check fails, proceed with Sheets API (don't skip)
     logger.warn(`[${requestId}] Drive modifiedTime check failed, proceeding with Sheets API`)
     return { unchanged: false }
   }
