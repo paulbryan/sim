@@ -398,6 +398,7 @@ export function extractBlockFieldsForComparison(block: BlockState): ExtractedBlo
     layout: _layout,
     height: _height,
     outputs: _outputs,
+    locked: _locked,
     is_diff: _isDiff,
     field_diffs: _fieldDiffs,
     ...blockRest
