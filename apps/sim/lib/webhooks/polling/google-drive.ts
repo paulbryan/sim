@@ -252,20 +252,32 @@ async function fetchChanges(
       newStartPageToken = data.newStartPageToken as string
     }
 
-    if (data.nextPageToken) {
-      lastNextPageToken = data.nextPageToken as string
-    }
+    // Only advance the resume cursor when we'll actually use all changes from this page.
+    // If allChanges exceeds maxFiles, we'll slice off the extras — so we must NOT
+    // advance past this page, otherwise the sliced changes are lost permanently.
+    const hasMore = !!data.nextPageToken
+    const overLimit = allChanges.length >= maxFiles
 
-    if (!data.nextPageToken || allChanges.length >= maxFiles || pages >= MAX_PAGES) {
+    if (!hasMore || overLimit || pages >= MAX_PAGES) {
+      // If we stopped mid-stream and haven't consumed all changes from this page,
+      // keep currentPageToken so the next poll re-fetches this page.
+      // If we consumed everything on this page but there are more pages,
+      // advance to nextPageToken so we don't re-process this page.
+      if (hasMore && !overLimit) {
+        lastNextPageToken = data.nextPageToken as string
+      } else if (hasMore && overLimit && allChanges.length > maxFiles) {
+        // We got more changes than maxFiles from this page — don't advance,
+        // re-fetch this page next time (idempotency deduplicates already-processed ones)
+      } else if (hasMore) {
+        lastNextPageToken = data.nextPageToken as string
+      }
       break
     }
 
+    lastNextPageToken = data.nextPageToken as string
     currentPageToken = data.nextPageToken as string
   }
 
-  // If we exhausted all pages the API returns newStartPageToken on the final page.
-  // If we broke early, fall back to the last nextPageToken so we resume from where
-  // we stopped rather than re-fetching from the original cursor.
   const resumeToken = newStartPageToken ?? lastNextPageToken ?? config.pageToken!
 
   return { changes: allChanges.slice(0, maxFiles), newStartPageToken: resumeToken }

@@ -315,12 +315,12 @@ async function fetchHeaderRow(
   if (!response.ok) {
     const status = response.status
     if (status === 403 || status === 429) {
-      logger.warn(
-        `[${requestId}] Sheets API rate limit (${status}) fetching header row, proceeding without headers`
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(
+        `Sheets API rate limit (${status}) fetching header row — skipping to retry next poll cycle: ${JSON.stringify(errorData)}`
       )
-    } else {
-      logger.warn(`[${requestId}] Failed to fetch header row, proceeding without headers`)
     }
+    logger.warn(`[${requestId}] Failed to fetch header row, proceeding without headers`)
     return []
   }
 

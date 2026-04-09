@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { GoogleDriveIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-
-const logger = createLogger('GoogleDrivePollingTrigger')
 
 const MIME_TYPE_OPTIONS = [
   { id: '', label: 'All Files' },
