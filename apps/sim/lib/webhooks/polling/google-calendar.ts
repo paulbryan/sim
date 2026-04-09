@@ -140,8 +140,10 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
         logger
       )
 
-      // Use the latest `updated` value from response to avoid clock skew
-      const newTimestamp = latestUpdated || now.toISOString()
+      const newTimestamp =
+        processedCount === 0 && failedCount > 0
+          ? config.lastCheckedTimestamp
+          : latestUpdated || now.toISOString()
       await updateWebhookProviderConfig(webhookId, { lastCheckedTimestamp: newTimestamp }, logger)
 
       if (failedCount > 0 && processedCount === 0) {

@@ -151,9 +151,13 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
         MAX_KNOWN_FILE_IDS
       )
 
+      const allFailed = processedCount === 0 && failedCount > 0
       await updateWebhookProviderConfig(
         webhookId,
-        { pageToken: newStartPageToken, knownFileIds: mergedKnownIds },
+        {
+          pageToken: allFailed ? config.pageToken : newStartPageToken,
+          knownFileIds: allFailed ? existingKnownIds : mergedKnownIds,
+        },
         logger
       )
 
