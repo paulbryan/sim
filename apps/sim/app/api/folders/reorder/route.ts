@@ -48,8 +48,6 @@ export async function PUT(req: NextRequest) {
       .select({
         id: workflowFolder.id,
         workspaceId: workflowFolder.workspaceId,
-        parentId: workflowFolder.parentId,
-        isLocked: workflowFolder.isLocked,
       })
       .from(workflowFolder)
       .where(inArray(workflowFolder.id, folderIds))

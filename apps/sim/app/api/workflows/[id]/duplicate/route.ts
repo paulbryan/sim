@@ -1,4 +1,7 @@
+import { db } from '@sim/db'
+import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -38,8 +41,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { name, description, color, workspaceId, folderId, newId } =
       DuplicateRequestSchema.parse(body)
 
-    if (folderId) {
-      const folderLocked = await isFolderEffectivelyLockedDb(folderId)
+    let targetFolderId = folderId
+    if (targetFolderId === undefined) {
+      const [source] = await db
+        .select({ folderId: workflow.folderId })
+        .from(workflow)
+        .where(eq(workflow.id, sourceWorkflowId))
+        .limit(1)
+      targetFolderId = source?.folderId ?? null
+    }
+    if (targetFolderId) {
+      const folderLocked = await isFolderEffectivelyLockedDb(targetFolderId)
       if (folderLocked) {
         return NextResponse.json(
           { error: 'Cannot duplicate a workflow into a locked folder' },
