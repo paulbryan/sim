@@ -354,6 +354,7 @@ export function useChat(
   streamingFileRef.current = streamingFile
   const filePreviewSessionsRef = useRef<Map<string, StreamingFilePreview>>(new Map())
   const activeFilePreviewToolCallIdRef = useRef<string | null>(null)
+  const editContentParentToolCallIdRef = useRef<Map<string, string>>(new Map())
 
   const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const messageQueueRef = useRef<QueuedMessage[]>([])
@@ -527,6 +528,7 @@ export function useChat(
     streamingFileRef.current = null
     filePreviewSessionsRef.current.clear()
     activeFilePreviewToolCallIdRef.current = null
+    editContentParentToolCallIdRef.current.clear()
     setMessageQueue([])
   }, [initialChatId, queryClient])
 
@@ -550,6 +552,7 @@ export function useChat(
     streamingFileRef.current = null
     filePreviewSessionsRef.current.clear()
     activeFilePreviewToolCallIdRef.current = null
+    editContentParentToolCallIdRef.current.clear()
     setMessageQueue([])
   }, [isHomePage])
 
@@ -1024,6 +1027,10 @@ export function useChat(
                   sessions.set(id, nextSession)
                   activeFilePreviewToolCallIdRef.current = id
                   streamingFileRef.current = nextSession
+                  const previewToolIdx = toolMap.get(id)
+                  if (previewToolIdx !== undefined && blocks[previewToolIdx].toolCall) {
+                    blocks[previewToolIdx].toolCall!.status = 'executing'
+                  }
                   setStreamingFile(nextSession)
                   break
                 }
@@ -1233,6 +1240,7 @@ export function useChat(
                     setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
                   }
                 }
+                editContentParentToolCallIdRef.current.delete(id)
                 break
               }
 
@@ -1277,6 +1285,25 @@ export function useChat(
                   displayTitle = `${verb} ${chunkTitle}`
                 } else if (targetFileName) {
                   displayTitle = `${verb} ${targetFileName}`
+                }
+              }
+
+              if (name === 'edit_content') {
+                const parentToolCallId =
+                  activeFilePreviewToolCallIdRef.current ?? streamingFileRef.current?.toolCallId
+                const parentIdx =
+                  parentToolCallId !== null && parentToolCallId !== undefined
+                    ? toolMap.get(parentToolCallId)
+                    : undefined
+                if (parentIdx !== undefined && blocks[parentIdx].toolCall) {
+                  toolMap.set(id, parentIdx)
+                  editContentParentToolCallIdRef.current.set(id, parentToolCallId!)
+                  const tc = blocks[parentIdx].toolCall!
+                  tc.status = 'executing'
+                  tc.result = undefined
+                  tc.error = undefined
+                  flush()
+                  break
                 }
               }
 
@@ -2098,6 +2125,7 @@ export function useChat(
     streamingFileRef.current = null
     filePreviewSessionsRef.current.clear()
     activeFilePreviewToolCallIdRef.current = null
+    editContentParentToolCallIdRef.current.clear()
     setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
 
     const execState = useExecutionStore.getState()
