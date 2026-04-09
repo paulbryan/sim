@@ -838,6 +838,15 @@ function PptxPreview({
   const [rendering, setRendering] = useState(false)
   const [renderError, setRenderError] = useState<string | null>(null)
 
+  const shouldSuppressStreamingPptxError = (message: string): boolean => {
+    return (
+      message.includes('SyntaxError: Invalid or unexpected token') ||
+      message.includes('PPTX generation cancelled') ||
+      message.includes('Preview failed') ||
+      message.includes('AbortError')
+    )
+  }
+
   // Streaming preview: only re-triggers when the streaming source code or
   // workspace changes. Isolated from fileData/dataUpdatedAt so that file-list
   // refreshes don't abort the in-flight compilation request.
@@ -879,8 +888,12 @@ function PptxPreview({
       } catch (err) {
         if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
           const msg = err instanceof Error ? err.message : 'Failed to render presentation'
-          logger.error('PPTX render failed', { error: msg })
-          setRenderError(msg)
+          if (shouldSuppressStreamingPptxError(msg)) {
+            logger.info('Suppressing transient PPTX streaming preview error', { error: msg })
+          } else {
+            logger.error('PPTX render failed', { error: msg })
+            setRenderError(msg)
+          }
         }
       } finally {
         if (!cancelled) setRendering(false)

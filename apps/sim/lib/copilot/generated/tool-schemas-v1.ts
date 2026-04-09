@@ -2355,7 +2355,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         operation: {
           type: 'string',
           description: 'The file operation to perform.',
-          enum: ['append', 'update', 'patch', 'rename', 'delete'],
+          enum: ['append', 'update', 'patch'],
         },
         target: {
           type: 'object',
@@ -2382,7 +2382,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         title: {
           type: 'string',
           description:
-            'Optional short UI label for create/append chunks, e.g. "Chapter 1" or "Slide 3".',
+            'Required short UI label for this content unit, e.g. "Chapter 1", "Slide 3", or "Fix footer spacing".',
         },
         contentType: {
           type: 'string',
@@ -2453,13 +2453,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
           },
         },
-        newName: {
-          type: 'string',
-          description:
-            'New file name for rename. Must be a plain workspace filename like "main.py".',
-        },
       },
-      required: ['operation', 'target'],
+      required: ['operation', 'target', 'title'],
     },
     resultSchema: {
       type: 'object',

@@ -21,6 +21,10 @@ function isOversizedReadPlaceholder(content: string): boolean {
   )
 }
 
+function hasImageAttachment(result: { attachment?: { type?: string } }): boolean {
+  return result.attachment?.type === 'image'
+}
+
 export async function executeVfsGrep(
   params: Record<string, unknown>,
   context: ExecutionContext
@@ -153,8 +157,9 @@ export async function executeVfsRead(
       const uploadResult = await readChatUpload(filename, context.chatId)
       if (uploadResult) {
         if (
-          isOversizedReadPlaceholder(uploadResult.content) ||
-          serializedResultSize(uploadResult) > TOOL_RESULT_MAX_INLINE_CHARS
+          !hasImageAttachment(uploadResult) &&
+          (isOversizedReadPlaceholder(uploadResult.content) ||
+            serializedResultSize(uploadResult) > TOOL_RESULT_MAX_INLINE_CHARS)
         ) {
           return {
             success: false,
@@ -183,8 +188,9 @@ export async function executeVfsRead(
       const fileContent = await vfs.readFileContent(path)
       if (fileContent) {
         if (
-          isOversizedReadPlaceholder(fileContent.content) ||
-          serializedResultSize(fileContent) > TOOL_RESULT_MAX_INLINE_CHARS
+          !hasImageAttachment(fileContent) &&
+          (isOversizedReadPlaceholder(fileContent.content) ||
+            serializedResultSize(fileContent) > TOOL_RESULT_MAX_INLINE_CHARS)
         ) {
           return {
             success: false,
@@ -214,8 +220,9 @@ export async function executeVfsRead(
       return { success: false, error: `File not found: ${path}.${hint}` }
     }
     if (
-      isOversizedReadPlaceholder(result.content) ||
-      serializedResultSize(result) > TOOL_RESULT_MAX_INLINE_CHARS
+      !hasImageAttachment(result) &&
+      (isOversizedReadPlaceholder(result.content) ||
+        serializedResultSize(result) > TOOL_RESULT_MAX_INLINE_CHARS)
     ) {
       return {
         success: false,
