@@ -215,6 +215,29 @@ describe('sse-handlers tool lifecycle', () => {
     )
   })
 
+  it('routes main assistant text with no scope into accumulatedContent', async () => {
+    await sseHandlers.text(
+      {
+        type: MothershipStreamV1EventType.text,
+        payload: {
+          channel: MothershipStreamV1TextChannel.assistant,
+          text: 'hello from main',
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    expect(context.accumulatedContent).toBe('hello from main')
+    expect(context.contentBlocks.at(-1)).toEqual(
+      expect.objectContaining({
+        type: 'text',
+        content: 'hello from main',
+      })
+    )
+  })
+
   it('routes subagent tool calls using the event scope parent tool call id', async () => {
     executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
     context.subAgentParentToolCallId = 'wrong-parent'
@@ -417,7 +440,7 @@ describe('sse-handlers tool lifecycle', () => {
           mode: MothershipStreamV1ToolMode.async,
           phase: MothershipStreamV1ToolPhase.result,
           success: true,
-          result: { ok: true },
+          output: { ok: true },
         },
       } satisfies StreamEvent,
       context,
@@ -446,7 +469,7 @@ describe('sse-handlers tool lifecycle', () => {
           mode: MothershipStreamV1ToolMode.async,
           phase: MothershipStreamV1ToolPhase.result,
           success: true,
-          result: { ok: true },
+          output: { ok: true },
         },
       } satisfies StreamEvent,
       context,
@@ -477,6 +500,31 @@ describe('sse-handlers tool lifecycle', () => {
     expect(context.toolCalls.get('tool-early-result')?.status).toBe(
       MothershipStreamV1ToolOutcome.success
     )
+  })
+
+  it('reads canonical tool result payloads from output only', async () => {
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-output-only',
+          toolName: ReadTool.id,
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.result,
+          success: false,
+          output: { error: 'output-failure' },
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent: vi.fn(), interactive: false, timeout: 1000 }
+    )
+
+    const updated = context.toolCalls.get('tool-output-only')
+    expect(updated?.status).toBe(MothershipStreamV1ToolOutcome.error)
+    expect(updated?.result?.output).toEqual({ error: 'output-failure' })
+    expect(updated?.error).toBe('output-failure')
   })
 
   it('executes dynamic sim tools based on payload executor', async () => {

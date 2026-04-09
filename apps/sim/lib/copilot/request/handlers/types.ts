@@ -38,6 +38,25 @@ export function addContentBlock(
   })
 }
 
+/**
+ * Flush any open thinking block into contentBlocks and clear the thinking state.
+ * Safe to call repeatedly.
+ */
+export function flushThinkingBlock(context: StreamingContext): void {
+  if (context.currentThinkingBlock) {
+    context.contentBlocks.push(context.currentThinkingBlock)
+  }
+  context.isInThinkingBlock = false
+  context.currentThinkingBlock = null
+}
+
+export function flushSubagentThinkingBlock(context: StreamingContext): void {
+  if (context.currentSubagentThinkingBlock) {
+    context.contentBlocks.push(context.currentSubagentThinkingBlock)
+  }
+  context.currentSubagentThinkingBlock = null
+}
+
 export function getScopedParentToolCallId(
   event: StreamEvent,
   context: StreamingContext
@@ -209,11 +228,11 @@ export function inferToolSuccess(data: Record<string, unknown> | undefined): {
   hasResultData: boolean
   hasError: boolean
 } {
-  const resultObj = asRecord(data?.result)
-  const hasExplicitSuccess = data?.success !== undefined || resultObj.success !== undefined
-  const explicitSuccess = data?.success ?? resultObj.success
-  const hasResultData = data?.result !== undefined || data?.data !== undefined
-  const hasError = !!data?.error || !!resultObj.error
+  const outputObj = asRecord(data?.output)
+  const hasExplicitSuccess = data?.success !== undefined
+  const explicitSuccess = data?.success
+  const hasResultData = data?.output !== undefined
+  const hasError = !!data?.error || !!outputObj.error
   const success = hasExplicitSuccess ? !!explicitSuccess : !hasError
   return { success, hasResultData, hasError }
 }

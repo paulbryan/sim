@@ -135,6 +135,7 @@ export const ContentBlockType = {
   subagent: 'subagent',
   subagent_end: 'subagent_end',
   subagent_text: 'subagent_text',
+  subagent_thinking: 'subagent_thinking',
   options: 'options',
   stopped: 'stopped',
 } as const

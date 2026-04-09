@@ -15,6 +15,7 @@ import {
   processContextsServer,
   resolveActiveResourceContext,
 } from '@/lib/copilot/chat/process-contents'
+import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/request/http'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/lifecycle/start'
@@ -295,42 +296,41 @@ export async function POST(req: NextRequest) {
         interactive: true,
         onComplete: async (result: OrchestratorResult) => {
           if (!actualChatId) return
-          if (!result.success) return
-
-          const assistantMessage = buildPersistedAssistantMessage(result, result.requestId)
 
           try {
-            const [row] = await db
-              .select({ messages: copilotChats.messages })
-              .from(copilotChats)
-              .where(eq(copilotChats.id, actualChatId))
-              .limit(1)
-
-            const msgs: any[] = Array.isArray(row?.messages) ? row.messages : []
-            const userIdx = msgs.findIndex((m: any) => m.id === userMessageId)
-            const alreadyHasResponse =
-              userIdx >= 0 &&
-              userIdx + 1 < msgs.length &&
-              (msgs[userIdx + 1] as any)?.role === 'assistant'
-
-            if (!alreadyHasResponse) {
-              await db
-                .update(copilotChats)
-                .set({
-                  messages: sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`,
-                  conversationId: sql`CASE WHEN ${copilotChats.conversationId} = ${userMessageId} THEN NULL ELSE ${copilotChats.conversationId} END`,
-                  updatedAt: new Date(),
-                })
-                .where(eq(copilotChats.id, actualChatId))
-
-              taskPubSub?.publishStatusChanged({
-                workspaceId,
-                chatId: actualChatId,
-                type: 'completed',
-              })
-            }
+            await finalizeAssistantTurn({
+              chatId: actualChatId,
+              userMessageId,
+              ...(result.success
+                ? { assistantMessage: buildPersistedAssistantMessage(result, result.requestId) }
+                : {}),
+            })
+            taskPubSub?.publishStatusChanged({
+              workspaceId,
+              chatId: actualChatId,
+              type: 'completed',
+            })
           } catch (error) {
             logger.error(`[${tracker.requestId}] Failed to persist chat messages`, {
+              chatId: actualChatId,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            })
+          }
+        },
+        onError: async () => {
+          if (!actualChatId) return
+          try {
+            await finalizeAssistantTurn({
+              chatId: actualChatId,
+              userMessageId,
+            })
+            taskPubSub?.publishStatusChanged({
+              workspaceId,
+              chatId: actualChatId,
+              type: 'completed',
+            })
+          } catch (error) {
+            logger.error(`[${tracker.requestId}] Failed to finalize errored chat stream`, {
               chatId: actualChatId,
               error: error instanceof Error ? error.message : 'Unknown error',
             })

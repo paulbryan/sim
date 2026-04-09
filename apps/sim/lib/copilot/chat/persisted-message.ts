@@ -113,6 +113,13 @@ function mapContentBlock(block: ContentBlock): PersistedContentBlock {
         channel: MothershipStreamV1TextChannel.assistant,
         content: block.content,
       }
+    case 'subagent_thinking':
+      return {
+        type: MothershipStreamV1EventType.text,
+        lane: 'subagent',
+        channel: MothershipStreamV1TextChannel.thinking,
+        content: block.content,
+      }
     case 'tool_call': {
       if (!block.toolCall) {
         return {
@@ -274,7 +281,7 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
   const result: PersistedContentBlock = {
     type: block.type as MothershipStreamV1EventType,
   }
-  if (block.lane === 'main' || block.lane === 'subagent') {
+  if (block.lane === 'subagent') {
     result.lane = block.lane
   }
   const blockContent = block.content ?? block.text
@@ -345,6 +352,15 @@ function normalizeLegacyBlock(block: RawBlock): PersistedContentBlock {
       type: MothershipStreamV1EventType.span,
       kind: MothershipStreamV1SpanPayloadKind.subagent,
       lifecycle: MothershipStreamV1SpanLifecycleEvent.start,
+      content: block.content,
+    }
+  }
+
+  if (block.type === 'subagent_thinking') {
+    return {
+      type: MothershipStreamV1EventType.text,
+      lane: 'subagent',
+      channel: MothershipStreamV1TextChannel.thinking,
       content: block.content,
     }
   }

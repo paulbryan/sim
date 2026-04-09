@@ -2,6 +2,10 @@ import { createLogger } from '@sim/logger'
 
 const logger = createLogger('CopilotSseParser')
 
+function normalizeSseLine(line: string): string {
+  return line.endsWith('\r') ? line.slice(0, -1) : line
+}
+
 /**
  * Processes an SSE stream by calling onEvent for each parsed event.
  *
@@ -32,23 +36,35 @@ export async function processSSEStream(
 
         let stopped = false
         for (const line of lines) {
+          const normalizedLine = normalizeSseLine(line)
           if (abortSignal?.aborted) {
             logger.info('SSE stream aborted mid-chunk (between events)')
             return
           }
-          if (!line.trim()) continue
-          if (!line.startsWith('data: ')) continue
+          if (!normalizedLine.trim()) continue
+          if (!normalizedLine.startsWith('data: ')) continue
 
-          const jsonStr = line.slice(6)
+          const jsonStr = normalizedLine.slice(6)
           if (jsonStr === '[DONE]') continue
 
+          let parsed: unknown
           try {
-            if (await onEvent(JSON.parse(jsonStr))) {
+            parsed = JSON.parse(jsonStr)
+          } catch (error) {
+            logger.warn('Failed to parse SSE event', {
+              preview: jsonStr.slice(0, 200),
+              error: error instanceof Error ? error.message : String(error),
+            })
+            continue
+          }
+
+          try {
+            if (await onEvent(parsed)) {
               stopped = true
               break
             }
           } catch (error) {
-            logger.warn('Failed to parse SSE event', {
+            logger.warn('Failed to handle SSE event', {
               preview: jsonStr.slice(0, 200),
               error: error instanceof Error ? error.message : String(error),
             })
@@ -66,12 +82,29 @@ export async function processSSEStream(
       throw error
     }
 
-    if (buffer.trim() && buffer.startsWith('data: ')) {
+    const normalizedBuffer = normalizeSseLine(buffer)
+    if (normalizedBuffer.trim() && normalizedBuffer.startsWith('data: ')) {
+      const jsonStr = normalizedBuffer.slice(6)
+      if (jsonStr === '[DONE]') {
+        return
+      }
+
+      let parsed: unknown
       try {
-        await onEvent(JSON.parse(buffer.slice(6)))
+        parsed = JSON.parse(jsonStr)
       } catch (error) {
         logger.warn('Failed to parse final SSE buffer', {
-          preview: buffer.slice(0, 200),
+          preview: normalizedBuffer.slice(0, 200),
+          error: error instanceof Error ? error.message : String(error),
+        })
+        return
+      }
+
+      try {
+        await onEvent(parsed)
+      } catch (error) {
+        logger.warn('Failed to handle final SSE event', {
+          preview: normalizedBuffer.slice(0, 200),
           error: error instanceof Error ? error.message : String(error),
         })
       }

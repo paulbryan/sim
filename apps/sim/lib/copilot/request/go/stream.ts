@@ -498,14 +498,14 @@ export async function runStreamLoop(
       if (handleSubagentRouting(streamEvent, context)) {
         const handler = subAgentHandlers[streamEvent.type]
         if (handler) {
-          handler(streamEvent, context, execContext, options)
+          await handler(streamEvent, context, execContext, options)
         }
         return context.streamComplete || undefined
       }
 
       const handler = sseHandlers[streamEvent.type]
       if (handler) {
-        handler(streamEvent, context, execContext, options)
+        await handler(streamEvent, context, execContext, options)
       }
       return context.streamComplete || undefined
     })

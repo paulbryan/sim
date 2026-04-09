@@ -70,17 +70,38 @@ export async function POST(req: NextRequest) {
 
     const { chatId, streamId, content, contentBlocks } = StopSchema.parse(await req.json())
 
-    await releasePendingChatStream(chatId, streamId)
+    const [row] = await db
+      .select({
+        workspaceId: copilotChats.workspaceId,
+        messages: copilotChats.messages,
+      })
+      .from(copilotChats)
+      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
+      .limit(1)
+
+    if (!row) {
+      await releasePendingChatStream(chatId, streamId)
+      return NextResponse.json({ success: true })
+    }
+
+    const messages: Record<string, unknown>[] = Array.isArray(row.messages) ? row.messages : []
+    const userIdx = messages.findIndex((message) => message.id === streamId)
+    const alreadyHasResponse =
+      userIdx >= 0 &&
+      userIdx + 1 < messages.length &&
+      (messages[userIdx + 1] as Record<string, unknown>)?.role === 'assistant'
+    const canAppendAssistant =
+      userIdx >= 0 && userIdx === messages.length - 1 && !alreadyHasResponse
 
     const setClause: Record<string, unknown> = {
-      conversationId: null,
+      conversationId: sql`CASE WHEN ${copilotChats.conversationId} = ${streamId} THEN NULL ELSE ${copilotChats.conversationId} END`,
       updatedAt: new Date(),
     }
 
     const hasContent = content.trim().length > 0
     const hasBlocks = Array.isArray(contentBlocks) && contentBlocks.length > 0
 
-    if (hasContent || hasBlocks) {
+    if ((hasContent || hasBlocks) && canAppendAssistant) {
       const normalized = normalizeMessage({
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -95,14 +116,10 @@ export async function POST(req: NextRequest) {
     const [updated] = await db
       .update(copilotChats)
       .set(setClause)
-      .where(
-        and(
-          eq(copilotChats.id, chatId),
-          eq(copilotChats.userId, session.user.id),
-          eq(copilotChats.conversationId, streamId)
-        )
-      )
+      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
       .returning({ workspaceId: copilotChats.workspaceId })
+
+    await releasePendingChatStream(chatId, streamId)
 
     if (updated?.workspaceId) {
       taskPubSub?.publishStatusChanged({

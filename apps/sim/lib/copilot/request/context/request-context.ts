@@ -15,6 +15,7 @@ export function createStreamingContext(overrides?: Partial<StreamingContext>): S
     toolCalls: new Map(),
     pendingToolPromises: new Map(),
     currentThinkingBlock: null,
+    currentSubagentThinkingBlock: null,
     isInThinkingBlock: false,
     subAgentParentToolCallId: undefined,
     subAgentParentStack: [],

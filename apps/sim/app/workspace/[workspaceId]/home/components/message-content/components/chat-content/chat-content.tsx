@@ -172,10 +172,16 @@ interface ChatContentProps {
   content: string
   isStreaming?: boolean
   onOptionSelect?: (id: string) => void
+  smoothStreaming?: boolean
 }
 
-export function ChatContent({ content, isStreaming = false, onOptionSelect }: ChatContentProps) {
-  const rendered = useStreamingText(content, isStreaming)
+export function ChatContent({
+  content,
+  isStreaming = false,
+  onOptionSelect,
+  smoothStreaming = true,
+}: ChatContentProps) {
+  const rendered = useStreamingText(content, isStreaming && smoothStreaming)
 
   const parsed = useMemo(() => parseSpecialTags(rendered, isStreaming), [rendered, isStreaming])
   const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')

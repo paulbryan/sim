@@ -15,6 +15,7 @@ import {
   processContextsServer,
   resolveActiveResourceContext,
 } from '@/lib/copilot/chat/process-contents'
+import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import {
   createBadRequestResponse,
@@ -378,6 +379,7 @@ export async function POST(req: NextRequest) {
         autoExecuteTools: true,
         interactive: true,
         onComplete: buildOnComplete(actualChatId, userMessageIdToUse, tracker.requestId),
+        onError: buildOnError(actualChatId, userMessageIdToUse, tracker.requestId),
       },
     })
 
@@ -419,36 +421,37 @@ function buildOnComplete(
   requestId: string
 ): (result: OrchestratorResult) => Promise<void> {
   return async (result) => {
-    if (!chatId || !result.success) return
-
-    const assistantMessage = buildPersistedAssistantMessage(result, result.requestId)
+    if (!chatId) return
 
     try {
-      const [row] = await db
-        .select({ messages: copilotChats.messages })
-        .from(copilotChats)
-        .where(eq(copilotChats.id, chatId))
-        .limit(1)
-
-      const msgs: Record<string, unknown>[] = Array.isArray(row?.messages) ? row.messages : []
-      const userIdx = msgs.findIndex((m: Record<string, unknown>) => m.id === userMessageId)
-      const alreadyHasResponse =
-        userIdx >= 0 &&
-        userIdx + 1 < msgs.length &&
-        (msgs[userIdx + 1] as Record<string, unknown>)?.role === 'assistant'
-
-      if (!alreadyHasResponse) {
-        await db
-          .update(copilotChats)
-          .set({
-            messages: sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`,
-            conversationId: sql`CASE WHEN ${copilotChats.conversationId} = ${userMessageId} THEN NULL ELSE ${copilotChats.conversationId} END`,
-            updatedAt: new Date(),
-          })
-          .where(eq(copilotChats.id, chatId))
-      }
+      await finalizeAssistantTurn({
+        chatId,
+        userMessageId,
+        ...(result.success
+          ? { assistantMessage: buildPersistedAssistantMessage(result, result.requestId) }
+          : {}),
+      })
     } catch (error) {
       logger.error(`[${requestId}] Failed to persist chat messages`, {
+        chatId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
+    }
+  }
+}
+
+function buildOnError(
+  chatId: string | undefined,
+  userMessageId: string,
+  requestId: string
+): () => Promise<void> {
+  return async () => {
+    if (!chatId) return
+
+    try {
+      await finalizeAssistantTurn({ chatId, userMessageId })
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to finalize errored chat stream`, {
         chatId,
         error: error instanceof Error ? error.message : 'Unknown error',
       })

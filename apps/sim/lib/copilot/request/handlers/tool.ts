@@ -102,6 +102,7 @@ function handleResultPhase(
 ): void {
   const mainToolCall = ensureTerminalToolCallState(context, toolCallId, toolName)
   const { success, hasResultData, hasError } = inferToolSuccess(data)
+  const outputObj = asRecord(data?.output)
   const status =
     data?.status === MothershipStreamV1ToolOutcome.cancelled
       ? MothershipStreamV1ToolOutcome.cancelled
@@ -109,7 +110,7 @@ function handleResultPhase(
         ? MothershipStreamV1ToolOutcome.success
         : MothershipStreamV1ToolOutcome.error
   const endTime = Date.now()
-  const result = hasResultData ? { success, output: data?.result || data?.data } : undefined
+  const result = hasResultData ? { success, output: data?.output } : undefined
 
   if (isSubagent && parentToolCallId) {
     const toolCalls = context.subAgentToolCalls[parentToolCallId] || []
@@ -119,8 +120,7 @@ function handleResultPhase(
       subAgentToolCall.endTime = endTime
       if (result) subAgentToolCall.result = result
       if (hasError) {
-        const resultObj = asRecord(data?.result)
-        subAgentToolCall.error = (data?.error || resultObj.error) as string | undefined
+        subAgentToolCall.error = (data?.error || outputObj.error) as string | undefined
       }
     }
   }
@@ -129,8 +129,7 @@ function handleResultPhase(
   mainToolCall.endTime = endTime
   if (result) mainToolCall.result = result
   if (hasError) {
-    const resultObj = asRecord(data?.result)
-    mainToolCall.error = (data?.error || resultObj.error) as string | undefined
+    mainToolCall.error = (data?.error || outputObj.error) as string | undefined
   }
   markToolResultSeen(toolCallId)
 }

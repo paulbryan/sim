@@ -46,6 +46,9 @@ function toDisplayBlock(block: PersistedContentBlock): ContentBlock {
   switch (block.type) {
     case MothershipStreamV1EventType.text:
       if (block.lane === 'subagent') {
+        if (block.channel === 'thinking') {
+          return { type: ContentBlockType.subagent_thinking, content: block.content }
+        }
         return { type: ContentBlockType.subagent_text, content: block.content }
       }
       return { type: ContentBlockType.text, content: block.content }

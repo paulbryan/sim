@@ -1,8 +1,11 @@
 import { asRecord, getEventData } from '@/lib/copilot/request/sse-utils'
 import type { StreamHandler } from './types'
+import { flushSubagentThinkingBlock, flushThinkingBlock } from './types'
 
 export const handleCompleteEvent: StreamHandler = (event, context) => {
   const d = getEventData(event)
+  flushSubagentThinkingBlock(context)
+  flushThinkingBlock(context)
   if (!d) {
     context.streamComplete = true
     return

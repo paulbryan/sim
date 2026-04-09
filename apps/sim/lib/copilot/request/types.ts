@@ -36,6 +36,7 @@ export const ContentBlockType = {
   thinking: 'thinking',
   tool_call: 'tool_call',
   subagent_text: 'subagent_text',
+  subagent_thinking: 'subagent_thinking',
   subagent: 'subagent',
 } as const
 export type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlockType]
@@ -73,6 +74,7 @@ export interface StreamingContext {
     }>
   }
   currentThinkingBlock: ContentBlock | null
+  currentSubagentThinkingBlock: ContentBlock | null
   isInThinkingBlock: boolean
   subAgentParentToolCallId?: string
   subAgentParentStack: string[]

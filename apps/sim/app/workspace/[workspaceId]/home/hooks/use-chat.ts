@@ -1091,14 +1091,14 @@ export function useChat(
                   break
                 }
                 const tc = blocks[idx].toolCall!
-                const resultObj = asPayloadRecord(payload.result)
+                const outputObj = asPayloadRecord(payload.output)
                 const success =
                   typeof payload.success === 'boolean'
                     ? payload.success
                     : payload.status === MothershipStreamV1ToolOutcome.success
                 const isCancelled =
-                  resultObj?.reason === 'user_cancelled' ||
-                  resultObj?.cancelledByUser === true ||
+                  outputObj?.reason === 'user_cancelled' ||
+                  outputObj?.cancelledByUser === true ||
                   payload.reason === 'user_cancelled' ||
                   payload.cancelledByUser === true ||
                   payload.status === MothershipStreamV1ToolOutcome.cancelled
@@ -1112,12 +1112,7 @@ export function useChat(
                 tc.streamingArgs = undefined
                 tc.result = {
                   success: !!success,
-                  output:
-                    payload.result !== undefined
-                      ? payload.result
-                      : payload.output !== undefined
-                        ? payload.output
-                        : payload.data,
+                  output: payload.output,
                   error: typeof payload.error === 'string' ? payload.error : undefined,
                 }
                 flush()

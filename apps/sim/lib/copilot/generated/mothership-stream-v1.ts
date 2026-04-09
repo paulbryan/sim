@@ -121,7 +121,7 @@ export interface MothershipStreamV1AdditionalPropertiesMap {
  */
 export interface MothershipStreamV1StreamScope {
   agentId?: string
-  lane: 'main' | 'subagent'
+  lane: 'subagent'
   parentToolCallId?: string
 }
 /**
