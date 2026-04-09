@@ -95,7 +95,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
           webhookId,
           {
             lastKnownRowCount: currentRowCount,
-            lastModifiedTime: currentModifiedTime,
+            lastModifiedTime: currentModifiedTime ?? config.lastModifiedTime,
             lastCheckedTimestamp: now.toISOString(),
           },
           logger
@@ -118,7 +118,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
           webhookId,
           {
             lastKnownRowCount: currentRowCount,
-            lastModifiedTime: currentModifiedTime,
+            lastModifiedTime: currentModifiedTime ?? config.lastModifiedTime,
             lastCheckedTimestamp: now.toISOString(),
           },
           logger
@@ -195,7 +195,9 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
         webhookId,
         {
           lastKnownRowCount: newLastKnownRowCount,
-          lastModifiedTime: hasRemainingOrFailed ? config.lastModifiedTime : currentModifiedTime,
+          lastModifiedTime: hasRemainingOrFailed
+            ? config.lastModifiedTime
+            : (currentModifiedTime ?? config.lastModifiedTime),
           lastCheckedTimestamp: now.toISOString(),
         },
         logger

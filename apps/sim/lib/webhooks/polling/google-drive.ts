@@ -87,7 +87,6 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
       )
 
       const config = webhookData.providerConfig as unknown as GoogleDriveWebhookConfig
-      const now = new Date()
 
       // First poll: get startPageToken and seed state
       if (!config.pageToken) {
