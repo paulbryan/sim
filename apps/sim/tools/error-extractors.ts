@@ -74,6 +74,10 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
       if (errorInfo?.data?.message) {
         return errorInfo.data.message
       }
+      // Internal proxy route error field fallback
+      if (typeof errorInfo?.data?.error === 'string') {
+        return errorInfo.data.error
+      }
       return undefined
     },
   },
