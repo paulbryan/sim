@@ -65,7 +65,9 @@
         "operationId": "executeWorkflow",
         "summary": "Execute Workflow",
         "description": "Execute a deployed workflow. Supports synchronous, asynchronous, and streaming modes. For async execution, the response includes a statusUrl you can poll for results.",
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -174,7 +176,9 @@
         "operationId": "cancelExecution",
         "summary": "Cancel Execution",
         "description": "Cancel a running workflow execution. Only effective for executions that are still in progress.",
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -244,7 +248,9 @@
         "operationId": "listPausedExecutions",
         "summary": "List Paused Executions",
         "description": "List all paused executions for a workflow. Workflows pause at Human in the Loop blocks and wait for input before continuing. Use this endpoint to discover which executions need attention.",
-        "tags": ["Human in the Loop"],
+        "tags": [
+          "Human in the Loop"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -340,6 +346,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
@@ -351,7 +360,9 @@
         "operationId": "getPausedExecution",
         "summary": "Get Paused Execution",
         "description": "Get detailed information about a specific paused execution, including its pause points, execution snapshot, and resume queue. Use this to inspect the state before resuming.",
-        "tags": ["Human in the Loop"],
+        "tags": [
+          "Human in the Loop"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -396,6 +407,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
@@ -407,7 +421,9 @@
         "operationId": "getPausedExecutionByResumePath",
         "summary": "Get Paused Execution (Resume Path)",
         "description": "Get detailed information about a specific paused execution using the resume URL path. Returns the same data as the workflow paused execution detail endpoint.",
-        "tags": ["Human in the Loop"],
+        "tags": [
+          "Human in the Loop"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -452,8 +468,27 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -463,7 +498,9 @@
         "operationId": "getPauseContext",
         "summary": "Get Pause Context",
         "description": "Get detailed information about a specific pause context within a paused execution. Returns the pause point details, resume queue state, and any active resume entry.",
-        "tags": ["Human in the Loop"],
+        "tags": [
+          "Human in the Loop"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -518,6 +555,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
@@ -527,7 +567,9 @@
         "operationId": "resumeExecution",
         "summary": "Resume Execution",
         "description": "Resume a paused workflow execution by providing input for a specific pause context. The execution continues from where it paused, using the provided input. Supports synchronous, asynchronous, and streaming modes (determined by the original execution's configuration).",
-        "tags": ["Human in the Loop"],
+        "tags": [
+          "Human in the Loop"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -607,7 +649,9 @@
                       "properties": {
                         "status": {
                           "type": "string",
-                          "enum": ["queued"],
+                          "enum": [
+                            "queued"
+                          ],
                           "description": "Indicates the resume is queued."
                         },
                         "executionId": {
@@ -630,7 +674,9 @@
                       "properties": {
                         "status": {
                           "type": "string",
-                          "enum": ["started"],
+                          "enum": [
+                            "started"
+                          ],
                           "description": "Indicates the resume execution has started."
                         },
                         "executionId": {
@@ -708,6 +754,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -726,6 +775,22 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -735,7 +800,9 @@
         "operationId": "listWorkflows",
         "summary": "List Workflows",
         "description": "Retrieve all workflows in a workspace with cursor-based pagination.",
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -841,7 +908,9 @@
         "operationId": "getWorkflow",
         "summary": "Get Workflow",
         "description": "Retrieve details for a single workflow, including its input fields and deployment status.",
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -910,7 +979,9 @@
         "operationId": "getJobStatus",
         "summary": "Get Job Status",
         "description": "Poll the status of an asynchronous workflow execution. Use the jobId returned from the Execute Workflow endpoint when the execution is queued asynchronously.",
-        "tags": ["Workflows"],
+        "tags": [
+          "Workflows"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -970,7 +1041,9 @@
         "operationId": "queryLogs",
         "summary": "Query Logs",
         "description": "List workflow execution logs with advanced filtering and cursor-based pagination. Supports filtering by workflow, trigger type, date range, duration, cost, and more.",
-        "tags": ["Logs"],
+        "tags": [
+          "Logs"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -1187,7 +1260,9 @@
         "operationId": "getLogDetails",
         "summary": "Get Log Details",
         "description": "Retrieve detailed information about a specific log entry, including workflow metadata, execution data, and cost breakdown.",
-        "tags": ["Logs"],
+        "tags": [
+          "Logs"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -1258,7 +1333,9 @@
         "operationId": "getExecutionDetails",
         "summary": "Get Execution Details",
         "description": "Retrieve the full execution state snapshot, including the workflow state at time of execution and detailed metadata.",
-        "tags": ["Logs"],
+        "tags": [
+          "Logs"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -1379,7 +1456,9 @@
         "operationId": "listAuditLogs",
         "summary": "List Audit Logs",
         "description": "Retrieve audit logs for your organization with cursor-based pagination. Requires an Enterprise subscription and organization admin or owner role.",
-        "tags": ["Audit Logs"],
+        "tags": [
+          "Audit Logs"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -1531,7 +1610,9 @@
         "operationId": "getAuditLogDetails",
         "summary": "Get Audit Log Details",
         "description": "Retrieve a single audit log entry by ID. Requires an Enterprise subscription and organization admin or owner role.",
-        "tags": ["Audit Logs"],
+        "tags": [
+          "Audit Logs"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -1605,7 +1686,9 @@
         "operationId": "getUsageLimits",
         "summary": "Get Usage Limits",
         "description": "Retrieve your current rate limits, usage spending, and storage consumption for the billing period.",
-        "tags": ["Usage"],
+        "tags": [
+          "Usage"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -1662,7 +1745,9 @@
         "operationId": "listTables",
         "summary": "List Tables",
         "description": "List all tables in a workspace. Returns table metadata including name, schema, and row counts.",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -1755,7 +1840,9 @@
         "operationId": "createTable",
         "summary": "Create Table",
         "description": "Create a new table in a workspace. Define the table schema with typed columns, optional constraints (required, unique), and a name.",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -1770,7 +1857,11 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["workspaceId", "name", "schema"],
+                "required": [
+                  "workspaceId",
+                  "name",
+                  "schema"
+                ],
                 "properties": {
                   "workspaceId": {
                     "type": "string",
@@ -1787,7 +1878,9 @@
                   },
                   "schema": {
                     "type": "object",
-                    "required": ["columns"],
+                    "required": [
+                      "columns"
+                    ],
                     "properties": {
                       "columns": {
                         "type": "array",
@@ -1906,7 +1999,9 @@
         "operationId": "getTable",
         "summary": "Get Table",
         "description": "Retrieve a table's metadata, schema, and row count.",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -1995,7 +2090,9 @@
         "operationId": "deleteTable",
         "summary": "Delete Table",
         "description": "Delete a table and all its rows. This action is irreversible.",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -2068,7 +2165,9 @@
         "operationId": "addColumn",
         "summary": "Add Column",
         "description": "Add a new column to the table schema. Optionally specify a position to insert the column at a specific index.",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "lang": "curl",
@@ -2086,7 +2185,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["workspaceId", "column"],
+                "required": [
+                  "workspaceId",
+                  "column"
+                ],
                 "properties": {
                   "workspaceId": {
                     "type": "string",
@@ -2094,7 +2196,10 @@
                   },
                   "column": {
                     "type": "object",
-                    "required": ["name", "type"],
+                    "required": [
+                      "name",
+                      "type"
+                    ],
                     "properties": {
                       "name": {
                         "type": "string",
@@ -2102,7 +2207,13 @@
                       },
                       "type": {
                         "type": "string",
-                        "enum": ["string", "number", "boolean", "date", "json"],
+                        "enum": [
+                          "string",
+                          "number",
+                          "boolean",
+                          "date",
+                          "json"
+                        ],
                         "description": "Column data type"
                       },
                       "required": {
@@ -2198,7 +2309,9 @@
         "operationId": "updateColumn",
         "summary": "Update Column",
         "description": "Update a column's name, type, or constraints. Multiple updates can be applied in a single request. When renaming, subsequent updates (type, constraints) use the new name.",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "lang": "curl",
@@ -2216,7 +2329,11 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["workspaceId", "columnName", "updates"],
+                "required": [
+                  "workspaceId",
+                  "columnName",
+                  "updates"
+                ],
                 "properties": {
                   "workspaceId": {
                     "type": "string",
@@ -2235,7 +2352,13 @@
                       },
                       "type": {
                         "type": "string",
-                        "enum": ["string", "number", "boolean", "date", "json"],
+                        "enum": [
+                          "string",
+                          "number",
+                          "boolean",
+                          "date",
+                          "json"
+                        ],
                         "description": "New column data type"
                       },
                       "required": {
@@ -2326,7 +2449,9 @@
         "operationId": "deleteColumn",
         "summary": "Delete Column",
         "description": "Delete a column from the table schema. This removes the column definition and strips the corresponding key from all existing row data. Cannot delete the last remaining column.",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "lang": "curl",
@@ -2344,7 +2469,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["workspaceId", "columnName"],
+                "required": [
+                  "workspaceId",
+                  "columnName"
+                ],
                 "properties": {
                   "workspaceId": {
                     "type": "string",
@@ -2423,7 +2551,9 @@
         "operationId": "listRows",
         "summary": "List Rows",
         "description": "Query rows from a table with optional filtering, sorting, and pagination. Filters and sorts are passed as JSON-encoded query parameters.",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -2569,7 +2699,9 @@
         "operationId": "insertRows",
         "summary": "Insert Rows",
         "description": "Insert one or more rows into a table. For a single row, pass a `data` object. For batch insert, pass a `rows` array (up to 1000 rows).",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -2591,7 +2723,10 @@
                 "oneOf": [
                   {
                     "type": "object",
-                    "required": ["workspaceId", "data"],
+                    "required": [
+                      "workspaceId",
+                      "data"
+                    ],
                     "description": "Single row insert.",
                     "properties": {
                       "workspaceId": {
@@ -2612,7 +2747,10 @@
                   },
                   {
                     "type": "object",
-                    "required": ["workspaceId", "rows"],
+                    "required": [
+                      "workspaceId",
+                      "rows"
+                    ],
                     "description": "Batch insert (up to 1000 rows).",
                     "properties": {
                       "workspaceId": {
@@ -2734,7 +2872,9 @@
         "operationId": "updateRows",
         "summary": "Update Rows",
         "description": "Bulk update rows matching a filter. All matching rows will have the specified fields updated. Validates against schema and unique constraints.",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -2754,7 +2894,11 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["workspaceId", "filter", "data"],
+                "required": [
+                  "workspaceId",
+                  "filter",
+                  "data"
+                ],
                 "properties": {
                   "workspaceId": {
                     "type": "string",
@@ -2815,7 +2959,9 @@
         "operationId": "deleteRows",
         "summary": "Delete Rows",
         "description": "Delete rows by filter criteria or by an explicit list of row IDs. Pass either a `filter` object or a `rowIds` array.",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -2837,7 +2983,10 @@
                 "oneOf": [
                   {
                     "type": "object",
-                    "required": ["workspaceId", "filter"],
+                    "required": [
+                      "workspaceId",
+                      "filter"
+                    ],
                     "description": "Delete by filter.",
                     "properties": {
                       "workspaceId": {
@@ -2859,7 +3008,10 @@
                   },
                   {
                     "type": "object",
-                    "required": ["workspaceId", "rowIds"],
+                    "required": [
+                      "workspaceId",
+                      "rowIds"
+                    ],
                     "description": "Delete by IDs.",
                     "properties": {
                       "workspaceId": {
@@ -2880,7 +3032,10 @@
               },
               "example": {
                 "workspaceId": "wsp_abc123",
-                "rowIds": ["row_abc123", "row_def456"]
+                "rowIds": [
+                  "row_abc123",
+                  "row_def456"
+                ]
               }
             }
           }
@@ -2936,7 +3091,10 @@
                   "data": {
                     "message": "Rows deleted successfully",
                     "deletedCount": 2,
-                    "deletedRowIds": ["row_abc123", "row_def456"]
+                    "deletedRowIds": [
+                      "row_abc123",
+                      "row_def456"
+                    ]
                   }
                 }
               }
@@ -2963,7 +3121,9 @@
         "operationId": "batchUpdateRows",
         "summary": "Batch Update Rows",
         "description": "Update multiple specific rows by their IDs in a single request. Each entry in the `updates` array specifies a row ID and the fields to update. Validates against the table schema and unique constraints. Up to 1000 rows can be updated per request.",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -2983,7 +3143,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["workspaceId", "updates"],
+                "required": [
+                  "workspaceId",
+                  "updates"
+                ],
                 "properties": {
                   "workspaceId": {
                     "type": "string",
@@ -2993,7 +3156,10 @@
                     "type": "array",
                     "items": {
                       "type": "object",
-                      "required": ["rowId", "data"],
+                      "required": [
+                        "rowId",
+                        "data"
+                      ],
                       "properties": {
                         "rowId": {
                           "type": "string",
@@ -3059,7 +3225,9 @@
         "operationId": "getRow",
         "summary": "Get Row",
         "description": "Retrieve a single row by its ID.",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -3142,7 +3310,9 @@
         "operationId": "updateRow",
         "summary": "Update Row",
         "description": "Partially update a single row. Only the provided fields are updated; existing fields are preserved. Data is validated against the table schema.",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -3165,7 +3335,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["workspaceId", "data"],
+                "required": [
+                  "workspaceId",
+                  "data"
+                ],
                 "properties": {
                   "workspaceId": {
                     "type": "string",
@@ -3255,7 +3428,9 @@
         "operationId": "deleteRow",
         "summary": "Delete Row",
         "description": "Delete a single row by its ID.",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -3332,7 +3507,9 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["workspaceId"],
+                "required": [
+                  "workspaceId"
+                ],
                 "properties": {
                   "workspaceId": {
                     "type": "string",
@@ -3353,7 +3530,9 @@
         "operationId": "upsertRow",
         "summary": "Upsert Row",
         "description": "Insert a new row or update an existing one based on a unique column value. The table must have at least one column with a unique constraint. If a row with a matching unique value exists, it is updated; otherwise, a new row is inserted. When multiple unique columns exist, specify `conflictTarget` to indicate which column to match on.",
-        "tags": ["Tables"],
+        "tags": [
+          "Tables"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -3373,7 +3552,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["workspaceId", "data"],
+                "required": [
+                  "workspaceId",
+                  "data"
+                ],
                 "properties": {
                   "workspaceId": {
                     "type": "string",
@@ -3421,7 +3603,10 @@
                         },
                         "operation": {
                           "type": "string",
-                          "enum": ["insert", "update"],
+                          "enum": [
+                            "insert",
+                            "update"
+                          ],
                           "description": "Whether the row was inserted or updated."
                         },
                         "message": {
@@ -3475,7 +3660,9 @@
         "operationId": "listFiles",
         "summary": "List Files",
         "description": "List all files in a workspace.",
-        "tags": ["Files"],
+        "tags": [
+          "Files"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -3558,7 +3745,9 @@
         "operationId": "uploadFile",
         "summary": "Upload File",
         "description": "Upload a file to a workspace. Send the file as multipart/form-data with a `file` field and a `workspaceId` field. Maximum file size is 100MB. Duplicate filenames within a workspace are not allowed.",
-        "tags": ["Files"],
+        "tags": [
+          "Files"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -3573,7 +3762,10 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["file", "workspaceId"],
+                "required": [
+                  "file",
+                  "workspaceId"
+                ],
                 "properties": {
                   "file": {
                     "type": "string",
@@ -3672,7 +3864,9 @@
         "operationId": "downloadFile",
         "summary": "Download File",
         "description": "Download a file's content. Returns the raw file bytes with appropriate Content-Type, Content-Disposition, and Content-Length headers. File metadata is included in custom response headers: X-File-Id, X-File-Name, X-Uploaded-At.",
-        "tags": ["Files"],
+        "tags": [
+          "Files"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -3771,7 +3965,9 @@
         "operationId": "deleteFile",
         "summary": "Delete File",
         "description": "Delete a file from a workspace. This removes both the file content and its metadata. This action is irreversible.",
-        "tags": ["Files"],
+        "tags": [
+          "Files"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -3851,7 +4047,9 @@
         "operationId": "listKnowledgeBases",
         "summary": "List Knowledge Bases",
         "description": "List all knowledge bases in a workspace.",
-        "tags": ["Knowledge Bases"],
+        "tags": [
+          "Knowledge Bases"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -3935,7 +4133,9 @@
         "operationId": "createKnowledgeBase",
         "summary": "Create Knowledge Base",
         "description": "Create a new knowledge base in a workspace. Optionally configure chunking parameters for document processing.",
-        "tags": ["Knowledge Bases"],
+        "tags": [
+          "Knowledge Bases"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -3950,7 +4150,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["workspaceId", "name"],
+                "required": [
+                  "workspaceId",
+                  "name"
+                ],
                 "properties": {
                   "workspaceId": {
                     "type": "string",
@@ -4048,7 +4251,9 @@
         "operationId": "getKnowledgeBase",
         "summary": "Get Knowledge Base",
         "description": "Get details of a specific knowledge base.",
-        "tags": ["Knowledge Bases"],
+        "tags": [
+          "Knowledge Bases"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -4134,7 +4339,9 @@
         "operationId": "updateKnowledgeBase",
         "summary": "Update Knowledge Base",
         "description": "Update a knowledge base's name, description, or chunking configuration. At least one field must be provided.",
-        "tags": ["Knowledge Bases"],
+        "tags": [
+          "Knowledge Bases"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -4160,7 +4367,9 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["workspaceId"],
+                "required": [
+                  "workspaceId"
+                ],
                 "properties": {
                   "workspaceId": {
                     "type": "string",
@@ -4258,7 +4467,9 @@
         "operationId": "deleteKnowledgeBase",
         "summary": "Delete Knowledge Base",
         "description": "Soft-delete a knowledge base and all its documents.",
-        "tags": ["Knowledge Bases"],
+        "tags": [
+          "Knowledge Bases"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -4334,7 +4545,9 @@
         "operationId": "listDocuments",
         "summary": "List Documents",
         "description": "List documents in a knowledge base with pagination, filtering, and sorting.",
-        "tags": ["Knowledge Bases"],
+        "tags": [
+          "Knowledge Bases"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -4391,7 +4604,11 @@
             "description": "Filter by enabled status.",
             "schema": {
               "type": "string",
-              "enum": ["all", "enabled", "disabled"],
+              "enum": [
+                "all",
+                "enabled",
+                "disabled"
+              ],
               "default": "all"
             }
           },
@@ -4419,7 +4636,10 @@
             "description": "Sort direction.",
             "schema": {
               "type": "string",
-              "enum": ["asc", "desc"],
+              "enum": [
+                "asc",
+                "desc"
+              ],
               "default": "desc"
             }
           }
@@ -4522,7 +4742,9 @@
         "operationId": "uploadDocument",
         "summary": "Upload Document",
         "description": "Upload a document to a knowledge base. The document will be processed asynchronously (chunked and embedded). Maximum file size is 100MB.",
-        "tags": ["Knowledge Bases"],
+        "tags": [
+          "Knowledge Bases"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -4548,7 +4770,10 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["file", "workspaceId"],
+                "required": [
+                  "file",
+                  "workspaceId"
+                ],
                 "properties": {
                   "file": {
                     "type": "string",
@@ -4684,7 +4909,9 @@
         "operationId": "getDocument",
         "summary": "Get Document",
         "description": "Get details of a specific document in a knowledge base.",
-        "tags": ["Knowledge Bases"],
+        "tags": [
+          "Knowledge Bases"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -4779,7 +5006,9 @@
         "operationId": "deleteDocument",
         "summary": "Delete Document",
         "description": "Soft-delete a document from a knowledge base. For connector-sourced documents, this also prevents re-import on future syncs.",
-        "tags": ["Knowledge Bases"],
+        "tags": [
+          "Knowledge Bases"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -4864,7 +5093,9 @@
         "operationId": "searchKnowledgeBase",
         "summary": "Search Knowledge Base",
         "description": "Perform vector similarity search across one or more knowledge bases. Supports semantic search via query text, tag-based filtering, or a combination of both.",
-        "tags": ["Knowledge Bases"],
+        "tags": [
+          "Knowledge Bases"
+        ],
         "x-codeSamples": [
           {
             "id": "curl",
@@ -4879,7 +5110,10 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["workspaceId", "knowledgeBaseIds"],
+                "required": [
+                  "workspaceId",
+                  "knowledgeBaseIds"
+                ],
                 "properties": {
                   "workspaceId": {
                     "type": "string",
@@ -4923,7 +5157,9 @@
               },
               "example": {
                 "workspaceId": "wsp_abc123",
-                "knowledgeBaseIds": ["kb_abc123"],
+                "knowledgeBaseIds": [
+                  "kb_abc123"
+                ],
                 "query": "How do I reset my password?",
                 "topK": 5
               }
@@ -4990,7 +5226,9 @@
                       }
                     ],
                     "query": "How do I reset my password?",
-                    "knowledgeBaseIds": ["kb_abc123"],
+                    "knowledgeBaseIds": [
+                      "kb_abc123"
+                    ],
                     "topK": 5,
                     "totalResults": 1
                   }
@@ -5062,7 +5300,10 @@
       "ColumnDefinition": {
         "type": "object",
         "description": "Definition of a table column including its type and constraints.",
-        "required": ["name", "type"],
+        "required": [
+          "name",
+          "type"
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -5072,7 +5313,13 @@
           },
           "type": {
             "type": "string",
-            "enum": ["string", "number", "boolean", "date", "json"],
+            "enum": [
+              "string",
+              "number",
+              "boolean",
+              "date",
+              "json"
+            ],
             "description": "Data type of the column."
           },
           "required": {
@@ -5737,7 +5984,12 @@
           },
           "status": {
             "type": "string",
-            "enum": ["queued", "processing", "completed", "failed"],
+            "enum": [
+              "queued",
+              "processing",
+              "completed",
+              "failed"
+            ],
             "description": "Current status of the job.",
             "example": "completed"
           },
@@ -6095,7 +6347,12 @@
           },
           "processingStatus": {
             "type": "string",
-            "enum": ["pending", "processing", "completed", "failed"],
+            "enum": [
+              "pending",
+              "processing",
+              "completed",
+              "failed"
+            ],
             "description": "Current processing status."
           },
           "chunkCount": {
@@ -6147,7 +6404,12 @@
           },
           "processingStatus": {
             "type": "string",
-            "enum": ["pending", "processing", "completed", "failed"],
+            "enum": [
+              "pending",
+              "processing",
+              "completed",
+              "failed"
+            ],
             "description": "Current processing status."
           },
           "processingError": {
@@ -6240,7 +6502,10 @@
       "TagFilter": {
         "type": "object",
         "description": "A tag-based filter for knowledge base search.",
-        "required": ["tagName", "value"],
+        "required": [
+          "tagName",
+          "value"
+        ],
         "properties": {
           "tagName": {
             "type": "string",
@@ -6248,7 +6513,12 @@
           },
           "fieldType": {
             "type": "string",
-            "enum": ["text", "number", "date", "boolean"],
+            "enum": [
+              "text",
+              "number",
+              "date",
+              "boolean"
+            ],
             "default": "text",
             "description": "Data type of the tag field."
           },
@@ -6375,7 +6645,13 @@
           },
           "resumeStatus": {
             "type": "string",
-            "enum": ["paused", "resumed", "failed", "queued", "resuming"],
+            "enum": [
+              "paused",
+              "resumed",
+              "failed",
+              "queued",
+              "resuming"
+            ],
             "description": "Current status of this pause point."
           },
           "snapshotReady": {
@@ -6585,7 +6861,12 @@
           "status": {
             "type": "string",
             "description": "Execution status.",
-            "enum": ["completed", "failed", "paused", "cancelled"],
+            "enum": [
+              "completed",
+              "failed",
+              "paused",
+              "cancelled"
+            ],
             "example": "completed"
           },
           "executionId": {
@@ -6760,7 +7041,10 @@
               "data": {
                 "message": "Rows updated successfully",
                 "updatedCount": 2,
-                "updatedRowIds": ["row_abc123", "row_def456"]
+                "updatedRowIds": [
+                  "row_abc123",
+                  "row_def456"
+                ]
               }
             }
           }
