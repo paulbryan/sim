@@ -24,6 +24,7 @@ vi.mock('@/lib/copilot/tool-executor', () => ({
   isSimExecuted,
   executeTool,
   ensureHandlersRegistered,
+  getToolEntry: vi.fn().mockReturnValue(undefined),
 }))
 
 vi.mock('@/lib/copilot/async-runs/repository', async () => {

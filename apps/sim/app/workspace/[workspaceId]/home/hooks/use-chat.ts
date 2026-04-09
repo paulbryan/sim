@@ -958,12 +958,16 @@ export function useChat(
 
                 if (previewPhase === 'file_preview_content') {
                   const content = typeof payload.content === 'string' ? payload.content : ''
+                  const isAppendOp = prevSession.operation === 'append'
+                  const prevContent = streamingFileRef.current?.content ?? ''
+                  const nextContent = isAppendOp ? prevContent + content : content
                   const nextSession: StreamingFilePreview = {
                     ...prevSession,
-                    content,
+                    content: nextContent,
                   }
                   sessions.set(id, nextSession)
                   activeFilePreviewToolCallIdRef.current = id
+                  streamingFileRef.current = nextSession
                   setStreamingFile(nextSession)
                   break
                 }
@@ -1104,8 +1108,10 @@ export function useChat(
                   filePreviewSessionsRef.current.delete(id)
                   if (activeFilePreviewToolCallIdRef.current === id) {
                     activeFilePreviewToolCallIdRef.current = null
-                    setStreamingFile(null)
-                    streamingFileRef.current = null
+                    if (!activeSubagent || activeSubagent !== FileTool.id) {
+                      setStreamingFile(null)
+                      streamingFileRef.current = null
+                    }
                   }
                   const fileResource = extractedResources.find((r) => r.type === 'file')
                   if (fileResource) {
@@ -1118,7 +1124,7 @@ export function useChat(
                     })
                     setActiveResourceId(fileResource.id)
                     invalidateResourceQueries(queryClient, workspaceId, 'file', fileResource.id)
-                  } else {
+                  } else if (!activeSubagent || activeSubagent !== FileTool.id) {
                     setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
                   }
                 }
@@ -1335,7 +1341,7 @@ export function useChat(
                 if (isPendingPause) {
                   break
                 }
-                if (streamingFileRef.current) {
+                if (streamingFileRef.current && !activeFilePreviewToolCallIdRef.current) {
                   setStreamingFile(null)
                   streamingFileRef.current = null
                   const lastFileResource = resourcesRef.current.find(

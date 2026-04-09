@@ -243,6 +243,8 @@ function TextEditor({
   const [savedContent, setSavedContent] = useState('')
   const savedContentRef = useRef('')
   const wasStreamingRef = useRef(false)
+  const pendingStreamReconcileRef = useRef(false)
+  const lastStreamedContentRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (streamingContent !== undefined) {
@@ -254,41 +256,31 @@ function TextEditor({
               fetchedContent.endsWith(`\n${streamingContent}`)
             ? fetchedContent
             : `${fetchedContent}\n${streamingContent}`
-      // #region agent log
-      fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
-        body: JSON.stringify({
-          sessionId: '6f10b0',
-          location: 'file-viewer.tsx:TextEditor-merge',
-          message: 'streaming merge',
-          data: {
-            streamingMode,
-            fetchedContentLen: fetchedContent?.length,
-            streamingContentLen: streamingContent.length,
-            nextContentLen: nextContent.length,
-            fetchedUndefined: fetchedContent === undefined,
-            usedReplace: streamingMode === 'replace' || fetchedContent === undefined,
-            nextPreview: nextContent.slice(0, 200),
-          },
-          timestamp: Date.now(),
-          hypothesisId: 'H2-H3',
-        }),
-      }).catch(() => {})
-      // #endregion
+      pendingStreamReconcileRef.current = true
+      lastStreamedContentRef.current = nextContent
       setContent(nextContent)
       contentRef.current = nextContent
       initializedRef.current = true
       return
     }
 
-    if (wasStreamingRef.current) {
-      if (fetchedContent !== undefined && fetchedContent !== savedContentRef.current) {
+    if (wasStreamingRef.current && pendingStreamReconcileRef.current) {
+      const lastStreamed = lastStreamedContentRef.current
+      const hasFetchedAdvanced =
+        fetchedContent !== undefined && fetchedContent !== savedContentRef.current
+      const fetchedMatchesLastStream =
+        fetchedContent !== undefined && lastStreamed !== null && fetchedContent === lastStreamed
+
+      if (hasFetchedAdvanced || fetchedMatchesLastStream) {
+        pendingStreamReconcileRef.current = false
         wasStreamingRef.current = false
-        setContent(fetchedContent)
+        lastStreamedContentRef.current = null
+        if (lastStreamed !== null && contentRef.current === lastStreamed) {
+          setContent(fetchedContent)
+          contentRef.current = fetchedContent
+        }
         setSavedContent(fetchedContent)
         savedContentRef.current = fetchedContent
-        contentRef.current = fetchedContent
         return
       }
     }
@@ -316,7 +308,7 @@ function TextEditor({
       savedContentRef.current = fetchedContent
       contentRef.current = fetchedContent
     }
-  }, [streamingContent, fetchedContent, dataUpdatedAt, autoFocus])
+  }, [streamingContent, fetchedContent, streamingMode, dataUpdatedAt, autoFocus])
 
   const handleContentChange = useCallback((value: string) => {
     setContent(value)

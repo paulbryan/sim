@@ -159,11 +159,25 @@ export async function routeExecution(
 
   assertServerToolNotAborted(context)
 
-  // Validate input if tool declares a schema; otherwise fall back to the
-  // generated JSON schema contract emitted from Go.
+  // Go injects chatId/workspaceId and may wrap the model's args inside a
+  // nested "args" object. Unwrap that before validation so the generated
+  // JSON Schema sees the flat tool contract shape.
+  let normalizedPayload = payload ?? {}
+  if (
+    normalizedPayload &&
+    typeof normalizedPayload === 'object' &&
+    !Array.isArray(normalizedPayload)
+  ) {
+    const raw = normalizedPayload as Record<string, unknown>
+    if (raw.args && typeof raw.args === 'object' && !raw.operation) {
+      const nested = raw.args as Record<string, unknown>
+      normalizedPayload = { ...nested, ...raw, args: undefined }
+    }
+  }
+
   const args = tool.inputSchema
-    ? tool.inputSchema.parse(payload ?? {})
-    : validateGeneratedToolPayload(toolName, 'parameters', payload ?? {})
+    ? tool.inputSchema.parse(normalizedPayload)
+    : validateGeneratedToolPayload(toolName, 'parameters', normalizedPayload)
 
   assertServerToolNotAborted(context)
 

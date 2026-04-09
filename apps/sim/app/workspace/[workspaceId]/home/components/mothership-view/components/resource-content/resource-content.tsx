@@ -120,101 +120,17 @@ export const ResourceContent = memo(function ResourceContent({
     isSourceMime
   )
 
-  // #region agent log
-  if (streamingFile) {
-    fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
-      body: JSON.stringify({
-        sessionId: '6f10b0',
-        location: 'resource-content.tsx:streaming-context',
-        message: 'streaming state',
-        data: {
-          resourceId: resource.id,
-          resourceType: resource.type,
-          streamOp: streamOperation,
-          isPatch: isPatchStream,
-          isWrite: isWriteStream,
-          isUpdate: isUpdateStream,
-          hasActiveFileRecord: !!activeFileRecord,
-          hasFetchedContent: !!fetchedFileContent,
-          fetchedContentLen: fetchedFileContent?.length,
-          streamingFileContentLen: streamingFile.content.length,
-          streamingFileName: streamingFile.fileName,
-          streamingFileMode: isWriteStream ? 'append' : 'replace',
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {})
-  }
-  // #endregion
   const streamingExtractedContent = useMemo(() => {
     if (!streamingFile) return undefined
     if (!streamOperation) return undefined
 
     if (isPatchStream) {
-      if (!fetchedFileContent) {
-        // #region agent log
-        fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
-          body: JSON.stringify({
-            sessionId: '6f10b0',
-            location: 'resource-content.tsx:patch-no-fetched',
-            message: 'patch but no fetchedFileContent',
-            data: { resourceId: resource.id, activeFileRecordId: activeFileRecord?.id },
-            timestamp: Date.now(),
-            hypothesisId: 'H1',
-          }),
-        }).catch(() => {})
-        // #endregion
-        return undefined
-      }
-      const patchResult = extractPatchPreview(streamingFile, fetchedFileContent)
-      // #region agent log
-      fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
-        body: JSON.stringify({
-          sessionId: '6f10b0',
-          location: 'resource-content.tsx:patch-result',
-          message: 'extractPatchPreview result',
-          data: {
-            hasPatchResult: !!patchResult,
-            patchResultLen: patchResult?.length,
-            fetchedLen: fetchedFileContent.length,
-            contentPreview: streamingFile.content.slice(0, 200),
-            edit: streamingFile.edit,
-          },
-          timestamp: Date.now(),
-          hypothesisId: 'H4',
-        }),
-      }).catch(() => {})
-      // #endregion
-      return patchResult
+      if (!fetchedFileContent) return undefined
+      return extractPatchPreview(streamingFile, fetchedFileContent)
     }
 
     const extracted = streamingFile.content
     if (extracted.length === 0) return undefined
-
-    // #region agent log
-    fetch('http://127.0.0.1:7774/ingest/b056eec6-a1ee-457f-8556-85f94314ca06', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '6f10b0' },
-      body: JSON.stringify({
-        sessionId: '6f10b0',
-        location: 'resource-content.tsx:write-update-content',
-        message: 'extracted content for write/update',
-        data: {
-          streamOp: streamOperation,
-          extractedLen: extracted.length,
-          extractedPreview: extracted.slice(0, 150),
-        },
-        timestamp: Date.now(),
-        hypothesisId: 'H2',
-      }),
-    }).catch(() => {})
-    // #endregion
 
     if (isUpdateStream) return extracted
     if (isWriteStream) return extracted

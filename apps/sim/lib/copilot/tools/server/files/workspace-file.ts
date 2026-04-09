@@ -152,7 +152,22 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
       throw new Error('Authentication required')
     }
 
-    const normalized = params
+    const raw = params as Record<string, unknown>
+    const nested = raw.args as Record<string, unknown> | undefined
+    const normalized: WorkspaceFileArgs =
+      params.operation && params.target
+        ? params
+        : nested && typeof nested === 'object'
+          ? {
+              operation: (nested.operation ?? raw.operation) as WorkspaceFileOperation,
+              target: (nested.target ?? raw.target) as WorkspaceFileTarget | undefined,
+              title: (nested.title ?? raw.title) as string | undefined,
+              content: (nested.content ?? raw.content) as string | undefined,
+              contentType: (nested.contentType ?? raw.contentType) as string | undefined,
+              newName: (nested.newName ?? raw.newName) as string | undefined,
+              edit: (nested.edit ?? raw.edit) as WorkspaceFileEdit | undefined,
+            }
+          : params
     const { operation } = normalized
     const workspaceId = context.workspaceId
 
