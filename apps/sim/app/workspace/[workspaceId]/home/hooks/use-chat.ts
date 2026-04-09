@@ -610,11 +610,34 @@ export function useChat(
       const assistantId = generateId()
 
       const reconnect = async () => {
-        const succeeded = await retryReconnectRef.current({
-          streamId: activeStreamId,
-          assistantId,
-          gen,
-        })
+        const initialSnapshot = chatHistory.streamSnapshot
+        const snapshotEvents = Array.isArray(initialSnapshot?.events)
+          ? (initialSnapshot.events as StreamBatchEvent[])
+          : []
+
+        const reconnectResult =
+          snapshotEvents.length > 0
+            ? await attachToExistingStream({
+                streamId: activeStreamId,
+                assistantId,
+                expectedGen: gen,
+                initialBatch: {
+                  success: true,
+                  events: snapshotEvents,
+                  status: initialSnapshot?.status ?? 'unknown',
+                },
+                afterCursor: String(snapshotEvents[snapshotEvents.length - 1]?.eventId ?? '0'),
+              })
+            : null
+
+        const succeeded =
+          reconnectResult !== null
+            ? !reconnectResult.error || reconnectResult.aborted
+            : await retryReconnectRef.current({
+                streamId: activeStreamId,
+                assistantId,
+                gen,
+              })
         if (!succeeded && streamGenRef.current === gen) {
           try {
             finalizeRef.current({ error: true })

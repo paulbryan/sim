@@ -165,7 +165,9 @@ export const ResourceContent = memo(function ResourceContent({
     }
   }, [workspaceId, streamFileName])
 
-  const streamingFileMode: 'append' | 'replace' = isWriteStream ? 'append' : 'replace'
+  // workspace_file preview events now carry whole-file snapshots, not deltas.
+  // Treat every live preview as replace so the viewer shows the latest snapshot.
+  const streamingFileMode: 'append' | 'replace' = 'replace'
 
   // For existing file resources (not streaming-file), only pass streaming
   // content for patch operations where the preview splices new content into

@@ -415,6 +415,7 @@ export async function runStreamLoop(
                 toolName: 'workspace_file',
                 previewPhase: 'file_preview_content',
                 content: streamedContent,
+                contentMode: 'snapshot',
               },
               ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
             })
