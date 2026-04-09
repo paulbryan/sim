@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import {
+  CreateFile,
+  DeleteFile,
   DownloadToWorkspaceFile,
   GenerateImage,
   GenerateVisualization,
@@ -9,6 +11,7 @@ import {
   ManageCustomTool,
   ManageMcpTool,
   ManageSkill,
+  RenameFile,
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -20,7 +23,10 @@ import {
 import { getBlocksMetadataServerTool } from '@/lib/copilot/tools/server/blocks/get-blocks-metadata-tool'
 import { getTriggerBlocksServerTool } from '@/lib/copilot/tools/server/blocks/get-trigger-blocks'
 import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/search-documentation'
+import { createFileServerTool } from '@/lib/copilot/tools/server/files/create-file'
+import { deleteFileServerTool } from '@/lib/copilot/tools/server/files/delete-file'
 import { downloadToWorkspaceFileServerTool } from '@/lib/copilot/tools/server/files/download-to-workspace-file'
+import { renameFileServerTool } from '@/lib/copilot/tools/server/files/rename-file'
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
@@ -82,6 +88,9 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [ManageSkill.id]: ['add', 'edit', 'delete'],
   [ManageCredential.id]: ['rename', 'delete'],
   [WorkspaceFile.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
+  [CreateFile.id]: ['*'],
+  [RenameFile.id]: ['*'],
+  [DeleteFile.id]: ['*'],
   [DownloadToWorkspaceFile.id]: ['*'],
   [GenerateVisualization.id]: ['generate'],
   [GenerateImage.id]: ['generate'],
@@ -119,6 +128,9 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [knowledgeBaseServerTool.name]: knowledgeBaseServerTool,
   [userTableServerTool.name]: userTableServerTool,
   [workspaceFileServerTool.name]: workspaceFileServerTool,
+  [createFileServerTool.name]: createFileServerTool,
+  [renameFileServerTool.name]: renameFileServerTool,
+  [deleteFileServerTool.name]: deleteFileServerTool,
   [downloadToWorkspaceFileServerTool.name]: downloadToWorkspaceFileServerTool,
   [generateVisualizationServerTool.name]: generateVisualizationServerTool,
   [generateImageServerTool.name]: generateImageServerTool,
@@ -155,7 +167,10 @@ export async function routeExecution(
     }
   }
 
-  assertServerToolNotAborted(context)
+  assertServerToolNotAborted(
+    context,
+    `User stop signal aborted ${toolName} before payload normalization`
+  )
 
   // Go injects chatId/workspaceId and may wrap the model's args inside a
   // nested "args" object. Unwrap that before validation so the generated
@@ -177,7 +192,7 @@ export async function routeExecution(
     ? tool.inputSchema.parse(normalizedPayload)
     : validateGeneratedToolPayload(toolName, 'parameters', normalizedPayload)
 
-  assertServerToolNotAborted(context)
+  assertServerToolNotAborted(context, `User stop signal aborted ${toolName} after validation`)
 
   // Execute
   const result = await tool.execute(args, context)

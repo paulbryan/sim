@@ -53,14 +53,15 @@ interface StreamingRevealResult {
  * by DOM restructuring. It only resets when content clears (new message).
  */
 export function useStreamingReveal(content: string, isStreaming: boolean): StreamingRevealResult {
-  const [committedEnd, setCommittedEnd] = useState(0)
-  const [generation, setGeneration] = useState(0)
+  const [revealState, setRevealState] = useState({ committedEnd: 0, generation: 0 })
   const prevSplitRef = useRef(0)
 
   useEffect(() => {
     if (content.length === 0) {
       prevSplitRef.current = 0
-      setCommittedEnd(0)
+      setRevealState((prev) =>
+        prev.committedEnd === 0 && prev.generation === 0 ? prev : { committedEnd: 0, generation: 0 }
+      )
       return
     }
 
@@ -69,10 +70,15 @@ export function useStreamingReveal(content: string, isStreaming: boolean): Strea
     const splitPoint = findSafeSplitPoint(content)
     if (splitPoint > prevSplitRef.current) {
       prevSplitRef.current = splitPoint
-      setCommittedEnd(splitPoint)
-      setGeneration((g) => g + 1)
+      setRevealState((prev) =>
+        prev.committedEnd === splitPoint
+          ? prev
+          : { committedEnd: splitPoint, generation: prev.generation + 1 }
+      )
     }
   }, [content, isStreaming])
+
+  const { committedEnd, generation } = revealState
 
   if (!isStreaming) {
     const preservedSplit = prevSplitRef.current

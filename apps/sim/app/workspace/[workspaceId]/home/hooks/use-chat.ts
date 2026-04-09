@@ -755,9 +755,15 @@ export function useChat(
             const lines = buffer.split('\n')
             buffer = lines.pop() || ''
             pendingLines.push(...lines)
+            if (pendingLines.length === 0) {
+              continue
+            }
           }
 
-          const line = pendingLines.shift()!
+          const line = pendingLines.shift()
+          if (line === undefined) {
+            continue
+          }
           if (isStale()) {
             pendingLines.length = 0
             continue
@@ -893,9 +899,18 @@ export function useChat(
                   const nextSession: StreamingFilePreview = {
                     ...prevSession,
                     toolCallId: id,
+                    ...(typeof payload.operation === 'string'
+                      ? { operation: payload.operation }
+                      : {}),
+                    ...(typeof payload.fileId === 'string'
+                      ? { fileId: payload.fileId, targetKind: 'file_id' as const }
+                      : {}),
                   }
                   sessions.set(id, nextSession)
                   activeFilePreviewToolCallIdRef.current = id
+                  if (nextSession.fileId) {
+                    setActiveResourceId(nextSession.fileId)
+                  }
                   setStreamingFile(nextSession)
                   break
                 }
@@ -958,9 +973,18 @@ export function useChat(
 
                 if (previewPhase === 'file_preview_content') {
                   const content = typeof payload.content === 'string' ? payload.content : ''
-                  const isAppendOp = prevSession.operation === 'append'
-                  const prevContent = streamingFileRef.current?.content ?? ''
-                  const nextContent = isAppendOp ? prevContent + content : content
+                  const contentMode =
+                    typeof payload.contentMode === 'string' ? payload.contentMode : undefined
+                  let nextContent: string
+                  if (contentMode === 'snapshot') {
+                    nextContent = content
+                  } else if (contentMode === 'delta') {
+                    nextContent = (prevSession.content ?? '') + content
+                  } else {
+                    const isAppendOp = prevSession.operation === 'append'
+                    const prevContent = streamingFileRef.current?.content ?? ''
+                    nextContent = isAppendOp ? prevContent + content : content
+                  }
                   const nextSession: StreamingFilePreview = {
                     ...prevSession,
                     content: nextContent,
@@ -969,6 +993,34 @@ export function useChat(
                   activeFilePreviewToolCallIdRef.current = id
                   streamingFileRef.current = nextSession
                   setStreamingFile(nextSession)
+                  break
+                }
+
+                if (previewPhase === 'file_preview_complete') {
+                  const fileId =
+                    typeof payload.fileId === 'string' ? payload.fileId : prevSession.fileId
+                  const resultData = asPayloadRecord(payload.data)
+                  sessions.delete(id)
+                  activeFilePreviewToolCallIdRef.current = null
+
+                  if (fileId && resultData?.id) {
+                    const fileName = (resultData.name as string) ?? prevSession.fileName ?? 'File'
+                    const fileResource = { type: 'file' as const, id: fileId, title: fileName }
+                    setResources((rs) => {
+                      const without = rs.filter((r) => r.id !== 'streaming-file')
+                      if (without.some((r) => r.type === 'file' && r.id === fileResource.id)) {
+                        return without
+                      }
+                      return [...without, fileResource]
+                    })
+                    setActiveResourceId(fileId)
+                    invalidateResourceQueries(queryClient, workspaceId, 'file', fileId)
+                  }
+
+                  if (!activeSubagent || activeSubagent !== FileTool.id) {
+                    setStreamingFile(null)
+                    streamingFileRef.current = null
+                  }
                   break
                 }
               }
@@ -1327,7 +1379,7 @@ export function useChat(
                 if (!isSameActiveSubagent) {
                   blocks.push({ type: 'subagent', content: name })
                 }
-                if (name === FileTool.id) {
+                if (name === FileTool.id && !isSameActiveSubagent) {
                   const emptyFile: StreamingFilePreview = {
                     toolCallId: parentToolCallId || 'file-preview',
                     fileName: '',
@@ -1937,7 +1989,7 @@ export function useChat(
     streamGenRef.current++
     streamReaderRef.current?.cancel().catch(() => {})
     streamReaderRef.current = null
-    abortControllerRef.current?.abort()
+    abortControllerRef.current?.abort('user_stop:client_stopGeneration')
     abortControllerRef.current = null
     sendingRef.current = false
     setIsSending(false)

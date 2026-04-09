@@ -74,6 +74,17 @@ export function abortPendingToolIfStreamDead(
   toolCall.status = MothershipStreamV1ToolOutcome.cancelled
   toolCall.endTime = Date.now()
   markToolResultSeen(toolCallId)
+  const toolSpan = context.trace.startSpan(toolCall.name || 'unknown_tool', 'tool.execute', {
+    toolCallId,
+    toolName: toolCall.name,
+    cancelReason: 'stream_dead_before_dispatch',
+    abortSignalAborted: options.abortSignal?.aborted ?? false,
+    abortReason: options.abortSignal?.aborted
+      ? String(options.abortSignal.reason ?? 'unknown')
+      : undefined,
+    wasAborted: context.wasAborted ?? false,
+  })
+  context.trace.endSpan(toolSpan, 'cancelled')
   return true
 }
 

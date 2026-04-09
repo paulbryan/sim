@@ -113,6 +113,42 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  create_file: {
+    parameters: {
+      type: 'object',
+      properties: {
+        contentType: {
+          type: 'string',
+          description:
+            'Optional MIME type override. Usually omit and let the system infer from the file extension.',
+        },
+        fileName: {
+          type: 'string',
+          description:
+            'Plain workspace filename including extension, e.g. "main.py" or "report.md". Must not contain slashes.',
+        },
+      },
+      required: ['fileName'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Contains id (the fileId) and name.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the file was created.',
+        },
+      },
+      required: ['success', 'message'],
+    },
+  },
   create_folder: {
     parameters: {
       type: 'object',
@@ -248,6 +284,32 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       type: 'object',
     },
     resultSchema: undefined,
+  },
+  delete_file: {
+    parameters: {
+      type: 'object',
+      properties: {
+        fileId: {
+          type: 'string',
+          description: 'Canonical workspace file ID of the file to delete.',
+        },
+      },
+      required: ['fileId'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the delete succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
   },
   delete_folder: {
     parameters: {
@@ -1504,14 +1566,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        limit: {
-          type: 'number',
-          description: 'Maximum number of lines to read.',
-        },
-        offset: {
-          type: 'number',
-          description: 'Line offset to start reading from (0-indexed).',
-        },
         outputTable: {
           type: 'string',
           description:
@@ -1537,6 +1591,41 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
     },
     resultSchema: undefined,
+  },
+  rename_file: {
+    parameters: {
+      type: 'object',
+      properties: {
+        fileId: {
+          type: 'string',
+          description: 'Canonical workspace file ID of the file to rename.',
+        },
+        newName: {
+          type: 'string',
+          description:
+            'New filename including extension, e.g. "draft_v2.md". Must not contain slashes.',
+        },
+      },
+      required: ['fileId', 'newName'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description: 'Contains id and the new name.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable outcome.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the rename succeeded.',
+        },
+      },
+      required: ['success', 'message'],
+    },
   },
   rename_workflow: {
     parameters: {

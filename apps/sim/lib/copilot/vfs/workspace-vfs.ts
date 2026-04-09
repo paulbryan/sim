@@ -809,7 +809,7 @@ export class WorkspaceVFS {
           isActive: chatTable.isActive,
         })
         .from(chatTable)
-        .where(eq(chatTable.workflowId, workflowId)),
+        .where(and(eq(chatTable.workflowId, workflowId), isNull(chatTable.archivedAt))),
       db
         .select({
           id: form.id,
@@ -822,7 +822,7 @@ export class WorkspaceVFS {
           isActive: form.isActive,
         })
         .from(form)
-        .where(eq(form.workflowId, workflowId)),
+        .where(and(eq(form.workflowId, workflowId), isNull(form.archivedAt))),
       db
         .select({
           serverId: workflowMcpTool.serverId,
@@ -833,7 +833,13 @@ export class WorkspaceVFS {
         })
         .from(workflowMcpTool)
         .innerJoin(workflowMcpServer, eq(workflowMcpTool.serverId, workflowMcpServer.id))
-        .where(eq(workflowMcpTool.workflowId, workflowId)),
+        .where(
+          and(
+            eq(workflowMcpTool.workflowId, workflowId),
+            isNull(workflowMcpTool.archivedAt),
+            isNull(workflowMcpServer.deletedAt)
+          )
+        ),
       db
         .select({
           id: a2aAgent.id,
@@ -844,7 +850,13 @@ export class WorkspaceVFS {
           capabilities: a2aAgent.capabilities,
         })
         .from(a2aAgent)
-        .where(and(eq(a2aAgent.workflowId, workflowId), eq(a2aAgent.workspaceId, workspaceId))),
+        .where(
+          and(
+            eq(a2aAgent.workflowId, workflowId),
+            eq(a2aAgent.workspaceId, workspaceId),
+            isNull(a2aAgent.archivedAt)
+          )
+        ),
       isDeployed
         ? db
             .select({

@@ -388,8 +388,7 @@ function TextEditor({
   )
 
   const isStreaming = streamingContent !== undefined
-  const shouldAnimateStreaming = isStreaming && streamingMode === 'append'
-  const revealedContent = useStreamingText(content, shouldAnimateStreaming)
+  const revealedContent = useStreamingText(content, false)
 
   const textareaStuckRef = useRef(true)
 

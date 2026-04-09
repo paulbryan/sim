@@ -183,7 +183,7 @@ export async function abortActiveStream(streamId: string): Promise<boolean> {
   await writeAbortMarker(streamId)
   const controller = activeStreams.get(streamId)
   if (!controller) return false
-  controller.abort()
+  controller.abort('user_stop:abortActiveStream')
   activeStreams.delete(streamId)
   return true
 }
@@ -206,7 +206,7 @@ export function startAbortPoller(
       try {
         const shouldAbort = await hasAbortMarker(streamId)
         if (shouldAbort && !abortController.signal.aborted) {
-          abortController.abort()
+          abortController.abort('redis_abort_marker:poller')
           await clearAbortMarker(streamId)
         }
       } catch (error) {

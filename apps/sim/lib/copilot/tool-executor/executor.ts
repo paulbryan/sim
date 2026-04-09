@@ -42,7 +42,11 @@ export async function executeTool(
   }
 
   if (context.abortSignal?.aborted) {
-    return { success: false, error: 'Execution aborted' }
+    logger.warn('Tool execution skipped: abort signal already set', {
+      toolId,
+      abortReason: context.abortSignal.reason ?? 'unknown',
+    })
+    return { success: false, error: 'Execution aborted: abort signal was set before tool started' }
   }
 
   const handler = handlerRegistry.get(toolId)
@@ -55,7 +59,11 @@ export async function executeTool(
     return await handler(params, context)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    logger.error('Tool execution failed', { toolId, error: message })
+    logger.error('Tool execution failed', {
+      toolId,
+      error: message,
+      abortSignalAborted: context.abortSignal?.aborted ?? false,
+    })
     return { success: false, error: message }
   }
 }

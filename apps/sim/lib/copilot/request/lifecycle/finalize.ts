@@ -22,7 +22,7 @@ export async function finalizeStream(
   requestId: string
 ): Promise<void> {
   if (aborted) {
-    return handleAborted(publisher, runId, requestId)
+    return handleAborted(result, publisher, runId, requestId)
   }
   if (!result.success) {
     return handleError(result, publisher, runId, requestId)
@@ -31,15 +31,29 @@ export async function finalizeStream(
 }
 
 async function handleAborted(
+  result: OrchestratorResult,
   publisher: StreamWriter,
   runId: string,
   requestId: string
 ): Promise<void> {
-  logger.info(`[${requestId}] Stream aborted by explicit stop`)
+  const partialContentLen = result.content?.length ?? 0
+  const toolCallCount = result.toolCalls?.length ?? 0
+  const blockCount = result.contentBlocks?.length ?? 0
+  logger.info(`[${requestId}] Stream aborted by explicit stop`, {
+    partialContentLen,
+    toolCallCount,
+    blockCount,
+  })
   if (!publisher.sawComplete) {
+    const partialContent = result.content || undefined
     await publisher.publish({
       type: MothershipStreamV1EventType.complete,
-      payload: { status: MothershipStreamV1CompletionStatus.cancelled },
+      payload: {
+        status: MothershipStreamV1CompletionStatus.cancelled,
+        ...(partialContent ? { partialContent } : {}),
+        ...(partialContentLen ? { partialContentLen } : {}),
+        ...(toolCallCount ? { toolCallCount } : {}),
+      },
     })
   }
   await publisher.flush()

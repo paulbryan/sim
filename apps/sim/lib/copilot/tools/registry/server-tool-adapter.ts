@@ -34,13 +34,15 @@ export function createServerToolHandler(toolId: string): ToolHandler {
       }
       return { success: true, output: result }
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
       logger.error('Server tool execution failed', {
         toolId,
-        error: error instanceof Error ? error.message : String(error),
+        error: message,
+        abortSignalAborted: context.abortSignal?.aborted ?? false,
       })
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Server tool execution failed',
+        error: `[${toolId}] ${message}`,
       }
     }
   }

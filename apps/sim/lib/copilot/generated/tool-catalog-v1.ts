@@ -13,11 +13,13 @@ export interface ToolCatalogEntry {
     | 'complete_job'
     | 'context_write'
     | 'crawl_website'
+    | 'create_file'
     | 'create_folder'
     | 'create_job'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
     | 'debug'
+    | 'delete_file'
     | 'delete_folder'
     | 'delete_workflow'
     | 'delete_workspace_mcp_server'
@@ -63,6 +65,7 @@ export interface ToolCatalogEntry {
     | 'open_resource'
     | 'read'
     | 'redeploy'
+    | 'rename_file'
     | 'rename_workflow'
     | 'research'
     | 'respond'
@@ -97,11 +100,13 @@ export interface ToolCatalogEntry {
     | 'complete_job'
     | 'context_write'
     | 'crawl_website'
+    | 'create_file'
     | 'create_folder'
     | 'create_job'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
     | 'debug'
+    | 'delete_file'
     | 'delete_folder'
     | 'delete_workflow'
     | 'delete_workspace_mcp_server'
@@ -147,6 +152,7 @@ export interface ToolCatalogEntry {
     | 'open_resource'
     | 'read'
     | 'redeploy'
+    | 'rename_file'
     | 'rename_workflow'
     | 'research'
     | 'respond'
@@ -298,6 +304,39 @@ export const CrawlWebsite: ToolCatalogEntry = {
   },
 }
 
+export const CreateFile: ToolCatalogEntry = {
+  id: 'create_file',
+  name: 'create_file',
+  executor: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      contentType: {
+        type: 'string',
+        description:
+          'Optional MIME type override. Usually omit and let the system infer from the file extension.',
+      },
+      fileName: {
+        type: 'string',
+        description:
+          'Plain workspace filename including extension, e.g. "main.py" or "report.md". Must not contain slashes.',
+      },
+    },
+    required: ['fileName'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      data: { type: 'object', description: 'Contains id (the fileId) and name.' },
+      message: { type: 'string', description: 'Human-readable outcome.' },
+      success: { type: 'boolean', description: 'Whether the file was created.' },
+    },
+    required: ['success', 'message'],
+  },
+  requiredPermission: 'write',
+}
+
 export const CreateFolder: ToolCatalogEntry = {
   id: 'create_folder',
   name: 'create_folder',
@@ -428,6 +467,29 @@ export const Debug: ToolCatalogEntry = {
   },
   subagentId: 'debug',
   internal: true,
+}
+
+export const DeleteFile: ToolCatalogEntry = {
+  id: 'delete_file',
+  name: 'delete_file',
+  executor: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      fileId: { type: 'string', description: 'Canonical workspace file ID of the file to delete.' },
+    },
+    required: ['fileId'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      message: { type: 'string', description: 'Human-readable outcome.' },
+      success: { type: 'boolean', description: 'Whether the delete succeeded.' },
+    },
+    required: ['success', 'message'],
+  },
+  requiredPermission: 'write',
 }
 
 export const DeleteFolder: ToolCatalogEntry = {
@@ -1726,8 +1788,6 @@ export const Read: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
-      limit: { type: 'number', description: 'Maximum number of lines to read.' },
-      offset: { type: 'number', description: 'Line offset to start reading from (0-indexed).' },
       outputTable: {
         type: 'string',
         description:
@@ -1758,6 +1818,35 @@ export const Redeploy: ToolCatalogEntry = {
   },
   requiresConfirmation: true,
   requiredPermission: 'admin',
+}
+
+export const RenameFile: ToolCatalogEntry = {
+  id: 'rename_file',
+  name: 'rename_file',
+  executor: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      fileId: { type: 'string', description: 'Canonical workspace file ID of the file to rename.' },
+      newName: {
+        type: 'string',
+        description:
+          'New filename including extension, e.g. "draft_v2.md". Must not contain slashes.',
+      },
+    },
+    required: ['fileId', 'newName'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      data: { type: 'object', description: 'Contains id and the new name.' },
+      message: { type: 'string', description: 'Human-readable outcome.' },
+      success: { type: 'boolean', description: 'Whether the rename succeeded.' },
+    },
+    required: ['success', 'message'],
+  },
+  requiredPermission: 'write',
 }
 
 export const RenameWorkflow: ToolCatalogEntry = {
@@ -2626,11 +2715,13 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [CompleteJob.id]: CompleteJob,
   [ContextWrite.id]: ContextWrite,
   [CrawlWebsite.id]: CrawlWebsite,
+  [CreateFile.id]: CreateFile,
   [CreateFolder.id]: CreateFolder,
   [CreateJob.id]: CreateJob,
   [CreateWorkflow.id]: CreateWorkflow,
   [CreateWorkspaceMcpServer.id]: CreateWorkspaceMcpServer,
   [Debug.id]: Debug,
+  [DeleteFile.id]: DeleteFile,
   [DeleteFolder.id]: DeleteFolder,
   [DeleteWorkflow.id]: DeleteWorkflow,
   [DeleteWorkspaceMcpServer.id]: DeleteWorkspaceMcpServer,
@@ -2676,6 +2767,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [OpenResource.id]: OpenResource,
   [Read.id]: Read,
   [Redeploy.id]: Redeploy,
+  [RenameFile.id]: RenameFile,
   [RenameWorkflow.id]: RenameWorkflow,
   [Research.id]: Research,
   [Respond.id]: Respond,

@@ -1232,7 +1232,10 @@ async function executeToolRequest(
         if (isInternalRoute) {
           const controller = new AbortController()
           const timeout = requestParams.timeout || DEFAULT_EXECUTION_TIMEOUT_MS
-          const timeoutId = setTimeout(() => controller.abort(), timeout)
+          const timeoutId = setTimeout(
+            () => controller.abort(`timeout:internal_tool_fetch:${timeout}ms`),
+            timeout
+          )
 
           try {
             response = await fetch(fullUrl, {

@@ -122,6 +122,28 @@ export async function executeVfsRead(
   }
 
   try {
+    const parseOptionalNumber = (value: unknown): number | undefined => {
+      if (typeof value === 'number' && Number.isFinite(value)) return value
+      if (typeof value === 'string' && value.trim() !== '') {
+        const parsed = Number.parseInt(value, 10)
+        return Number.isFinite(parsed) ? parsed : undefined
+      }
+      return undefined
+    }
+    const offset = parseOptionalNumber(params.offset)
+    const limit = parseOptionalNumber(params.limit)
+    const applyWindow = <T extends { content: string; totalLines: number }>(result: T): T => {
+      if (offset === undefined && limit === undefined) return result
+      const lines = result.content.split('\n')
+      const start = Math.max(0, Math.min(result.totalLines, offset ?? 0))
+      const endRaw = limit !== undefined ? start + Math.max(0, limit) : result.totalLines
+      const end = Math.max(start, Math.min(result.totalLines, endRaw))
+      return {
+        ...result,
+        content: lines.slice(start, end).join('\n'),
+      }
+    }
+
     // Handle chat-scoped uploads via the uploads/ virtual prefix
     if (path.startsWith('uploads/')) {
       if (!context.chatId) {
@@ -137,11 +159,17 @@ export async function executeVfsRead(
           return {
             success: false,
             error:
-              'Read result too large to return inline. Use grep on this path instead of reading it directly, or retry read with offset/limit.',
+              'Read result too large to return inline. Use grep on this path instead of reading it directly.',
           }
         }
-        logger.debug('vfs_read resolved chat upload', { path, totalLines: uploadResult.totalLines })
-        return { success: true, output: uploadResult }
+        const windowedUpload = applyWindow(uploadResult)
+        logger.debug('vfs_read resolved chat upload', {
+          path,
+          totalLines: uploadResult.totalLines,
+          offset,
+          limit,
+        })
+        return { success: true, output: windowedUpload }
       }
       return {
         success: false,
@@ -150,11 +178,7 @@ export async function executeVfsRead(
     }
 
     const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
-    const result = vfs.read(
-      path,
-      params.offset as number | undefined,
-      params.limit as number | undefined
-    )
+    const result = vfs.read(path, offset, limit)
     if (!result) {
       const fileContent = await vfs.readFileContent(path)
       if (fileContent) {
@@ -165,16 +189,19 @@ export async function executeVfsRead(
           return {
             success: false,
             error:
-              'Read result too large to return inline. Use grep on this path instead of reading it directly, or retry read with offset/limit.',
+              'Read result too large to return inline. Use grep on this path instead of reading it directly.',
           }
         }
+        const windowedFileContent = applyWindow(fileContent)
         logger.debug('vfs_read resolved workspace file', {
           path,
           totalLines: fileContent.totalLines,
+          offset,
+          limit,
         })
         return {
           success: true,
-          output: fileContent,
+          output: windowedFileContent,
         }
       }
 
@@ -193,10 +220,10 @@ export async function executeVfsRead(
       return {
         success: false,
         error:
-          'Read result too large to return inline. Use grep on this path instead of reading it directly, or retry read with offset/limit.',
+          'Read result too large to return inline. Use grep on this path instead of reading it directly.',
       }
     }
-    logger.debug('vfs_read result', { path, totalLines: result.totalLines })
+    logger.debug('vfs_read result', { path, totalLines: result.totalLines, offset, limit })
     return {
       success: true,
       output: result,

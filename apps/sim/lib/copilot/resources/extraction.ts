@@ -1,5 +1,7 @@
 import {
+  CreateFile,
   CreateWorkflow,
+  DeleteFile,
   DeleteWorkflow,
   DownloadToWorkspaceFile,
   EditWorkflow,
@@ -8,6 +10,7 @@ import {
   GenerateVisualization,
   Knowledge,
   KnowledgeBase,
+  RenameFile,
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -19,6 +22,9 @@ type ResourceType = MothershipResourceType
 const RESOURCE_TOOL_NAMES: Set<string> = new Set([
   UserTable.id,
   WorkspaceFile.id,
+  CreateFile.id,
+  RenameFile.id,
+  DeleteFile.id,
   DownloadToWorkspaceFile.id,
   CreateWorkflow.id,
   EditWorkflow.id,
@@ -104,7 +110,9 @@ export function extractResourcesFromToolResult(
       return []
     }
 
-    case WorkspaceFile.id: {
+    case WorkspaceFile.id:
+    case CreateFile.id:
+    case RenameFile.id: {
       const file = asRecord(data.file)
       if (file.id) {
         return [{ type: 'file', id: file.id as string, title: (file.name as string) || 'File' }]
@@ -217,6 +225,7 @@ export function extractResourcesFromToolResult(
 const DELETE_CAPABLE_TOOL_RESOURCE_TYPE: Record<string, ResourceType> = {
   [DeleteWorkflow.id]: 'workflow',
   [WorkspaceFile.id]: 'file',
+  [DeleteFile.id]: 'file',
   [UserTable.id]: 'table',
   [KnowledgeBase.id]: 'knowledgebase',
 }
@@ -258,6 +267,14 @@ export function extractDeletedResourcesFromToolResult(
       if (operation !== 'delete') return []
       const target = getWorkspaceFileTarget(params)
       const fileId = (data.id as string) ?? (target.fileId as string) ?? (args.fileId as string)
+      if (fileId) {
+        return [{ type: resourceType, id: fileId, title: (data.name as string) || 'File' }]
+      }
+      return []
+    }
+
+    case DeleteFile.id: {
+      const fileId = (data.id as string) ?? (args.fileId as string) ?? (params?.fileId as string)
       if (fileId) {
         return [{ type: resourceType, id: fileId, title: (data.name as string) || 'File' }]
       }

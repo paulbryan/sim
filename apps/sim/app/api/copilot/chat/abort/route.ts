@@ -49,7 +49,10 @@ export async function POST(request: Request) {
       headers['x-api-key'] = env.COPILOT_API_KEY
     }
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), GO_EXPLICIT_ABORT_TIMEOUT_MS)
+    const timeout = setTimeout(
+      () => controller.abort('timeout:go_explicit_abort_fetch'),
+      GO_EXPLICIT_ABORT_TIMEOUT_MS
+    )
     const response = await fetch(`${SIM_AGENT_API_URL}/api/streams/explicit-abort`, {
       method: 'POST',
       headers,

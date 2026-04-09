@@ -89,13 +89,13 @@ const EXT_TO_MIME: Record<string, string> = {
   '.pdf': PDF_MIME,
 }
 
-function inferContentType(fileName: string, explicitType?: string): string {
+export function inferContentType(fileName: string, explicitType?: string): string {
   if (explicitType) return explicitType
   const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
   return EXT_TO_MIME[ext] || 'text/plain'
 }
 
-function validateFlatWorkspaceFileName(fileName: string): string | null {
+export function validateFlatWorkspaceFileName(fileName: string): string | null {
   const trimmed = fileName.trim()
   if (!trimmed) return 'File name cannot be empty'
   if (trimmed.includes('/')) {

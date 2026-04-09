@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, memo, useCallback, useState } from 'react'
+import { forwardRef, memo, useCallback, useEffect, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -101,11 +101,12 @@ export const MothershipView = memo(
     const [prevActiveId, setPrevActiveId] = useState<string | null | undefined>(active?.id)
     const handleCyclePreview = useCallback(() => setPreviewMode((m) => PREVIEW_CYCLE[m]), [])
 
-    // Reset preview mode to default when the active resource changes (guarded render-phase update)
-    if (active?.id !== prevActiveId) {
-      setPrevActiveId(active?.id)
-      setPreviewMode('preview')
-    }
+    useEffect(() => {
+      if (active?.id !== prevActiveId) {
+        setPrevActiveId(active?.id)
+        setPreviewMode('preview')
+      }
+    }, [active?.id, prevActiveId])
 
     const isActivePreviewable =
       canEdit &&

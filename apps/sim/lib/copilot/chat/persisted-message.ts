@@ -221,6 +221,8 @@ interface RawBlock {
   type: string
   lane?: string
   content?: string
+  /** Go persists text blocks with key "text" instead of "content" */
+  text?: string
   channel?: string
   phase?: string
   kind?: string
@@ -275,7 +277,8 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
   if (block.lane === 'main' || block.lane === 'subagent') {
     result.lane = block.lane
   }
-  if (block.content !== undefined) result.content = block.content
+  const blockContent = block.content ?? block.text
+  if (blockContent !== undefined) result.content = blockContent
   if (block.channel) result.channel = block.channel as MothershipStreamV1TextChannel
   if (block.phase) result.phase = block.phase as MothershipStreamV1ToolPhase
   if (block.kind) result.kind = block.kind as MothershipStreamV1SpanPayloadKind
@@ -364,7 +367,7 @@ function normalizeLegacyBlock(block: RawBlock): PersistedContentBlock {
   return {
     type: MothershipStreamV1EventType.text,
     channel: MothershipStreamV1TextChannel.assistant,
-    content: block.content,
+    content: block.content ?? block.text,
   }
 }
 

@@ -190,7 +190,27 @@ export async function executeToolAndReport(
     toolCallId: toolCall.id,
     toolName: toolCall.name,
     argsPreview,
+    abortSignalAborted: execContext.abortSignal?.aborted ?? false,
   })
+
+  const endToolSpan = (
+    status: string,
+    detail?: { error?: string; cancelReason?: string; resultSuccess?: boolean }
+  ) => {
+    const abortDetail: Record<string, unknown> = {}
+    if (execContext.abortSignal?.aborted) {
+      abortDetail.abortSignalAborted = true
+      abortDetail.abortReason = String(execContext.abortSignal.reason ?? 'unknown')
+    }
+    if (options?.abortSignal?.aborted) {
+      abortDetail.optionsAbortReason = String(options.abortSignal.reason ?? 'unknown')
+    }
+    if (context.wasAborted) {
+      abortDetail.wasAborted = true
+    }
+    toolSpan.attributes = { ...toolSpan.attributes, ...abortDetail, ...detail }
+    context.trace.endSpan(toolSpan, status)
+  }
 
   logger.info('Tool execution started', {
     toolCallId: toolCall.id,
@@ -224,6 +244,10 @@ export async function executeToolAndReport(
         message: 'Request aborted during tool execution',
         data: { cancelled: true },
       })
+      endToolSpan('cancelled', {
+        cancelReason: 'abort_during_execution',
+        error: result.success === false ? result.error : undefined,
+      })
       return cancelledCompletion('Request aborted during tool execution')
     }
     result = await maybeWriteOutputToFile(toolCall.name, toolCall.params, result, execContext)
@@ -248,6 +272,7 @@ export async function executeToolAndReport(
         message: 'Request aborted during tool post-processing',
         data: { cancelled: true },
       })
+      endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_file' })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
     result = await maybeWriteOutputToTable(toolCall.name, toolCall.params, result, execContext)
@@ -272,6 +297,7 @@ export async function executeToolAndReport(
         message: 'Request aborted during tool post-processing',
         data: { cancelled: true },
       })
+      endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_table' })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
     result = await maybeWriteReadCsvToTable(toolCall.name, toolCall.params, result, execContext)
@@ -296,6 +322,7 @@ export async function executeToolAndReport(
         message: 'Request aborted during tool post-processing',
         data: { cancelled: true },
       })
+      endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_csv' })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
     toolCall.status = result.success
@@ -404,7 +431,10 @@ export async function executeToolAndReport(
         () => abortRequested(context, execContext, options)
       )
     }
-    context.trace.endSpan(toolSpan, result.success ? 'ok' : 'error')
+    endToolSpan(result.success ? 'ok' : 'error', {
+      resultSuccess: result.success,
+      ...(result.success ? {} : { error: result.error || 'Tool failed' }),
+    })
     return {
       status: result.success
         ? MothershipStreamV1ToolOutcome.success
@@ -413,7 +443,7 @@ export async function executeToolAndReport(
       data: asRecord(result.output),
     }
   } catch (error) {
-    context.trace.endSpan(toolSpan, 'error')
+    const thrownMessage = error instanceof Error ? error.message : String(error)
     if (abortRequested(context, execContext, options)) {
       toolCall.status = MothershipStreamV1ToolOutcome.cancelled
       toolCall.endTime = Date.now()
@@ -435,10 +465,14 @@ export async function executeToolAndReport(
         message: 'Request aborted during tool execution',
         data: { cancelled: true },
       })
+      endToolSpan('cancelled', {
+        cancelReason: 'abort_during_execution_catch',
+        error: thrownMessage,
+      })
       return cancelledCompletion('Request aborted during tool execution')
     }
     toolCall.status = MothershipStreamV1ToolOutcome.error
-    toolCall.error = error instanceof Error ? error.message : String(error)
+    toolCall.error = thrownMessage
     toolCall.endTime = Date.now()
 
     logger.error('Tool execution threw', {
@@ -481,6 +515,7 @@ export async function executeToolAndReport(
       },
     }
     await options?.onEvent?.(errorEvent)
+    endToolSpan('error', { error: thrownMessage })
     return {
       status: MothershipStreamV1ToolOutcome.error,
       message: toolCall.error,

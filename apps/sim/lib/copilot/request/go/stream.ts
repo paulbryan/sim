@@ -196,10 +196,6 @@ export interface StreamLoopOptions extends OrchestratorOptions {
   onBeforeDispatch?: (event: StreamEvent, context: StreamingContext) => boolean | undefined
 }
 
-// Pre-resolve text handlers at module level to avoid map lookups in the hot path.
-const textHandler = sseHandlers[MothershipStreamV1EventType.text]
-const subagentTextHandler = subAgentHandlers[MothershipStreamV1EventType.text]
-
 /**
  * Run the SSE stream processing loop against the Go backend.
  *
@@ -282,6 +278,14 @@ export async function runStreamLoop(
       }
 
       if (
+        streamEvent.type === MothershipStreamV1EventType.text &&
+        typeof streamEvent.payload.text === 'string'
+      ) {
+        await options.onEvent?.(streamEvent)
+        return
+      }
+
+      if (
         streamEvent.type === MothershipStreamV1EventType.tool &&
         streamEvent.payload.phase === 'args_delta' &&
         streamEvent.payload.toolName === 'workspace_file' &&
@@ -296,19 +300,6 @@ export async function runStreamLoop(
         }
         state.raw += delta
 
-        if (!state.started) {
-          state.started = true
-          await options.onEvent?.({
-            type: MothershipStreamV1EventType.tool,
-            payload: {
-              toolCallId,
-              toolName: 'workspace_file',
-              previewPhase: 'file_preview_start',
-            },
-            ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
-          })
-        }
-
         const operation = extractJsonString(state.raw, 'operation')
         const targetKind = extractJsonString(state.raw, 'kind')
         const fileId = extractJsonString(state.raw, 'fileId')
@@ -320,99 +311,115 @@ export async function runStreamLoop(
         if (fileName) state.fileName = fileName
         if (title) state.title = title
 
-        const targetKey = JSON.stringify({
-          operation: state.operation,
-          targetKind: state.targetKind,
-          fileId: state.fileId,
-          fileName: state.fileName,
-          title: state.title,
-        })
-        if (
-          state.targetKind &&
-          (state.targetKind === 'new_file' ? !!state.fileName : !!state.fileId) &&
-          state.targetKey !== targetKey
-        ) {
-          state.targetKey = targetKey
-          await options.onEvent?.({
-            type: MothershipStreamV1EventType.tool,
-            payload: {
-              toolCallId,
-              toolName: 'workspace_file',
-              previewPhase: 'file_preview_target',
-              operation: state.operation,
-              target: {
-                kind: state.targetKind,
-                ...(state.fileId ? { fileId: state.fileId } : {}),
-                ...(state.fileName ? { fileName: state.fileName } : {}),
+        const isDocFormat = /\.(pptx|docx|pdf)$/i.test(state.fileName ?? '')
+        if (!isDocFormat) {
+          if (!state.started) {
+            state.started = true
+            await options.onEvent?.({
+              type: MothershipStreamV1EventType.tool,
+              payload: {
+                toolCallId,
+                toolName: 'workspace_file',
+                previewPhase: 'file_preview_start',
               },
-              ...(state.title ? { title: state.title } : {}),
-            },
-            ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
-          })
-        }
+              ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
+            })
+          }
 
-        const strategy = extractJsonString(state.raw, 'strategy')
-        const editMetaPayload = strategy
-          ? {
-              strategy,
-              ...(extractJsonString(state.raw, 'mode')
-                ? { mode: extractJsonString(state.raw, 'mode') }
-                : {}),
-              ...(extractJsonNumber(state.raw, 'occurrence') !== undefined
-                ? { occurrence: extractJsonNumber(state.raw, 'occurrence') }
-                : {}),
-              ...(extractJsonString(state.raw, 'search')
-                ? { search: extractJsonString(state.raw, 'search') }
-                : {}),
-              ...(extractJsonBoolean(state.raw, 'replaceAll') !== undefined
-                ? { replaceAll: extractJsonBoolean(state.raw, 'replaceAll') }
-                : {}),
-              ...(extractJsonString(state.raw, 'before_anchor')
-                ? { before_anchor: extractJsonString(state.raw, 'before_anchor') }
-                : {}),
-              ...(extractJsonString(state.raw, 'after_anchor')
-                ? { after_anchor: extractJsonString(state.raw, 'after_anchor') }
-                : {}),
-              ...(extractJsonString(state.raw, 'anchor')
-                ? { anchor: extractJsonString(state.raw, 'anchor') }
-                : {}),
-              ...(extractJsonString(state.raw, 'start_anchor')
-                ? { start_anchor: extractJsonString(state.raw, 'start_anchor') }
-                : {}),
-              ...(extractJsonString(state.raw, 'end_anchor')
-                ? { end_anchor: extractJsonString(state.raw, 'end_anchor') }
-                : {}),
-            }
-          : undefined
-        const editMetaKey = editMetaPayload ? JSON.stringify(editMetaPayload) : undefined
-        if (editMetaPayload && state.editMetaKey !== editMetaKey) {
-          state.editMetaKey = editMetaKey
-          await options.onEvent?.({
-            type: MothershipStreamV1EventType.tool,
-            payload: {
-              toolCallId,
-              toolName: 'workspace_file',
-              previewPhase: 'file_preview_edit_meta',
-              edit: editMetaPayload,
-            },
-            ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
+          const targetKey = JSON.stringify({
+            operation: state.operation,
+            targetKind: state.targetKind,
+            fileId: state.fileId,
+            fileName: state.fileName,
+            title: state.title,
           })
-        }
+          if (
+            state.targetKind &&
+            (state.targetKind === 'new_file' ? !!state.fileName : !!state.fileId) &&
+            state.targetKey !== targetKey
+          ) {
+            state.targetKey = targetKey
+            await options.onEvent?.({
+              type: MothershipStreamV1EventType.tool,
+              payload: {
+                toolCallId,
+                toolName: 'workspace_file',
+                previewPhase: 'file_preview_target',
+                operation: state.operation,
+                target: {
+                  kind: state.targetKind,
+                  ...(state.fileId ? { fileId: state.fileId } : {}),
+                  ...(state.fileName ? { fileName: state.fileName } : {}),
+                },
+                ...(state.title ? { title: state.title } : {}),
+              },
+              ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
+            })
+          }
 
-        const streamedContent = buildPreviewContent(state.raw, strategy)
-        if (streamedContent !== (state.lastContentSnapshot ?? '')) {
-          state.lastContentSnapshot = streamedContent
-          await options.onEvent?.({
-            type: MothershipStreamV1EventType.tool,
-            payload: {
-              toolCallId,
-              toolName: 'workspace_file',
-              previewPhase: 'file_preview_content',
-              content: streamedContent,
-            },
-            ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
-          })
-        }
+          const strategy = extractJsonString(state.raw, 'strategy')
+          const editMetaPayload = strategy
+            ? {
+                strategy,
+                ...(extractJsonString(state.raw, 'mode')
+                  ? { mode: extractJsonString(state.raw, 'mode') }
+                  : {}),
+                ...(extractJsonNumber(state.raw, 'occurrence') !== undefined
+                  ? { occurrence: extractJsonNumber(state.raw, 'occurrence') }
+                  : {}),
+                ...(extractJsonString(state.raw, 'search')
+                  ? { search: extractJsonString(state.raw, 'search') }
+                  : {}),
+                ...(extractJsonBoolean(state.raw, 'replaceAll') !== undefined
+                  ? { replaceAll: extractJsonBoolean(state.raw, 'replaceAll') }
+                  : {}),
+                ...(extractJsonString(state.raw, 'before_anchor')
+                  ? { before_anchor: extractJsonString(state.raw, 'before_anchor') }
+                  : {}),
+                ...(extractJsonString(state.raw, 'after_anchor')
+                  ? { after_anchor: extractJsonString(state.raw, 'after_anchor') }
+                  : {}),
+                ...(extractJsonString(state.raw, 'anchor')
+                  ? { anchor: extractJsonString(state.raw, 'anchor') }
+                  : {}),
+                ...(extractJsonString(state.raw, 'start_anchor')
+                  ? { start_anchor: extractJsonString(state.raw, 'start_anchor') }
+                  : {}),
+                ...(extractJsonString(state.raw, 'end_anchor')
+                  ? { end_anchor: extractJsonString(state.raw, 'end_anchor') }
+                  : {}),
+              }
+            : undefined
+          const editMetaKey = editMetaPayload ? JSON.stringify(editMetaPayload) : undefined
+          if (editMetaPayload && state.editMetaKey !== editMetaKey) {
+            state.editMetaKey = editMetaKey
+            await options.onEvent?.({
+              type: MothershipStreamV1EventType.tool,
+              payload: {
+                toolCallId,
+                toolName: 'workspace_file',
+                previewPhase: 'file_preview_edit_meta',
+                edit: editMetaPayload,
+              },
+              ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
+            })
+          }
+
+          const streamedContent = buildPreviewContent(state.raw, strategy)
+          if (streamedContent !== (state.lastContentSnapshot ?? '')) {
+            state.lastContentSnapshot = streamedContent
+            await options.onEvent?.({
+              type: MothershipStreamV1EventType.tool,
+              payload: {
+                toolCallId,
+                toolName: 'workspace_file',
+                previewPhase: 'file_preview_content',
+                content: streamedContent,
+              },
+              ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
+            })
+          }
+        } // end if (!isDocFormat)
 
         filePreviewState.set(toolCallId, state)
       }

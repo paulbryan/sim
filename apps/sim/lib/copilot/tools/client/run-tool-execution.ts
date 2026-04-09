@@ -66,7 +66,7 @@ export function isRunToolActiveForId(toolCallId: string): boolean {
 export function cancelRunToolExecution(workflowId: string): void {
   const controller = activeRunAbortByWorkflowId.get(workflowId)
   if (!controller) return
-  controller.abort()
+  controller.abort('user_stop:cancelRunToolExecution')
   activeRunAbortByWorkflowId.delete(workflowId)
 }
 
