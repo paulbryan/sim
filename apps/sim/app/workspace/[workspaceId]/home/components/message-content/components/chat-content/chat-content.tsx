@@ -207,7 +207,12 @@ export function ChatContent({ content, isStreaming = false, onOptionSelect }: Ch
 
   return (
     <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
-      <Streamdown isAnimating={isStreaming} animated components={MARKDOWN_COMPONENTS}>
+      <Streamdown
+        mode={isStreaming ? undefined : 'static'}
+        isAnimating={isStreaming}
+        animated={isStreaming}
+        components={MARKDOWN_COMPONENTS}
+      >
         {rendered}
       </Streamdown>
     </div>

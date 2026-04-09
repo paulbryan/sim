@@ -278,14 +278,6 @@ export async function runStreamLoop(
       }
 
       if (
-        streamEvent.type === MothershipStreamV1EventType.text &&
-        typeof streamEvent.payload.text === 'string'
-      ) {
-        await options.onEvent?.(streamEvent)
-        return
-      }
-
-      if (
         streamEvent.type === MothershipStreamV1EventType.tool &&
         streamEvent.payload.phase === 'args_delta' &&
         streamEvent.payload.toolName === 'workspace_file' &&
