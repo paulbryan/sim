@@ -182,17 +182,20 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
         logger
       )
 
-      // Update state: advance row count by the number we fetched (not total new rows)
-      // so remaining rows are picked up in the next poll.
-      // When batching (more rows than maxRowsPerPoll), keep the old lastModifiedTime
-      // so the Drive pre-check doesn't skip remaining rows on the next poll.
-      const newLastKnownRowCount = config.lastKnownRowCount + rowsToFetch
-      const hasRemainingRows = rowsToFetch < newRowCount
+      // Advance row count only by successfully processed rows so failed rows
+      // can be retried on the next poll cycle. Idempotency deduplicates the
+      // already-processed rows when they are re-fetched.
+      const rowsAdvanced = failedCount > 0 ? processedCount : rowsToFetch
+      const newLastKnownRowCount = config.lastKnownRowCount + rowsAdvanced
+      // When batching (more rows than maxRowsPerPoll) or retrying failed rows,
+      // keep the old lastModifiedTime so the Drive pre-check doesn't skip
+      // remaining/retried rows on the next poll.
+      const hasRemainingOrFailed = rowsAdvanced < newRowCount
       await updateWebhookProviderConfig(
         webhookId,
         {
           lastKnownRowCount: newLastKnownRowCount,
-          lastModifiedTime: hasRemainingRows ? config.lastModifiedTime : currentModifiedTime,
+          lastModifiedTime: hasRemainingOrFailed ? config.lastModifiedTime : currentModifiedTime,
           lastCheckedTimestamp: now.toISOString(),
         },
         logger

@@ -357,7 +357,7 @@ async function processChanges(
     }
 
     try {
-      const idempotencyKey = `${webhookData.id}:${change.fileId}:${change.time}`
+      const idempotencyKey = `${webhookData.id}:${change.fileId}:${change.time || change.fileId}`
 
       await pollingIdempotency.executeWithIdempotency('google-drive', idempotencyKey, async () => {
         const payload: GoogleDriveWebhookPayload = {
