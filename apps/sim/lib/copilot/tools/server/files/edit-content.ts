@@ -103,7 +103,9 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
         case 'append': {
           const existing = intent.existingContent ?? ''
           finalContent = docInfo.isDoc
-            ? `${existing}\n{\n${content}\n}`
+            ? existing
+              ? `${existing}\n{\n${content}\n}`
+              : content
             : existing
               ? `${existing}\n${content}`
               : content

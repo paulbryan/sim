@@ -4,6 +4,7 @@
 
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 
 const { getOrMaterializeVFS } = vi.hoisted(() => ({
   getOrMaterializeVFS: vi.fn(),
@@ -24,6 +25,8 @@ vi.mock('./upload-file-reader', () => ({
 
 import { executeVfsGrep, executeVfsRead } from './vfs'
 
+const OVERSIZED_INLINE_CONTENT = 'x'.repeat(TOOL_RESULT_MAX_INLINE_CHARS + 1)
+
 function makeVfs() {
   return {
     grep: vi.fn(),
@@ -40,10 +43,7 @@ describe('vfs handlers oversize policy', () => {
 
   it('fails oversized grep results with narrowing guidance', async () => {
     const vfs = makeVfs()
-    vfs.grep.mockReturnValue([
-      { path: 'files/a.txt', line: 1, content: 'a'.repeat(60_000) },
-      { path: 'files/b.txt', line: 2, content: 'b'.repeat(60_000) },
-    ])
+    vfs.grep.mockReturnValue([{ path: 'files/a.txt', line: 1, content: OVERSIZED_INLINE_CONTENT }])
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
     const result = await executeVfsGrep(
@@ -57,7 +57,7 @@ describe('vfs handlers oversize policy', () => {
 
   it('fails oversized read results with grep guidance', async () => {
     const vfs = makeVfs()
-    vfs.read.mockReturnValue({ content: 'a'.repeat(100_001), totalLines: 1 })
+    vfs.read.mockReturnValue({ content: OVERSIZED_INLINE_CONTENT, totalLines: 1 })
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
     const result = await executeVfsRead(
