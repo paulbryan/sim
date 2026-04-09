@@ -1,39 +1,17 @@
 'use client'
 
-import { Children, type ComponentPropsWithoutRef, isValidElement, useMemo } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import 'prismjs/components/prism-typescript'
-import 'prismjs/components/prism-bash'
-import 'prismjs/components/prism-css'
-import 'prismjs/components/prism-markup'
-import '@/components/emcn/components/code/code.css'
-import { Checkbox, highlight, languages } from '@/components/emcn'
-import { CopyCodeButton } from '@/components/ui/copy-code-button'
+import { type ComponentPropsWithoutRef, useMemo } from 'react'
+import { code } from '@streamdown/code'
+import { Streamdown } from 'streamdown'
+import 'streamdown/styles.css'
+import { Checkbox } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import {
   PendingTagIndicator,
   parseSpecialTags,
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import { useStreamingReveal } from '@/hooks/use-streaming-reveal'
 import { useStreamingText } from '@/hooks/use-streaming-text'
-
-const REMARK_PLUGINS = [remarkGfm]
-
-const LANG_ALIASES: Record<string, string> = {
-  js: 'javascript',
-  ts: 'typescript',
-  tsx: 'typescript',
-  jsx: 'javascript',
-  sh: 'bash',
-  shell: 'bash',
-  html: 'markup',
-  xml: 'markup',
-  yml: 'yaml',
-  py: 'python',
-}
 
 const PROSE_CLASSES = cn(
   'prose prose-base dark:prose-invert max-w-none',
@@ -55,8 +33,10 @@ const PROSE_CLASSES = cn(
 type TdProps = ComponentPropsWithoutRef<'td'>
 type ThProps = ComponentPropsWithoutRef<'th'>
 
-const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['components'] = {
-  table({ children }) {
+const STREAMDOWN_PLUGINS = { code }
+
+const MARKDOWN_COMPONENTS = {
+  table({ children }: { children?: React.ReactNode }) {
     return (
       <div className='not-prose my-4 w-full overflow-x-auto [&_strong]:font-[600]'>
         <table className='min-w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0'>
@@ -65,7 +45,7 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
       </div>
     )
   },
-  thead({ children }) {
+  thead({ children }: { children?: React.ReactNode }) {
     return <thead>{children}</thead>
   },
   th({ children, style }: ThProps) {
@@ -88,52 +68,7 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
       </td>
     )
   },
-  pre({ children }) {
-    let codeString = ''
-    let language = ''
-
-    for (const child of Children.toArray(children)) {
-      if (isValidElement(child) && child.type === 'code') {
-        const props = child.props as { className?: string; children?: React.ReactNode }
-        codeString = extractTextContent(props.children)
-        if (props.className?.startsWith('language-')) {
-          language = props.className.slice(9)
-        }
-        break
-      }
-    }
-
-    if (!codeString) {
-      return (
-        <pre className='not-prose my-6 overflow-x-auto rounded-lg bg-[var(--surface-5)] p-4 font-[430] font-mono text-[var(--text-primary)] text-small leading-[21px] dark:bg-[var(--code-bg)]'>
-          {children}
-        </pre>
-      )
-    }
-
-    const resolved = LANG_ALIASES[language] || language || 'javascript'
-    const grammar = languages[resolved] || languages.javascript
-    const html = highlight(codeString.trimEnd(), grammar, resolved)
-
-    return (
-      <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--divider)]'>
-        <div className='flex items-center justify-between border-[var(--divider)] border-b bg-[var(--surface-4)] px-4 py-2 dark:bg-[var(--surface-4)]'>
-          <span className='text-[var(--text-tertiary)] text-xs'>{language || 'code'}</span>
-          <CopyCodeButton
-            code={codeString}
-            className='text-[var(--text-tertiary)] hover:bg-[var(--surface-5)] hover:text-[var(--text-secondary)]'
-          />
-        </div>
-        <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[var(--code-bg)]'>
-          <pre
-            className='m-0 overflow-x-auto whitespace-pre p-4 font-[430] font-mono text-[var(--text-primary)] text-small leading-[21px]'
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-        </div>
-      </div>
-    )
-  },
-  a({ children, href }) {
+  a({ children, href }: { children?: React.ReactNode; href?: string }) {
     return (
       <a
         href={href}
@@ -145,16 +80,16 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
       </a>
     )
   },
-  ul({ children, className }) {
+  ul({ children, className }: { children?: React.ReactNode; className?: string }) {
     if (className?.includes('contains-task-list')) {
       return <ul className='my-4 list-none space-y-2 pl-0'>{children}</ul>
     }
     return <ul className='my-4 list-disc pl-5 marker:text-[var(--text-primary)]'>{children}</ul>
   },
-  ol({ children }) {
+  ol({ children }: { children?: React.ReactNode }) {
     return <ol className='my-4 list-decimal pl-5 marker:text-[var(--text-primary)]'>{children}</ol>
   },
-  li({ children, className }) {
+  li({ children, className }: { children?: React.ReactNode; className?: string }) {
     if (className?.includes('task-list-item')) {
       return (
         <li className='flex list-none items-start gap-2 text-[var(--text-primary)] text-base leading-[25px] [&>p:only-child]:inline [&>p]:my-0'>
@@ -168,7 +103,7 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
       </li>
     )
   },
-  input({ type, checked }) {
+  input({ type, checked }: { type?: string; checked?: boolean }) {
     if (type === 'checkbox') {
       return <Checkbox checked={checked || false} disabled size='sm' className='mt-1.5 shrink-0' />
     }
@@ -182,56 +117,31 @@ interface ChatContentProps {
   onOptionSelect?: (id: string) => void
 }
 
-function MarkdownChunk({
-  content,
-  animate = false,
-  trimTop = true,
-  trimBottom = true,
-}: {
-  content: string
-  animate?: boolean
-  trimTop?: boolean
-  trimBottom?: boolean
-}) {
-  return (
-    <div
-      className={cn(
-        PROSE_CLASSES,
-        trimTop && '[&>:first-child]:mt-0',
-        trimBottom && '[&>:last-child]:mb-0',
-        animate && 'animate-stream-fade-in'
-      )}
-    >
-      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
-        {content}
-      </ReactMarkdown>
-    </div>
-  )
-}
-
 export function ChatContent({ content, isStreaming = false, onOptionSelect }: ChatContentProps) {
   const rendered = useStreamingText(content, isStreaming)
 
   const parsed = useMemo(() => parseSpecialTags(rendered, isStreaming), [rendered, isStreaming])
   const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')
 
-  const plainText = hasSpecialContent ? '' : rendered
-  const { committed, incoming, generation } = useStreamingReveal(
-    plainText,
-    !hasSpecialContent && isStreaming
-  )
-
-  const committedMarkdown = useMemo(
-    () => (committed ? <MarkdownChunk content={committed} trimTop trimBottom={!incoming} /> : null),
-    [committed, incoming]
-  )
-
   if (hasSpecialContent) {
     return (
       <div className='space-y-3'>
         {parsed.segments.map((segment, i) => {
           if (segment.type === 'text' || segment.type === 'thinking') {
-            return <MarkdownChunk key={`${segment.type}-${i}`} content={segment.content} />
+            return (
+              <div
+                key={`${segment.type}-${i}`}
+                className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
+              >
+                <Streamdown
+                  mode='static'
+                  plugins={STREAMDOWN_PLUGINS}
+                  components={MARKDOWN_COMPONENTS}
+                >
+                  {segment.content}
+                </Streamdown>
+              </div>
+            )
           }
           return (
             <SpecialTags key={`special-${i}`} segment={segment} onOptionSelect={onOptionSelect} />
@@ -243,17 +153,15 @@ export function ChatContent({ content, isStreaming = false, onOptionSelect }: Ch
   }
 
   return (
-    <div>
-      {committedMarkdown}
-      {incoming && (
-        <MarkdownChunk
-          key={generation}
-          content={incoming}
-          trimTop
-          trimBottom
-          animate={isStreaming}
-        />
-      )}
+    <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
+      <Streamdown
+        isAnimating={isStreaming}
+        animated
+        plugins={STREAMDOWN_PLUGINS}
+        components={MARKDOWN_COMPONENTS}
+      >
+        {rendered}
+      </Streamdown>
     </div>
   )
 }

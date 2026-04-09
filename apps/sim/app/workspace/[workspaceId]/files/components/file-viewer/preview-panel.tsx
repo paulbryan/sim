@@ -1,18 +1,21 @@
 'use client'
 
 import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
+import { code } from '@streamdown/code'
 import { useRouter } from 'next/navigation'
-import type { Components, ExtraProps } from 'react-markdown'
-import ReactMarkdown from 'react-markdown'
 import rehypeSlug from 'rehype-slug'
 import remarkBreaks from 'remark-breaks'
-import remarkGfm from 'remark-gfm'
+import { Streamdown } from 'streamdown'
+import 'streamdown/styles.css'
 import { Checkbox } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
-import { useStreamingReveal } from '@/hooks/use-streaming-reveal'
 import { DataTable } from './data-table'
+
+interface HastNode {
+  position?: { start?: { offset?: number } }
+}
 
 type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | null
 
@@ -72,8 +75,9 @@ export const PreviewPanel = memo(function PreviewPanel({
   return null
 })
 
-const REMARK_PLUGINS = [remarkGfm, remarkBreaks]
+const REMARK_PLUGINS = [remarkBreaks]
 const REHYPE_PLUGINS = [rehypeSlug]
+const STREAMDOWN_PLUGINS = { code }
 
 /**
  * Carries the contentRef and toggle handler from MarkdownPreview down to the
@@ -127,34 +131,11 @@ const STATIC_MARKDOWN_COMPONENTS = {
       {children}
     </h4>
   ),
-  code: ({
-    className,
-    children,
-    node: _node,
-    ...props
-  }: React.HTMLAttributes<HTMLElement> & ExtraProps) => {
-    const isInline = !className?.includes('language-')
-
-    if (isInline) {
-      return (
-        <code
-          {...props}
-          className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[13px] text-[var(--caution)]'
-        >
-          {children}
-        </code>
-      )
-    }
-
-    return (
-      <code
-        {...props}
-        className='my-3 block whitespace-pre-wrap break-words rounded-md bg-[var(--surface-5)] p-4 font-mono text-[13px] text-[var(--text-primary)]'
-      >
-        {children}
-      </code>
-    )
-  },
+  inlineCode: ({ children }: { children?: React.ReactNode }) => (
+    <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[13px] text-[var(--caution)]'>
+      {children}
+    </code>
+  ),
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   strong: ({ children }: { children?: React.ReactNode }) => (
     <strong className='break-words font-semibold text-[var(--text-primary)]'>{children}</strong>
@@ -168,8 +149,13 @@ const STATIC_MARKDOWN_COMPONENTS = {
     </blockquote>
   ),
   hr: () => <hr className='my-6 border-[var(--border)]' />,
-  img: ({ src, alt, node: _node }: React.ComponentPropsWithoutRef<'img'> & ExtraProps) => (
-    <img src={src} alt={alt ?? ''} className='my-3 max-w-full rounded-md' loading='lazy' />
+  img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) => (
+    <img
+      src={src as string}
+      alt={alt ?? ''}
+      className='my-3 max-w-full rounded-md'
+      loading='lazy'
+    />
   ),
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className='my-4 max-w-full overflow-x-auto'>
@@ -193,7 +179,7 @@ const STATIC_MARKDOWN_COMPONENTS = {
   ),
 }
 
-function UlRenderer({ className, children }: React.ComponentPropsWithoutRef<'ul'> & ExtraProps) {
+function UlRenderer({ className, children }: { className?: string; children?: React.ReactNode }) {
   const isTaskList = typeof className === 'string' && className.includes('contains-task-list')
   return (
     <ul
@@ -207,7 +193,7 @@ function UlRenderer({ className, children }: React.ComponentPropsWithoutRef<'ul'
   )
 }
 
-function OlRenderer({ className, children }: React.ComponentPropsWithoutRef<'ol'> & ExtraProps) {
+function OlRenderer({ className, children }: { className?: string; children?: React.ReactNode }) {
   const isTaskList = typeof className === 'string' && className.includes('contains-task-list')
   return (
     <ol
@@ -225,7 +211,11 @@ function LiRenderer({
   className,
   children,
   node,
-}: React.ComponentPropsWithoutRef<'li'> & ExtraProps) {
+}: {
+  className?: string
+  children?: React.ReactNode
+  node?: HastNode
+}) {
   const ctx = useContext(MarkdownCheckboxCtx)
   const isTaskItem = typeof className === 'string' && className.includes('task-list-item')
 
@@ -249,12 +239,7 @@ function LiRenderer({
   return <li className='break-words leading-[1.6]'>{children}</li>
 }
 
-function InputRenderer({
-  type,
-  checked,
-  node: _node,
-  ...props
-}: React.ComponentPropsWithoutRef<'input'> & ExtraProps) {
+function InputRenderer({ type, checked, ...props }: React.ComponentPropsWithoutRef<'input'>) {
   const ctx = useContext(MarkdownCheckboxCtx)
   const index = useContext(CheckboxIndexCtx)
 
@@ -348,7 +333,7 @@ const MARKDOWN_COMPONENTS = {
   ol: OlRenderer,
   li: LiRenderer,
   input: InputRenderer,
-} satisfies Components
+}
 
 const MarkdownPreview = memo(function MarkdownPreview({
   content,
@@ -361,7 +346,6 @@ const MarkdownPreview = memo(function MarkdownPreview({
 }) {
   const { push: navigate } = useRouter()
   const { ref: scrollRef } = useAutoScroll(isStreaming)
-  const { committed, incoming, generation } = useStreamingReveal(content, isStreaming)
 
   const contentRef = useRef(content)
   contentRef.current = content
@@ -387,32 +371,20 @@ const MarkdownPreview = memo(function MarkdownPreview({
     }
   }, [content])
 
-  const committedMarkdown = useMemo(
-    () =>
-      committed ? (
-        <ReactMarkdown
-          remarkPlugins={REMARK_PLUGINS}
-          rehypePlugins={REHYPE_PLUGINS}
-          components={MARKDOWN_COMPONENTS}
-        >
-          {committed}
-        </ReactMarkdown>
-      ) : null,
-    [committed]
-  )
-
   if (onCheckboxToggle) {
     return (
       <NavigateCtx.Provider value={navigate}>
         <MarkdownCheckboxCtx.Provider value={ctxValue}>
           <div ref={scrollRef} className='h-full overflow-auto p-6'>
-            <ReactMarkdown
+            <Streamdown
+              mode='static'
               remarkPlugins={REMARK_PLUGINS}
               rehypePlugins={REHYPE_PLUGINS}
+              plugins={STREAMDOWN_PLUGINS}
               components={MARKDOWN_COMPONENTS}
             >
               {content}
-            </ReactMarkdown>
+            </Streamdown>
           </div>
         </MarkdownCheckboxCtx.Provider>
       </NavigateCtx.Provider>
@@ -422,21 +394,15 @@ const MarkdownPreview = memo(function MarkdownPreview({
   return (
     <NavigateCtx.Provider value={navigate}>
       <div ref={scrollRef} className='h-full overflow-auto p-6'>
-        {committedMarkdown}
-        {incoming && (
-          <div
-            key={generation}
-            className={cn(isStreaming && 'animate-stream-fade-in', '[&>:first-child]:mt-0')}
-          >
-            <ReactMarkdown
-              remarkPlugins={REMARK_PLUGINS}
-              rehypePlugins={REHYPE_PLUGINS}
-              components={MARKDOWN_COMPONENTS}
-            >
-              {incoming}
-            </ReactMarkdown>
-          </div>
-        )}
+        <Streamdown
+          mode='static'
+          remarkPlugins={REMARK_PLUGINS}
+          rehypePlugins={REHYPE_PLUGINS}
+          plugins={STREAMDOWN_PLUGINS}
+          components={MARKDOWN_COMPONENTS}
+        >
+          {content}
+        </Streamdown>
       </div>
     </NavigateCtx.Provider>
   )

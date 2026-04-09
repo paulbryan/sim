@@ -118,7 +118,7 @@ const nextConfig: NextConfig = {
       '@radix-ui/react-checkbox',
       '@radix-ui/react-switch',
       '@radix-ui/react-slider',
-      'react-markdown',
+      'streamdown',
       'zod',
       'date-fns',
     ],
