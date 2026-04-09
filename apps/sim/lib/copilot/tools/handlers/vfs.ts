@@ -1,9 +1,25 @@
 import { createLogger } from '@sim/logger'
+import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import { listChatUploads, readChatUpload } from './upload-file-reader'
 
 const logger = createLogger('VfsTools')
+
+function serializedResultSize(value: unknown): number {
+  try {
+    return JSON.stringify(value).length
+  } catch {
+    return String(value).length
+  }
+}
+
+function isOversizedReadPlaceholder(content: string): boolean {
+  return (
+    content.startsWith('[File too large to display inline:') ||
+    content.startsWith('[Image too large:')
+  )
+}
 
 export async function executeVfsGrep(
   params: Record<string, unknown>,
@@ -36,8 +52,16 @@ export async function executeVfsGrep(
       : typeof result === 'object'
         ? Object.keys(result).length
         : 0
+    const output = { [key]: result }
+    if (serializedResultSize(output) > TOOL_RESULT_MAX_INLINE_CHARS) {
+      return {
+        success: false,
+        error:
+          'Grep result too large to return inline. Use a smaller grep by narrowing the pattern/path, reducing context, or lowering maxResults.',
+      }
+    }
     logger.debug('vfs_grep result', { pattern, path: params.path, outputMode, matchCount })
-    return { success: true, output: { [key]: result } }
+    return { success: true, output }
   } catch (err) {
     logger.error('vfs_grep failed', {
       pattern,
@@ -106,6 +130,16 @@ export async function executeVfsRead(
       const filename = path.slice('uploads/'.length)
       const uploadResult = await readChatUpload(filename, context.chatId)
       if (uploadResult) {
+        if (
+          isOversizedReadPlaceholder(uploadResult.content) ||
+          serializedResultSize(uploadResult) > TOOL_RESULT_MAX_INLINE_CHARS
+        ) {
+          return {
+            success: false,
+            error:
+              'Read result too large to return inline. Use grep on this path instead of reading it directly, or retry read with offset/limit.',
+          }
+        }
         logger.debug('vfs_read resolved chat upload', { path, totalLines: uploadResult.totalLines })
         return { success: true, output: uploadResult }
       }
@@ -124,6 +158,16 @@ export async function executeVfsRead(
     if (!result) {
       const fileContent = await vfs.readFileContent(path)
       if (fileContent) {
+        if (
+          isOversizedReadPlaceholder(fileContent.content) ||
+          serializedResultSize(fileContent) > TOOL_RESULT_MAX_INLINE_CHARS
+        ) {
+          return {
+            success: false,
+            error:
+              'Read result too large to return inline. Use grep on this path instead of reading it directly, or retry read with offset/limit.',
+          }
+        }
         logger.debug('vfs_read resolved workspace file', {
           path,
           totalLines: fileContent.totalLines,
@@ -141,6 +185,16 @@ export async function executeVfsRead(
           ? ` Did you mean: ${suggestions.join(', ')}?`
           : ' Use glob to discover available paths.'
       return { success: false, error: `File not found: ${path}.${hint}` }
+    }
+    if (
+      isOversizedReadPlaceholder(result.content) ||
+      serializedResultSize(result) > TOOL_RESULT_MAX_INLINE_CHARS
+    ) {
+      return {
+        success: false,
+        error:
+          'Read result too large to return inline. Use grep on this path instead of reading it directly, or retry read with offset/limit.',
+      }
     }
     logger.debug('vfs_read result', { path, totalLines: result.totalLines })
     return {

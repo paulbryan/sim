@@ -11,7 +11,6 @@ import {
   FolderPlus,
   GitBranch,
   Globe,
-  Globe2,
   Grid2x2,
   Grid2x2Check,
   Grid2x2X,
@@ -958,71 +957,6 @@ const META_list_workspace_mcp_servers: ToolMetadata = {
     [ClientToolCallState.rejected]: { text: 'Skipped getting MCP servers', icon: XCircle },
   },
   interrupt: undefined,
-}
-
-const META_make_api_request: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Preparing API request', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Review API request', icon: Globe2 },
-    [ClientToolCallState.executing]: { text: 'Executing API request', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Completed API request', icon: Globe2 },
-    [ClientToolCallState.error]: { text: 'Failed to execute API request', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped API request', icon: MinusCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted API request', icon: XCircle },
-  },
-  interrupt: {
-    accept: { text: 'Execute', icon: Globe2 },
-    reject: { text: 'Skip', icon: MinusCircle },
-  },
-  uiConfig: {
-    interrupt: {
-      accept: { text: 'Execute', icon: Globe2 },
-      reject: { text: 'Skip', icon: MinusCircle },
-      showAllowOnce: true,
-      showAllowAlways: true,
-    },
-    paramsTable: {
-      columns: [
-        { key: 'method', label: 'Method', width: '26%', editable: true, mono: true },
-        { key: 'url', label: 'Endpoint', width: '74%', editable: true, mono: true },
-      ],
-      extractRows: (params: Record<string, any>): Array<[string, ...any[]]> => {
-        return [['request', (params.method || 'GET').toUpperCase(), params.url || '']]
-      },
-    },
-  },
-  getDynamicText: (params, state) => {
-    if (params?.url && typeof params.url === 'string') {
-      const method = params.method || 'GET'
-      let url = params.url
-
-      // Extract domain from URL for cleaner display
-      try {
-        const urlObj = new URL(url)
-        url = urlObj.hostname + urlObj.pathname
-      } catch {
-        // Use URL as-is if parsing fails
-      }
-
-      switch (state) {
-        case ClientToolCallState.success:
-          return `${method} ${url} complete`
-        case ClientToolCallState.executing:
-          return `${method} ${url}`
-        case ClientToolCallState.generating:
-          return `Preparing ${method} ${url}`
-        case ClientToolCallState.pending:
-          return `Review ${method} ${url}`
-        case ClientToolCallState.error:
-          return `Failed ${method} ${url}`
-        case ClientToolCallState.rejected:
-          return `Skipped ${method} ${url}`
-        case ClientToolCallState.aborted:
-          return `Aborted ${method} ${url}`
-      }
-    }
-    return undefined
-  },
 }
 
 const META_manage_custom_tool: ToolMetadata = {
@@ -2327,7 +2261,6 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   list_folders: META_list_folders,
   list_user_workspaces: META_list_user_workspaces,
   list_workspace_mcp_servers: META_list_workspace_mcp_servers,
-  make_api_request: META_make_api_request,
   manage_custom_tool: META_manage_custom_tool,
   manage_mcp_tool: META_manage_mcp_tool,
   manage_skill: META_manage_skill,
