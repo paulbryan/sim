@@ -1,5 +1,4 @@
 import React, { type HTMLAttributes, memo, type ReactNode, useMemo } from 'react'
-import { code } from '@streamdown/code'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { Tooltip } from '@/components/emcn'
@@ -25,8 +24,6 @@ export function LinkWithPreview({ href, children }: { href: string; children: Re
     </Tooltip.Root>
   )
 }
-
-const STREAMDOWN_PLUGINS = { code }
 
 function createCustomComponents(LinkComponent: typeof LinkWithPreview) {
   return {
@@ -195,7 +192,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
 
   return (
     <div className='space-y-4 break-words font-sans text-[var(--landing-text)] text-base leading-relaxed'>
-      <Streamdown mode='static' plugins={STREAMDOWN_PLUGINS} components={components}>
+      <Streamdown mode='static' components={components}>
         {processedContent}
       </Streamdown>
     </div>

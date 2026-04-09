@@ -1,17 +1,36 @@
 'use client'
 
 import { type ComponentPropsWithoutRef, useMemo } from 'react'
-import { code } from '@streamdown/code'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
-import { Checkbox } from '@/components/emcn'
+import 'prismjs/components/prism-typescript'
+import 'prismjs/components/prism-bash'
+import 'prismjs/components/prism-css'
+import 'prismjs/components/prism-markup'
+import '@/components/emcn/components/code/code.css'
+import { Checkbox, highlight, languages } from '@/components/emcn'
+import { CopyCodeButton } from '@/components/ui/copy-code-button'
 import { cn } from '@/lib/core/utils/cn'
+import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import {
   PendingTagIndicator,
   parseSpecialTags,
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { useStreamingText } from '@/hooks/use-streaming-text'
+
+const LANG_ALIASES: Record<string, string> = {
+  js: 'javascript',
+  ts: 'typescript',
+  tsx: 'typescript',
+  jsx: 'javascript',
+  sh: 'bash',
+  shell: 'bash',
+  html: 'markup',
+  xml: 'markup',
+  yml: 'yaml',
+  py: 'python',
+}
 
 const PROSE_CLASSES = cn(
   'prose prose-base dark:prose-invert max-w-none',
@@ -24,16 +43,12 @@ const PROSE_CLASSES = cn(
   'prose-ul:my-4 prose-ol:my-4',
   'prose-strong:font-[600] prose-strong:text-[var(--text-primary)]',
   'prose-a:text-[var(--text-primary)] prose-a:underline prose-a:decoration-dashed prose-a:underline-offset-4',
-  'prose-code:rounded prose-code:bg-[var(--surface-5)] prose-code:px-1.5 prose-code:py-0.5 prose-code:text-small prose-code:font-mono prose-code:font-[400] prose-code:text-[var(--text-primary)]',
-  'prose-code:before:content-none prose-code:after:content-none',
   'prose-hr:border-[var(--divider)] prose-hr:my-6',
   'prose-table:my-0'
 )
 
 type TdProps = ComponentPropsWithoutRef<'td'>
 type ThProps = ComponentPropsWithoutRef<'th'>
-
-const STREAMDOWN_PLUGINS = { code }
 
 const MARKDOWN_COMPONENTS = {
   table({ children }: { children?: React.ReactNode }) {
@@ -66,6 +81,41 @@ const MARKDOWN_COMPONENTS = {
       >
         {children}
       </td>
+    )
+  },
+  code({ children, className }: { children?: React.ReactNode; className?: string }) {
+    const langMatch = className?.match(/language-(\w+)/)
+    const language = langMatch ? langMatch[1] : ''
+    const codeString = extractTextContent(children)
+
+    if (!codeString) {
+      return (
+        <pre className='not-prose my-6 overflow-x-auto rounded-lg bg-[var(--surface-5)] p-4 font-[430] font-mono text-[var(--text-primary)] text-small leading-[21px] dark:bg-[var(--code-bg)]'>
+          <code>{children}</code>
+        </pre>
+      )
+    }
+
+    const resolved = LANG_ALIASES[language] || language || 'javascript'
+    const grammar = languages[resolved] || languages.javascript
+    const html = highlight(codeString.trimEnd(), grammar, resolved)
+
+    return (
+      <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--divider)]'>
+        <div className='flex items-center justify-between border-[var(--divider)] border-b bg-[var(--surface-4)] px-4 py-2 dark:bg-[var(--surface-4)]'>
+          <span className='text-[var(--text-tertiary)] text-xs'>{language || 'code'}</span>
+          <CopyCodeButton
+            code={codeString}
+            className='text-[var(--text-tertiary)] hover:bg-[var(--surface-5)] hover:text-[var(--text-secondary)]'
+          />
+        </div>
+        <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[var(--code-bg)]'>
+          <pre
+            className='m-0 overflow-x-auto whitespace-pre p-4 font-[430] font-mono text-[var(--text-primary)] text-small leading-[21px]'
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        </div>
+      </div>
     )
   },
   a({ children, href }: { children?: React.ReactNode; href?: string }) {
@@ -103,6 +153,13 @@ const MARKDOWN_COMPONENTS = {
       </li>
     )
   },
+  inlineCode({ children }: { children?: React.ReactNode }) {
+    return (
+      <code className='rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-small font-[400] text-[var(--text-primary)] before:content-none after:content-none'>
+        {children}
+      </code>
+    )
+  },
   input({ type, checked }: { type?: string; checked?: boolean }) {
     if (type === 'checkbox') {
       return <Checkbox checked={checked || false} disabled size='sm' className='mt-1.5 shrink-0' />
@@ -133,11 +190,7 @@ export function ChatContent({ content, isStreaming = false, onOptionSelect }: Ch
                 key={`${segment.type}-${i}`}
                 className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
               >
-                <Streamdown
-                  mode='static'
-                  plugins={STREAMDOWN_PLUGINS}
-                  components={MARKDOWN_COMPONENTS}
-                >
+                <Streamdown mode='static' components={MARKDOWN_COMPONENTS}>
                   {segment.content}
                 </Streamdown>
               </div>
@@ -154,12 +207,7 @@ export function ChatContent({ content, isStreaming = false, onOptionSelect }: Ch
 
   return (
     <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
-      <Streamdown
-        isAnimating={isStreaming}
-        animated
-        plugins={STREAMDOWN_PLUGINS}
-        components={MARKDOWN_COMPONENTS}
-      >
+      <Streamdown isAnimating={isStreaming} animated components={MARKDOWN_COMPONENTS}>
         {rendered}
       </Streamdown>
     </div>

@@ -1,7 +1,6 @@
 'use client'
 
 import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
-import { code } from '@streamdown/code'
 import { useRouter } from 'next/navigation'
 import rehypeSlug from 'rehype-slug'
 import remarkBreaks from 'remark-breaks'
@@ -77,7 +76,6 @@ export const PreviewPanel = memo(function PreviewPanel({
 
 const REMARK_PLUGINS = [remarkBreaks]
 const REHYPE_PLUGINS = [rehypeSlug]
-const STREAMDOWN_PLUGINS = { code }
 
 /**
  * Carries the contentRef and toggle handler from MarkdownPreview down to the
@@ -380,7 +378,6 @@ const MarkdownPreview = memo(function MarkdownPreview({
               mode='static'
               remarkPlugins={REMARK_PLUGINS}
               rehypePlugins={REHYPE_PLUGINS}
-              plugins={STREAMDOWN_PLUGINS}
               components={MARKDOWN_COMPONENTS}
             >
               {content}
@@ -398,7 +395,6 @@ const MarkdownPreview = memo(function MarkdownPreview({
           mode='static'
           remarkPlugins={REMARK_PLUGINS}
           rehypePlugins={REHYPE_PLUGINS}
-          plugins={STREAMDOWN_PLUGINS}
           components={MARKDOWN_COMPONENTS}
         >
           {content}
