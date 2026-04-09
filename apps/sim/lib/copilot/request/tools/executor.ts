@@ -211,6 +211,19 @@ export async function executeToolAndReport(
     toolSpan.attributes = { ...toolSpan.attributes, ...abortDetail, ...detail }
     context.trace.endSpan(toolSpan, status)
   }
+  const endToolSpanFromTerminalState = () => {
+    const terminalStatus =
+      toolCall.status === MothershipStreamV1ToolOutcome.cancelled
+        ? 'cancelled'
+        : toolCall.status === MothershipStreamV1ToolOutcome.success ||
+            toolCall.status === MothershipStreamV1ToolOutcome.skipped
+          ? 'ok'
+          : 'error'
+    endToolSpan(terminalStatus, {
+      resultSuccess: toolCall.status === MothershipStreamV1ToolOutcome.success,
+      ...(toolCall.error ? { error: toolCall.error } : {}),
+    })
+  }
 
   logger.info('Tool execution started', {
     toolCallId: toolCall.id,
@@ -221,6 +234,7 @@ export async function executeToolAndReport(
     ensureHandlersRegistered()
     let result = await executeTool(toolCall.name, toolCall.params || {}, execContext)
     if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
+      endToolSpanFromTerminalState()
       return terminalCompletionFromToolCall(toolCall)
     }
     if (abortRequested(context, execContext, options)) {
@@ -394,6 +408,7 @@ export async function executeToolAndReport(
 
     if (abortRequested(context, execContext, options)) {
       toolCall.status = MothershipStreamV1ToolOutcome.cancelled
+      endToolSpan('cancelled', { cancelReason: 'abort_before_tool_result_delivery' })
       return cancelledCompletion('Request aborted before tool result delivery')
     }
 
@@ -418,6 +433,7 @@ export async function executeToolAndReport(
 
     if (abortRequested(context, execContext, options)) {
       toolCall.status = MothershipStreamV1ToolOutcome.cancelled
+      endToolSpan('cancelled', { cancelReason: 'abort_before_resource_persistence' })
       return cancelledCompletion('Request aborted before resource persistence')
     }
 

@@ -16,9 +16,9 @@ import {
   getWorkspaceFile,
   getWorkspaceFileByName,
   renameWorkspaceFile,
-  updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { storeFileIntent } from './file-intent-store'
 
 const logger = createLogger('WorkspaceFileServerTool')
 
@@ -251,9 +251,6 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
               message: 'append requires target.kind=file_id with target.fileId',
             }
           }
-          if (normalized.content === undefined || normalized.content === null) {
-            return { success: false, message: 'content is required for append operation' }
-          }
 
           const existingFile = await getWorkspaceFile(workspaceId, target.fileId)
           if (!existingFile) {
@@ -266,53 +263,25 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             }
           }
 
-          const docInfo = getDocumentFormatInfo(existingFile.name)
           const currentBuffer = await downloadWsFile(existingFile)
-          const combined = docInfo.isDoc
-            ? `${currentBuffer.toString('utf-8')}\n{\n${normalized.content}\n}`
-            : `${currentBuffer.toString('utf-8')}\n${normalized.content}`
-
-          if (docInfo.isDoc) {
-            try {
-              await docInfo.generator!(combined, workspaceId)
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err)
-              return {
-                success: false,
-                message: `${docInfo.formatName} generation failed after append: ${msg}. Fix the content and retry.`,
-              }
-            }
-          }
-
-          const combinedBuffer = Buffer.from(combined, 'utf-8')
-          assertServerToolNotAborted(context)
-          const appendMime =
-            docInfo.sourceMime || inferContentType(existingFile.name, normalized.contentType)
-          await updateWorkspaceFileContent(
+          storeFileIntent(workspaceId, target.fileId, {
+            operation: 'append',
+            fileId: target.fileId,
             workspaceId,
-            existingFile.id,
-            context.userId,
-            combinedBuffer,
-            appendMime
-          )
-
-          logger.info('Workspace file appended via copilot', {
-            fileId: existingFile.id,
-            name: existingFile.name,
-            appendedSize: normalized.content.length,
-            totalSize: combinedBuffer.length,
             userId: context.userId,
+            fileRecord: existingFile,
+            existingContent: currentBuffer.toString('utf-8'),
+            contentType: normalized.contentType,
+            title: normalized.title,
+            createdAt: Date.now(),
           })
 
           return {
             success: true,
-            message: `Content appended to "${existingFile.name}" (${normalized.content.length} bytes added, ${combinedBuffer.length} bytes total)`,
-            data: {
-              id: existingFile.id,
-              name: existingFile.name,
-              size: combinedBuffer.length,
-              contentType: appendMime,
-            },
+            message: withMessageId(
+              `Intent set: append to "${existingFile.name}". Wait for this success result, then call edit_content in the next step with the content to write. Do not call edit_content in parallel.`
+            ),
+            data: { id: existingFile.id, name: existingFile.name, operation: 'append' },
           }
         }
 
@@ -323,9 +292,6 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
               success: false,
               message: 'update requires target.kind=file_id with target.fileId',
             }
-          }
-          if (normalized.content === undefined || normalized.content === null) {
-            return { success: false, message: 'content is required for update operation' }
           }
 
           const fileRecord = await getWorkspaceFile(workspaceId, target.fileId)
@@ -339,47 +305,23 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             }
           }
 
-          const docInfo = getDocumentFormatInfo(fileRecord.name)
-          if (docInfo.isDoc) {
-            try {
-              await docInfo.generator!(normalized.content, workspaceId)
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err)
-              return {
-                success: false,
-                message: `${docInfo.formatName} generation failed: ${msg}. Fix the code and retry.`,
-              }
-            }
-          }
-
-          const fileBuffer = Buffer.from(normalized.content, 'utf-8')
-          assertServerToolNotAborted(context)
-          const updateMime =
-            docInfo.sourceMime || inferContentType(fileRecord.name, normalized.contentType)
-          await updateWorkspaceFileContent(
-            workspaceId,
-            target.fileId,
-            context.userId,
-            fileBuffer,
-            updateMime
-          )
-
-          logger.info('Workspace file updated via copilot', {
+          storeFileIntent(workspaceId, target.fileId, {
+            operation: 'update',
             fileId: target.fileId,
-            name: fileRecord.name,
-            size: fileBuffer.length,
+            workspaceId,
             userId: context.userId,
+            fileRecord,
+            contentType: normalized.contentType,
+            title: normalized.title,
+            createdAt: Date.now(),
           })
 
           return {
             success: true,
-            message: `File "${fileRecord.name}" updated successfully (${fileBuffer.length} bytes)`,
-            data: {
-              id: target.fileId,
-              name: fileRecord.name,
-              size: fileBuffer.length,
-              contentType: updateMime,
-            },
+            message: withMessageId(
+              `Intent set: update "${fileRecord.name}". Wait for this success result, then call edit_content in the next step with the replacement content. Do not call edit_content in parallel.`
+            ),
+            data: { id: target.fileId, name: fileRecord.name, operation: 'update' },
           }
         }
 
@@ -468,120 +410,30 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
 
           const currentBuffer = await downloadWsFile(fileRecord)
-          let content = currentBuffer.toString('utf-8')
+          const existingContent = currentBuffer.toString('utf-8')
 
-          if (normalized.edit.strategy === 'anchored') {
-            const lines = content.split('\n')
-            const defaultOccurrence = normalized.edit.occurrence ?? 1
-
-            const findAnchorLine = (
-              anchor: string,
-              occurrence = defaultOccurrence,
-              afterIndex = -1
-            ): { index: number; error?: string } => {
-              const trimmed = anchor.trim()
-              let count = 0
-              for (let i = afterIndex + 1; i < lines.length; i++) {
-                if (lines[i].trim() === trimmed) {
-                  count++
-                  if (count === occurrence) return { index: i }
-                }
-              }
-              if (count === 0) {
-                return {
-                  index: -1,
-                  error: `Anchor line not found in "${fileRecord.name}": "${anchor.slice(0, 100)}"`,
-                }
-              }
-              return {
-                index: -1,
-                error: `Anchor line occurrence ${occurrence} not found (only ${count} match${count > 1 ? 'es' : ''}) in "${fileRecord.name}": "${anchor.slice(0, 100)}"`,
-              }
-            }
-
-            if (normalized.edit.mode === 'replace_between') {
-              if (!normalized.edit.before_anchor || !normalized.edit.after_anchor) {
-                return {
-                  success: false,
-                  message: 'replace_between requires before_anchor and after_anchor',
-                }
-              }
-              const before = findAnchorLine(normalized.edit.before_anchor)
-              if (before.error) return { success: false, message: `Patch failed: ${before.error}` }
-              const after = findAnchorLine(
-                normalized.edit.after_anchor,
-                defaultOccurrence,
-                before.index
-              )
-              if (after.error) return { success: false, message: `Patch failed: ${after.error}` }
-              if (after.index <= before.index) {
-                return {
-                  success: false,
-                  message: 'Patch failed: after_anchor must appear after before_anchor in the file',
-                }
-              }
-              const newLines = [
-                ...lines.slice(0, before.index + 1),
-                ...(normalized.edit.content ?? '').split('\n'),
-                ...lines.slice(after.index),
-              ]
-              content = newLines.join('\n')
-            } else if (normalized.edit.mode === 'insert_after') {
-              if (!normalized.edit.anchor) {
-                return { success: false, message: 'insert_after requires anchor' }
-              }
-              const found = findAnchorLine(normalized.edit.anchor)
-              if (found.error) return { success: false, message: `Patch failed: ${found.error}` }
-              const newLines = [
-                ...lines.slice(0, found.index + 1),
-                ...(normalized.edit.content ?? '').split('\n'),
-                ...lines.slice(found.index + 1),
-              ]
-              content = newLines.join('\n')
-            } else if (normalized.edit.mode === 'delete_between') {
-              if (!normalized.edit.start_anchor || !normalized.edit.end_anchor) {
-                return {
-                  success: false,
-                  message: 'delete_between requires start_anchor and end_anchor',
-                }
-              }
-              const start = findAnchorLine(normalized.edit.start_anchor)
-              if (start.error) return { success: false, message: `Patch failed: ${start.error}` }
-              const end = findAnchorLine(normalized.edit.end_anchor, defaultOccurrence, start.index)
-              if (end.error) return { success: false, message: `Patch failed: ${end.error}` }
-              if (end.index <= start.index) {
-                return {
-                  success: false,
-                  message: 'Patch failed: end_anchor must appear after start_anchor in the file',
-                }
-              }
-              const newLines = [...lines.slice(0, start.index), ...lines.slice(end.index)]
-              content = newLines.join('\n')
-            } else {
-              return {
-                success: false,
-                message: `Unknown anchored patch mode: "${normalized.edit.mode}"`,
-              }
-            }
-          } else if (normalized.edit.strategy === 'search_replace') {
+          if (normalized.edit.strategy === 'search_replace') {
             const search = normalized.edit.search
-            const replace = normalized.edit.replace
-            const firstIdx = content.indexOf(search)
+            const firstIdx = existingContent.indexOf(search)
             if (firstIdx === -1) {
               return {
                 success: false,
                 message: `Patch failed: search string not found in file "${fileRecord.name}". Search: "${search.slice(0, 100)}${search.length > 100 ? '...' : ''}"`,
               }
             }
-            if (!normalized.edit.replaceAll && content.indexOf(search, firstIdx + 1) !== -1) {
+            if (
+              !normalized.edit.replaceAll &&
+              existingContent.indexOf(search, firstIdx + 1) !== -1
+            ) {
               return {
                 success: false,
                 message: `Patch failed: search string is ambiguous — found at multiple locations in "${fileRecord.name}". Use a longer unique search string or replaceAll.`,
               }
             }
-            content = normalized.edit.replaceAll
-              ? content.split(search).join(replace)
-              : content.slice(0, firstIdx) + replace + content.slice(firstIdx + search.length)
+          } else if (normalized.edit.strategy === 'anchored') {
+            if (!normalized.edit.mode) {
+              return { success: false, message: 'anchored strategy requires mode' }
+            }
           } else {
             return {
               success: false,
@@ -589,46 +441,41 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             }
           }
 
-          const docInfo = getDocumentFormatInfo(fileRecord.name)
-          if (docInfo.isDoc) {
-            try {
-              await docInfo.generator!(content, workspaceId)
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err)
-              return {
-                success: false,
-                message: `Patched ${docInfo.formatName} code failed to compile: ${msg}. Fix the edit and retry.`,
-              }
-            }
-          }
-
-          const patchedBuffer = Buffer.from(content, 'utf-8')
-          assertServerToolNotAborted(context)
-          const patchMime = docInfo.sourceMime || inferContentType(fileRecord.name)
-          await updateWorkspaceFileContent(
-            workspaceId,
-            target.fileId,
-            context.userId,
-            patchedBuffer,
-            patchMime
-          )
-
-          logger.info('Workspace file patched via copilot', {
+          storeFileIntent(workspaceId, target.fileId, {
+            operation: 'patch',
             fileId: target.fileId,
-            name: fileRecord.name,
-            strategy: normalized.edit.strategy,
+            workspaceId,
             userId: context.userId,
+            fileRecord,
+            existingContent,
+            edit: {
+              strategy: normalized.edit.strategy,
+              ...(normalized.edit.strategy === 'search_replace'
+                ? {
+                    search: normalized.edit.search,
+                    replaceAll: normalized.edit.replaceAll,
+                  }
+                : {
+                    mode: normalized.edit.mode,
+                    occurrence: normalized.edit.occurrence,
+                    before_anchor: normalized.edit.before_anchor,
+                    after_anchor: normalized.edit.after_anchor,
+                    anchor: normalized.edit.anchor,
+                    start_anchor: normalized.edit.start_anchor,
+                    end_anchor: normalized.edit.end_anchor,
+                  }),
+            },
+            contentType: normalized.contentType,
+            title: normalized.title,
+            createdAt: Date.now(),
           })
 
           return {
             success: true,
-            message: `File "${fileRecord.name}" patched successfully (${normalized.edit.strategy} edit applied)`,
-            data: {
-              id: target.fileId,
-              name: fileRecord.name,
-              size: patchedBuffer.length,
-              contentType: patchMime,
-            },
+            message: withMessageId(
+              `Intent set: patch "${fileRecord.name}" (${normalized.edit.strategy}). Wait for this success result, then call edit_content in the next step with the replacement/insert content. Do not call edit_content in parallel.`
+            ),
+            data: { id: target.fileId, name: fileRecord.name, operation: 'patch' },
           }
         }
 

@@ -354,6 +354,7 @@ export function useChat(
   streamingFileRef.current = streamingFile
   const filePreviewSessionsRef = useRef<Map<string, StreamingFilePreview>>(new Map())
   const activeFilePreviewToolCallIdRef = useRef<string | null>(null)
+  const editContentParentToolCallIdRef = useRef<Map<string, string>>(new Map())
 
   const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const messageQueueRef = useRef<QueuedMessage[]>([])
@@ -368,6 +369,15 @@ export function useChat(
       options?: { preserveExistingState?: boolean }
     ) => Promise<{ sawStreamError: boolean; sawComplete: boolean }>
   >(async () => ({ sawStreamError: false, sawComplete: false }))
+  const attachToExistingStreamRef = useRef<
+    (opts: {
+      streamId: string
+      assistantId: string
+      expectedGen: number
+      initialBatch?: StreamBatchResponse | null
+      afterCursor?: string
+    }) => Promise<{ error: boolean; aborted: boolean }>
+  >(async () => ({ error: false, aborted: true }))
   const retryReconnectRef = useRef<
     (opts: { streamId: string; assistantId: string; gen: number }) => Promise<boolean>
   >(async () => false)
@@ -518,6 +528,7 @@ export function useChat(
     streamingFileRef.current = null
     filePreviewSessionsRef.current.clear()
     activeFilePreviewToolCallIdRef.current = null
+    editContentParentToolCallIdRef.current.clear()
     setMessageQueue([])
   }, [initialChatId, queryClient])
 
@@ -541,6 +552,7 @@ export function useChat(
     streamingFileRef.current = null
     filePreviewSessionsRef.current.clear()
     activeFilePreviewToolCallIdRef.current = null
+    editContentParentToolCallIdRef.current.clear()
     setMessageQueue([])
   }, [isHomePage])
 
@@ -617,7 +629,7 @@ export function useChat(
 
         const reconnectResult =
           snapshotEvents.length > 0
-            ? await attachToExistingStream({
+            ? await attachToExistingStreamRef.current({
                 streamId: activeStreamId,
                 assistantId,
                 expectedGen: gen,
@@ -1015,6 +1027,10 @@ export function useChat(
                   sessions.set(id, nextSession)
                   activeFilePreviewToolCallIdRef.current = id
                   streamingFileRef.current = nextSession
+                  const previewToolIdx = toolMap.get(id)
+                  if (previewToolIdx !== undefined && blocks[previewToolIdx].toolCall) {
+                    blocks[previewToolIdx].toolCall!.status = 'executing'
+                  }
                   setStreamingFile(nextSession)
                   break
                 }
@@ -1062,11 +1078,19 @@ export function useChat(
                     const opMatch = tc.streamingArgs.match(/"operation"\s*:\s*"(\w+)"/)
                     const op = opMatch?.[1] ?? ''
                     const verb =
-                      op === 'patch' || op === 'update' || op === 'rename'
-                        ? 'Editing'
-                        : op === 'delete'
-                          ? 'Deleting'
-                          : 'Writing'
+                      op === 'create'
+                        ? 'Creating'
+                        : op === 'append'
+                          ? 'Adding'
+                          : op === 'patch'
+                            ? 'Editing'
+                            : op === 'update'
+                              ? 'Writing'
+                              : op === 'rename'
+                                ? 'Renaming'
+                                : op === 'delete'
+                                  ? 'Deleting'
+                                  : 'Writing'
                     const titleMatch = tc.streamingArgs.match(/"title"\s*:\s*"([^"]*)"/)
                     if (titleMatch?.[1]) {
                       const unescaped = titleMatch[1]
@@ -1174,7 +1198,20 @@ export function useChat(
                   clientExecutionStartedRef.current.delete(id)
                 }
 
-                if (tc.name === WorkspaceFile.id) {
+                const workspaceFileOperation =
+                  tc.name === WorkspaceFile.id && typeof tc.params?.operation === 'string'
+                    ? tc.params.operation
+                    : undefined
+                const shouldKeepWorkspacePreviewOpen =
+                  tc.name === WorkspaceFile.id &&
+                  (workspaceFileOperation === 'append' ||
+                    workspaceFileOperation === 'update' ||
+                    workspaceFileOperation === 'patch')
+
+                if (
+                  (tc.name === WorkspaceFile.id || tc.name === 'edit_content') &&
+                  !shouldKeepWorkspacePreviewOpen
+                ) {
                   filePreviewSessionsRef.current.delete(id)
                   if (activeFilePreviewToolCallIdRef.current === id) {
                     activeFilePreviewToolCallIdRef.current = null
@@ -1198,6 +1235,7 @@ export function useChat(
                     setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
                   }
                 }
+                editContentParentToolCallIdRef.current.delete(id)
                 break
               }
 
@@ -1222,11 +1260,19 @@ export function useChat(
               if (name === WorkspaceFile.id) {
                 const operation = typeof args?.operation === 'string' ? args.operation : ''
                 const verb =
-                  operation === 'patch' || operation === 'update' || operation === 'rename'
-                    ? 'Editing'
-                    : operation === 'delete'
-                      ? 'Deleting'
-                      : 'Writing'
+                  operation === 'create'
+                    ? 'Creating'
+                    : operation === 'append'
+                      ? 'Adding'
+                      : operation === 'patch'
+                        ? 'Editing'
+                        : operation === 'update'
+                          ? 'Writing'
+                          : operation === 'rename'
+                            ? 'Renaming'
+                            : operation === 'delete'
+                              ? 'Deleting'
+                              : 'Writing'
                 const chunkTitle = args?.title as string | undefined
                 const target = args ? asPayloadRecord(args.target) : undefined
                 const targetFileName = target?.fileName as string | undefined
@@ -1234,6 +1280,25 @@ export function useChat(
                   displayTitle = `${verb} ${chunkTitle}`
                 } else if (targetFileName) {
                   displayTitle = `${verb} ${targetFileName}`
+                }
+              }
+
+              if (name === 'edit_content') {
+                const parentToolCallId =
+                  activeFilePreviewToolCallIdRef.current ?? streamingFileRef.current?.toolCallId
+                const parentIdx =
+                  parentToolCallId !== null && parentToolCallId !== undefined
+                    ? toolMap.get(parentToolCallId)
+                    : undefined
+                if (parentIdx !== undefined && blocks[parentIdx].toolCall) {
+                  toolMap.set(id, parentIdx)
+                  editContentParentToolCallIdRef.current.set(id, parentToolCallId!)
+                  const tc = blocks[parentIdx].toolCall!
+                  tc.status = 'executing'
+                  tc.result = undefined
+                  tc.error = undefined
+                  flush()
+                  break
                 }
               }
 
@@ -1608,6 +1673,7 @@ export function useChat(
     },
     [fetchStreamBatch]
   )
+  attachToExistingStreamRef.current = attachToExistingStream
 
   const resumeOrFinalize = useCallback(
     async (opts: {
@@ -2054,6 +2120,7 @@ export function useChat(
     streamingFileRef.current = null
     filePreviewSessionsRef.current.clear()
     activeFilePreviewToolCallIdRef.current = null
+    editContentParentToolCallIdRef.current.clear()
     setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
 
     const execState = useExecutionStore.getState()

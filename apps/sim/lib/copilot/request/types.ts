@@ -86,6 +86,14 @@ export interface StreamingContext {
   errors: string[]
   usage?: { prompt: number; completion: number }
   cost?: { input: number; output: number; total: number }
+  activeFileIntent?: {
+    toolCallId: string
+    operation: string
+    target: { kind: string; fileId?: string; fileName?: string }
+    title?: string
+    contentType?: string
+    edit?: Record<string, unknown>
+  } | null
   trace: TraceCollector
 }
 

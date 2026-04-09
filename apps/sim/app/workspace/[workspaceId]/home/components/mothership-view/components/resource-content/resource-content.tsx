@@ -103,20 +103,22 @@ export const ResourceContent = memo(function ResourceContent({
   const isUpdateStream = streamOperation === 'update'
 
   const { data: allFiles = [] } = useWorkspaceFiles(workspaceId)
-  const activeFileRecord = useMemo(() => {
-    if (!isPatchStream || resource.type !== 'file') return undefined
-    return allFiles.find((f) => f.id === resource.id)
-  }, [isPatchStream, resource, allFiles])
+  const previewFileId =
+    streamingFile?.fileId ?? (resource.type === 'file' ? resource.id : undefined)
+  const previewFileRecord = useMemo(() => {
+    if (!previewFileId) return undefined
+    return allFiles.find((f) => f.id === previewFileId)
+  }, [previewFileId, allFiles])
 
   const isSourceMime =
-    activeFileRecord?.type === 'text/x-pptxgenjs' ||
-    activeFileRecord?.type === 'text/x-docxjs' ||
-    activeFileRecord?.type === 'text/x-pdflibjs'
+    previewFileRecord?.type === 'text/x-pptxgenjs' ||
+    previewFileRecord?.type === 'text/x-docxjs' ||
+    previewFileRecord?.type === 'text/x-pdflibjs'
 
   const { data: fetchedFileContent } = useWorkspaceFileContent(
     workspaceId,
-    activeFileRecord?.id ?? '',
-    activeFileRecord?.key ?? '',
+    previewFileRecord?.id ?? '',
+    previewFileRecord?.key ?? '',
     isSourceMime
   )
 
@@ -125,15 +127,28 @@ export const ResourceContent = memo(function ResourceContent({
     if (!streamOperation) return undefined
 
     if (isPatchStream) {
-      if (!fetchedFileContent) return undefined
+      if (fetchedFileContent === undefined) return undefined
+      if (!shouldApplyPatchPreview(streamingFile)) return undefined
       return extractPatchPreview(streamingFile, fetchedFileContent)
     }
 
     const extracted = streamingFile.content
-    if (extracted.length === 0) return undefined
 
     if (isUpdateStream) return extracted
-    if (isWriteStream) return extracted
+
+    if (streamOperation === 'append') {
+      if (streamingFile.targetKind === 'file_id') {
+        if (fetchedFileContent === undefined) return undefined
+        return buildAppendPreview(fetchedFileContent, extracted)
+      }
+      return extracted.length > 0 ? extracted : undefined
+    }
+
+    if (streamOperation === 'create') {
+      return extracted.length > 0 ? extracted : undefined
+    }
+
+    if (isWriteStream) return extracted.length > 0 ? extracted : undefined
 
     return undefined
   }, [
@@ -165,16 +180,11 @@ export const ResourceContent = memo(function ResourceContent({
     }
   }, [workspaceId, streamFileName])
 
-  // workspace_file preview events now carry whole-file snapshots, not deltas.
-  // Treat every live preview as replace so the viewer shows the latest snapshot.
+  // ResourceContent now reconstructs full-file preview text per operation,
+  // so the viewer can always treat streaming content as a whole-file replace.
   const streamingFileMode: 'append' | 'replace' = 'replace'
 
-  // For existing file resources (not streaming-file), only pass streaming
-  // content for patch operations where the preview splices new content into
-  // the displayed file. Update operations re-stream the entire file from
-  // scratch which causes visual duplication of already-visible content.
-  const embeddedStreamingContent =
-    resource.id !== 'streaming-file' && isUpdateStream ? undefined : streamingExtractedContent
+  const embeddedStreamingContent = streamingExtractedContent
 
   if (streamingFile && resource.id === 'streaming-file') {
     return (
@@ -699,4 +709,28 @@ function extractPatchPreview(
   }
 
   return undefined
+}
+
+function shouldApplyPatchPreview(streamingFile: {
+  content: string
+  edit?: Record<string, unknown>
+}): boolean {
+  const edit = streamingFile.edit ?? {}
+  const strategy = typeof edit.strategy === 'string' ? edit.strategy : undefined
+  const mode = typeof edit.mode === 'string' ? edit.mode : undefined
+
+  // delete_between is delete-only and can be previewed from intent metadata alone.
+  if (strategy === 'anchored' && mode === 'delete_between') {
+    return true
+  }
+
+  // For all other patch modes, keep the visible file unchanged until
+  // edit_content actually streams content into the target location.
+  return streamingFile.content.length > 0
+}
+
+function buildAppendPreview(existingContent: string, incomingContent: string): string {
+  if (incomingContent.length === 0) return existingContent
+  if (existingContent.length === 0) return incomingContent
+  return `${existingContent}\n${incomingContent}`
 }

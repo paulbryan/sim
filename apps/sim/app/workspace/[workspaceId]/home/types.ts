@@ -4,6 +4,7 @@ import {
   CreateWorkflow,
   Debug,
   Deploy,
+  EditContent,
   EditWorkflow,
   FunctionExecute,
   GetPageContents,
@@ -269,6 +270,11 @@ export const TOOL_UI_METADATA: Record<string, ToolUIMetadata> = {
   },
   [WorkspaceFile.id]: {
     title: 'Managing file',
+    phaseLabel: 'Resource',
+    phase: 'resource',
+  },
+  [EditContent.id]: {
+    title: 'Writing content',
     phaseLabel: 'Resource',
     phase: 'resource',
   },

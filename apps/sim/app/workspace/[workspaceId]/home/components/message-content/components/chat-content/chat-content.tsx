@@ -155,7 +155,7 @@ const MARKDOWN_COMPONENTS = {
   },
   inlineCode({ children }: { children?: React.ReactNode }) {
     return (
-      <code className='rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-small font-[400] text-[var(--text-primary)] before:content-none after:content-none'>
+      <code className='rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-[400] font-mono text-[var(--text-primary)] text-small before:content-none after:content-none'>
         {children}
       </code>
     )

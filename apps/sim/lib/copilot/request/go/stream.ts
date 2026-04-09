@@ -4,6 +4,7 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1SpanPayloadKind,
+  MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { processSSEStream } from '@/lib/copilot/request/go/parser'
 import {
@@ -19,61 +20,28 @@ import type {
   StreamEvent,
   StreamingContext,
 } from '@/lib/copilot/request/types'
+import { clearIntentsForWorkspace } from '@/lib/copilot/tools/server/files/file-intent-store'
 
 const logger = createLogger('CopilotGoStream')
 
-type FilePreviewServerState = {
-  raw: string
-  started: boolean
-  operation?: string
-  targetKind?: string
-  fileId?: string
-  fileName?: string
+type FileIntent = {
+  toolCallId: string
+  operation: string
+  target: { kind: string; fileId?: string; fileName?: string }
   title?: string
-  editMetaKey?: string
-  targetKey?: string
+  contentType?: string
+  edit?: Record<string, unknown>
+}
+
+type EditContentStreamState = {
+  raw: string
   lastContentSnapshot?: string
 }
 
-function extractJsonString(raw: string, key: string): string | undefined {
-  const pattern = new RegExp(`"${key}"\\s*:\\s*"`)
-  const m = pattern.exec(raw)
-  if (!m) return undefined
-  const start = m.index + m[0].length
-  let end = -1
-  for (let i = start; i < raw.length; i++) {
-    if (raw[i] === '\\') {
-      i++
-      continue
-    }
-    if (raw[i] === '"') {
-      end = i
-      break
-    }
-  }
-  if (end === -1) return undefined
-  return raw
-    .slice(start, end)
-    .replace(/\\n/g, '\n')
-    .replace(/\\t/g, '\t')
-    .replace(/\\r/g, '\r')
-    .replace(/\\"/g, '"')
-    .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
-    .replace(/\\\\/g, '\\')
-}
-
-function extractJsonBoolean(raw: string, key: string): boolean | undefined {
-  const match = raw.match(new RegExp(`"${key}"\\s*:\\s*(true|false)`))
-  if (!match) return undefined
-  return match[1] === 'true'
-}
-
-function extractJsonNumber(raw: string, key: string): number | undefined {
-  const match = raw.match(new RegExp(`"${key}"\\s*:\\s*(\\d+)`))
-  if (!match) return undefined
-  return Number.parseInt(match[1], 10)
-}
-
+/**
+ * Decode a prefix of a JSON-encoded string value, handling escape sequences
+ * that may be incomplete at the end of a streaming chunk.
+ */
 function decodeJsonStringPrefix(input: string): string {
   let output = ''
   for (let i = 0; i < input.length; i++) {
@@ -126,9 +94,7 @@ function decodeJsonStringPrefix(input: string): string {
     }
     if (next === 'u') {
       const hex = input.slice(i + 2, i + 6)
-      if (hex.length < 4 || !/^[0-9a-fA-F]{4}$/.test(hex)) {
-        break
-      }
+      if (hex.length < 4 || !/^[0-9a-fA-F]{4}$/.test(hex)) break
       output += String.fromCharCode(Number.parseInt(hex, 16))
       i += 5
       continue
@@ -138,8 +104,13 @@ function decodeJsonStringPrefix(input: string): string {
   return output
 }
 
-function extractStreamedContent(raw: string, preferredKey: 'content' | 'replace'): string {
-  const marker = `"${preferredKey}":`
+/**
+ * Extract the streamed content string from edit_content's raw JSON args.
+ * Since edit_content has a single field `content`, the JSON is always
+ * `{"content":"..."}`. We find `"content":"` and decode everything after.
+ */
+function extractEditContent(raw: string): string {
+  const marker = '"content":'
   const idx = raw.indexOf(marker)
   if (idx === -1) return ''
   const rest = raw.slice(idx + marker.length).trimStart()
@@ -157,13 +128,6 @@ function extractStreamedContent(raw: string, preferredKey: 'content' | 'replace'
   }
   const inner = end === -1 ? rest.slice(1) : rest.slice(1, end)
   return decodeJsonStringPrefix(inner)
-}
-
-function buildPreviewContent(raw: string, strategy?: string): string {
-  if (strategy === 'search_replace') {
-    return extractStreamedContent(raw, 'replace')
-  }
-  return extractStreamedContent(raw, 'content')
 }
 
 export class CopilotBackendError extends Error {
@@ -202,9 +166,10 @@ export interface StreamLoopOptions extends OrchestratorOptions {
  * Handles: fetch -> parse -> normalize -> dedupe -> subagent routing -> handler dispatch.
  * Callers provide the fetch URL/options and can intercept events via onBeforeDispatch.
  *
- * Optimised hot path: text events (the most frequent) bypass tool-call dedup
- * checks and are dispatched synchronously without any await, eliminating ~4
- * microtask yields per text event vs the previous async-generator + await chain.
+ * File preview streaming uses an intent-based approach:
+ * 1. workspace_file phase:call → store intent (operation, target, edit metadata)
+ * 2. edit_content phase:args_delta → stream content using stored intent
+ * 3. edit_content phase:call → consume and clear intent
  */
 export async function runStreamLoop(
   fetchUrl: string,
@@ -214,7 +179,7 @@ export async function runStreamLoop(
   options: StreamLoopOptions
 ): Promise<void> {
   const { timeout = ORCHESTRATION_TIMEOUT_MS, abortSignal } = options
-  const filePreviewState = new Map<string, FilePreviewServerState>()
+  const editContentState = new Map<string, EditContentStreamState>()
 
   const fetchSpan = context.trace.startSpan(
     `HTTP Request → ${new URL(fetchUrl).pathname}`,
@@ -277,144 +242,180 @@ export async function runStreamLoop(
         return
       }
 
+      // ── workspace_file phase:call → store intent and emit preview metadata ──
       if (
         streamEvent.type === MothershipStreamV1EventType.tool &&
-        streamEvent.payload.phase === 'args_delta' &&
-        streamEvent.payload.toolName === 'workspace_file' &&
+        streamEvent.payload.phase === MothershipStreamV1ToolPhase.call &&
+        streamEvent.payload.toolName === 'workspace_file'
+      ) {
+        const toolCallId = streamEvent.payload.toolCallId as string | undefined
+        const args = (streamEvent.payload.arguments ?? streamEvent.payload.input) as
+          | Record<string, unknown>
+          | undefined
+        if (toolCallId && args) {
+          const operation = args.operation as string | undefined
+          const target = args.target as Record<string, unknown> | undefined
+          const title = args.title as string | undefined
+          const contentType = args.contentType as string | undefined
+          const edit = args.edit as Record<string, unknown> | undefined
+
+          if (operation && target) {
+            const targetKind = target.kind as string
+            const fileId = target.fileId as string | undefined
+            const fileName = target.fileName as string | undefined
+
+            const isContentOp =
+              operation === 'append' || operation === 'update' || operation === 'patch'
+            if (context.activeFileIntent && isContentOp) {
+              logger.warn(
+                'Orphaned workspace_file intent: content-op workspace_file arrived without edit_content for prior intent',
+                {
+                  orphanedToolCallId: context.activeFileIntent.toolCallId,
+                  orphanedOperation: context.activeFileIntent.operation,
+                  newToolCallId: toolCallId,
+                  newOperation: operation,
+                }
+              )
+              const cleared = clearIntentsForWorkspace(execContext.workspaceId)
+              if (cleared > 0) {
+                logger.warn('Cleared orphaned execution intents from store', {
+                  cleared,
+                  workspaceId: execContext.workspaceId,
+                })
+              }
+            }
+
+            context.activeFileIntent = {
+              toolCallId,
+              operation,
+              target: {
+                kind: targetKind,
+                ...(fileId ? { fileId } : {}),
+                ...(fileName ? { fileName } : {}),
+              },
+              ...(title ? { title } : {}),
+              ...(contentType ? { contentType } : {}),
+              ...(edit ? { edit } : {}),
+            }
+
+            const isDocFormat = /\.(pptx|docx|pdf)$/i.test(fileName ?? '')
+            if (!isDocFormat && isContentOp) {
+              const scope = streamEvent.scope ? { scope: streamEvent.scope } : {}
+              await options.onEvent?.({
+                type: MothershipStreamV1EventType.tool,
+                payload: {
+                  toolCallId,
+                  toolName: 'workspace_file',
+                  previewPhase: 'file_preview_start',
+                },
+                ...scope,
+              })
+              await options.onEvent?.({
+                type: MothershipStreamV1EventType.tool,
+                payload: {
+                  toolCallId,
+                  toolName: 'workspace_file',
+                  previewPhase: 'file_preview_target',
+                  operation,
+                  target: {
+                    kind: targetKind,
+                    ...(fileId ? { fileId } : {}),
+                    ...(fileName ? { fileName } : {}),
+                  },
+                  ...(title ? { title } : {}),
+                },
+                ...scope,
+              })
+              if (edit) {
+                await options.onEvent?.({
+                  type: MothershipStreamV1EventType.tool,
+                  payload: {
+                    toolCallId,
+                    toolName: 'workspace_file',
+                    previewPhase: 'file_preview_edit_meta',
+                    edit,
+                  },
+                  ...scope,
+                })
+              }
+            }
+          }
+        }
+      }
+
+      // ── edit_content phase:args_delta → stream content using stored intent ──
+      if (
+        streamEvent.type === MothershipStreamV1EventType.tool &&
+        streamEvent.payload.phase === MothershipStreamV1ToolPhase.args_delta &&
+        streamEvent.payload.toolName === 'edit_content' &&
         typeof streamEvent.payload.toolCallId === 'string' &&
         typeof streamEvent.payload.argumentsDelta === 'string'
       ) {
         const toolCallId = streamEvent.payload.toolCallId as string
         const delta = streamEvent.payload.argumentsDelta as string
-        const state = filePreviewState.get(toolCallId) ?? {
-          raw: '',
-          started: false,
-        }
+        const state = editContentState.get(toolCallId) ?? { raw: '' }
         state.raw += delta
 
-        const operation = extractJsonString(state.raw, 'operation')
-        const targetKind = extractJsonString(state.raw, 'kind')
-        const fileId = extractJsonString(state.raw, 'fileId')
-        const fileName = extractJsonString(state.raw, 'fileName')
-        const title = extractJsonString(state.raw, 'title')
-        if (operation) state.operation = operation
-        if (targetKind) state.targetKind = targetKind
-        if (fileId) state.fileId = fileId
-        if (fileName) state.fileName = fileName
-        if (title) state.title = title
-
-        const isDocFormat = /\.(pptx|docx|pdf)$/i.test(state.fileName ?? '')
-        if (!isDocFormat) {
-          if (!state.started) {
-            state.started = true
-            await options.onEvent?.({
-              type: MothershipStreamV1EventType.tool,
-              payload: {
-                toolCallId,
-                toolName: 'workspace_file',
-                previewPhase: 'file_preview_start',
-              },
-              ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
-            })
-          }
-
-          const targetKey = JSON.stringify({
-            operation: state.operation,
-            targetKind: state.targetKind,
-            fileId: state.fileId,
-            fileName: state.fileName,
-            title: state.title,
-          })
-          if (
-            state.targetKind &&
-            (state.targetKind === 'new_file' ? !!state.fileName : !!state.fileId) &&
-            state.targetKey !== targetKey
-          ) {
-            state.targetKey = targetKey
-            await options.onEvent?.({
-              type: MothershipStreamV1EventType.tool,
-              payload: {
-                toolCallId,
-                toolName: 'workspace_file',
-                previewPhase: 'file_preview_target',
-                operation: state.operation,
-                target: {
-                  kind: state.targetKind,
-                  ...(state.fileId ? { fileId: state.fileId } : {}),
-                  ...(state.fileName ? { fileName: state.fileName } : {}),
+        if (context.activeFileIntent) {
+          const isDocFormat = /\.(pptx|docx|pdf)$/i.test(
+            context.activeFileIntent.target.fileName ?? ''
+          )
+          if (!isDocFormat) {
+            const streamedContent = extractEditContent(state.raw)
+            if (streamedContent !== (state.lastContentSnapshot ?? '')) {
+              state.lastContentSnapshot = streamedContent
+              await options.onEvent?.({
+                type: MothershipStreamV1EventType.tool,
+                payload: {
+                  toolCallId: context.activeFileIntent.toolCallId,
+                  toolName: 'workspace_file',
+                  previewPhase: 'file_preview_content',
+                  content: streamedContent,
+                  contentMode: 'snapshot',
                 },
-                ...(state.title ? { title: state.title } : {}),
-              },
-              ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
-            })
+                ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
+              })
+            }
           }
+        }
 
-          const strategy = extractJsonString(state.raw, 'strategy')
-          const editMetaPayload = strategy
-            ? {
-                strategy,
-                ...(extractJsonString(state.raw, 'mode')
-                  ? { mode: extractJsonString(state.raw, 'mode') }
-                  : {}),
-                ...(extractJsonNumber(state.raw, 'occurrence') !== undefined
-                  ? { occurrence: extractJsonNumber(state.raw, 'occurrence') }
-                  : {}),
-                ...(extractJsonString(state.raw, 'search')
-                  ? { search: extractJsonString(state.raw, 'search') }
-                  : {}),
-                ...(extractJsonBoolean(state.raw, 'replaceAll') !== undefined
-                  ? { replaceAll: extractJsonBoolean(state.raw, 'replaceAll') }
-                  : {}),
-                ...(extractJsonString(state.raw, 'before_anchor')
-                  ? { before_anchor: extractJsonString(state.raw, 'before_anchor') }
-                  : {}),
-                ...(extractJsonString(state.raw, 'after_anchor')
-                  ? { after_anchor: extractJsonString(state.raw, 'after_anchor') }
-                  : {}),
-                ...(extractJsonString(state.raw, 'anchor')
-                  ? { anchor: extractJsonString(state.raw, 'anchor') }
-                  : {}),
-                ...(extractJsonString(state.raw, 'start_anchor')
-                  ? { start_anchor: extractJsonString(state.raw, 'start_anchor') }
-                  : {}),
-                ...(extractJsonString(state.raw, 'end_anchor')
-                  ? { end_anchor: extractJsonString(state.raw, 'end_anchor') }
-                  : {}),
-              }
-            : undefined
-          const editMetaKey = editMetaPayload ? JSON.stringify(editMetaPayload) : undefined
-          if (editMetaPayload && state.editMetaKey !== editMetaKey) {
-            state.editMetaKey = editMetaKey
-            await options.onEvent?.({
-              type: MothershipStreamV1EventType.tool,
-              payload: {
-                toolCallId,
-                toolName: 'workspace_file',
-                previewPhase: 'file_preview_edit_meta',
-                edit: editMetaPayload,
-              },
-              ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
-            })
-          }
+        editContentState.set(toolCallId, state)
+      }
 
-          const streamedContent = buildPreviewContent(state.raw, strategy)
-          if (streamedContent !== (state.lastContentSnapshot ?? '')) {
-            state.lastContentSnapshot = streamedContent
-            await options.onEvent?.({
-              type: MothershipStreamV1EventType.tool,
-              payload: {
-                toolCallId,
-                toolName: 'workspace_file',
-                previewPhase: 'file_preview_content',
-                content: streamedContent,
-                contentMode: 'snapshot',
-              },
-              ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
-            })
-          }
-        } // end if (!isDocFormat)
+      // ── edit_content phase:call → keep intent until result for preview completion ──
+      if (
+        streamEvent.type === MothershipStreamV1EventType.tool &&
+        streamEvent.payload.phase === MothershipStreamV1ToolPhase.call &&
+        streamEvent.payload.toolName === 'edit_content'
+      ) {
+        const toolCallId = streamEvent.payload.toolCallId as string | undefined
+        if (toolCallId) {
+          editContentState.delete(toolCallId)
+        }
+      }
 
-        filePreviewState.set(toolCallId, state)
+      // ── edit_content phase:result → complete preview and clear intent ──
+      if (
+        streamEvent.type === MothershipStreamV1EventType.tool &&
+        streamEvent.payload.phase === MothershipStreamV1ToolPhase.result &&
+        streamEvent.payload.toolName === 'edit_content' &&
+        context.activeFileIntent
+      ) {
+        await options.onEvent?.({
+          type: MothershipStreamV1EventType.tool,
+          payload: {
+            toolCallId: context.activeFileIntent.toolCallId,
+            toolName: 'workspace_file',
+            previewPhase: 'file_preview_complete',
+            fileId: context.activeFileIntent.target.fileId,
+            data:
+              streamEvent.payload.result !== undefined
+                ? streamEvent.payload.result
+                : streamEvent.payload.data,
+          },
+          ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
+        })
+        context.activeFileIntent = null
       }
 
       try {
