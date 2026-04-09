@@ -43,6 +43,7 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
   goRoute?: string
   trace?: TraceCollector
   simRequestId?: string
+  onGoTraceId?: (goTraceId: string) => void
 }
 
 export async function runCopilotLifecycle(

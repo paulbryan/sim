@@ -10,6 +10,7 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  TagIcon,
   Textarea,
   ThumbsDown,
   ThumbsUp,
@@ -46,19 +47,25 @@ interface MessageActionsProps {
   content: string
   chatId?: string
   userQuery?: string
+  requestId?: string
 }
 
-export function MessageActions({ content, chatId, userQuery }: MessageActionsProps) {
+export function MessageActions({ content, chatId, userQuery, requestId }: MessageActionsProps) {
   const [copied, setCopied] = useState(false)
+  const [copiedRequestId, setCopiedRequestId] = useState(false)
   const [pendingFeedback, setPendingFeedback] = useState<'up' | 'down' | null>(null)
   const [feedbackText, setFeedbackText] = useState('')
   const resetTimeoutRef = useRef<number | null>(null)
+  const requestIdTimeoutRef = useRef<number | null>(null)
   const submitFeedback = useSubmitCopilotFeedback()
 
   useEffect(() => {
     return () => {
       if (resetTimeoutRef.current !== null) {
         window.clearTimeout(resetTimeoutRef.current)
+      }
+      if (requestIdTimeoutRef.current !== null) {
+        window.clearTimeout(requestIdTimeoutRef.current)
       }
     }
   }, [])
@@ -78,6 +85,20 @@ export function MessageActions({ content, chatId, userQuery }: MessageActionsPro
       /* clipboard unavailable */
     }
   }, [content])
+
+  const copyRequestId = useCallback(async () => {
+    if (!requestId) return
+    try {
+      await navigator.clipboard.writeText(requestId)
+      setCopiedRequestId(true)
+      if (requestIdTimeoutRef.current !== null) {
+        window.clearTimeout(requestIdTimeoutRef.current)
+      }
+      requestIdTimeoutRef.current = window.setTimeout(() => setCopiedRequestId(false), 1500)
+    } catch {
+      /* clipboard unavailable */
+    }
+  }, [requestId])
 
   const handleFeedbackClick = useCallback(
     (type: 'up' | 'down') => {
@@ -144,6 +165,21 @@ export function MessageActions({ content, chatId, userQuery }: MessageActionsPro
         >
           <ThumbsDown className={ICON_CLASS} />
         </button>
+        {requestId && (
+          <button
+            type='button'
+            aria-label='Copy request ID'
+            onClick={copyRequestId}
+            className={BUTTON_CLASS}
+            title={copiedRequestId ? 'Copied!' : 'Copy request ID'}
+          >
+            {copiedRequestId ? (
+              <Check className={ICON_CLASS} />
+            ) : (
+              <TagIcon className={ICON_CLASS} />
+            )}
+          </button>
+        )}
       </div>
 
       <Modal open={pendingFeedback !== null} onOpenChange={handleModalClose}>

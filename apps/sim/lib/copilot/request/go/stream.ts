@@ -158,6 +158,10 @@ export interface StreamLoopOptions extends OrchestratorOptions {
    * Return true to skip the default handler for this event.
    */
   onBeforeDispatch?: (event: StreamEvent, context: StreamingContext) => boolean | undefined
+  /**
+   * Called when the Go backend's trace ID (go_trace_id) is first received via SSE.
+   */
+  onGoTraceId?: (goTraceId: string) => void
 }
 
 /**
@@ -234,8 +238,12 @@ export async function runStreamLoop(
 
       const streamEvent = eventToStreamEvent(raw)
       if (raw.trace?.requestId) {
+        const prev = context.requestId
         context.requestId = raw.trace.requestId
         context.trace.setGoTraceId(raw.trace.requestId)
+        if (raw.trace.requestId !== prev) {
+          options.onGoTraceId?.(raw.trace.requestId)
+        }
       }
 
       if (shouldSkipToolCallEvent(streamEvent) || shouldSkipToolResultEvent(streamEvent)) {

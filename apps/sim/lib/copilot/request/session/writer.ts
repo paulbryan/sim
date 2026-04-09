@@ -22,7 +22,7 @@ export interface StreamWriterOptions {
 export class StreamWriter {
   private readonly streamId: string
   private readonly chatId: string | undefined
-  private readonly requestId: string
+  private requestId: string
   private readonly keepaliveMs: number
   private readonly flushIntervalMs: number
   private readonly flushMaxBatch: number
@@ -53,6 +53,10 @@ export class StreamWriter {
 
   get sawComplete(): boolean {
     return this._sawComplete
+  }
+
+  updateRequestId(id: string): void {
+    this.requestId = id
   }
 
   attach(controller: ReadableStreamDefaultController): void {
