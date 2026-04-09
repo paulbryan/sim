@@ -24,6 +24,7 @@ export function createStreamingContext(overrides?: Partial<StreamingContext>): S
     streamComplete: false,
     wasAborted: false,
     errors: [],
+    activeFileIntent: null,
     trace: new TraceCollector(),
     ...overrides,
   }

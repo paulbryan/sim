@@ -1071,11 +1071,19 @@ export function useChat(
                     const opMatch = tc.streamingArgs.match(/"operation"\s*:\s*"(\w+)"/)
                     const op = opMatch?.[1] ?? ''
                     const verb =
-                      op === 'patch' || op === 'update' || op === 'rename'
-                        ? 'Editing'
-                        : op === 'delete'
-                          ? 'Deleting'
-                          : 'Writing'
+                      op === 'create'
+                        ? 'Creating'
+                        : op === 'append'
+                          ? 'Adding'
+                          : op === 'patch'
+                            ? 'Editing'
+                            : op === 'update'
+                              ? 'Writing'
+                              : op === 'rename'
+                                ? 'Renaming'
+                                : op === 'delete'
+                                  ? 'Deleting'
+                                  : 'Writing'
                     const titleMatch = tc.streamingArgs.match(/"title"\s*:\s*"([^"]*)"/)
                     if (titleMatch?.[1]) {
                       const unescaped = titleMatch[1]
@@ -1188,7 +1196,20 @@ export function useChat(
                   clientExecutionStartedRef.current.delete(id)
                 }
 
-                if (tc.name === WorkspaceFile.id) {
+                const workspaceFileOperation =
+                  tc.name === WorkspaceFile.id && typeof tc.params?.operation === 'string'
+                    ? tc.params.operation
+                    : undefined
+                const shouldKeepWorkspacePreviewOpen =
+                  tc.name === WorkspaceFile.id &&
+                  (workspaceFileOperation === 'append' ||
+                    workspaceFileOperation === 'update' ||
+                    workspaceFileOperation === 'patch')
+
+                if (
+                  (tc.name === WorkspaceFile.id || tc.name === 'edit_content') &&
+                  !shouldKeepWorkspacePreviewOpen
+                ) {
                   filePreviewSessionsRef.current.delete(id)
                   if (activeFilePreviewToolCallIdRef.current === id) {
                     activeFilePreviewToolCallIdRef.current = null
@@ -1236,11 +1257,19 @@ export function useChat(
               if (name === WorkspaceFile.id) {
                 const operation = typeof args?.operation === 'string' ? args.operation : ''
                 const verb =
-                  operation === 'patch' || operation === 'update' || operation === 'rename'
-                    ? 'Editing'
-                    : operation === 'delete'
-                      ? 'Deleting'
-                      : 'Writing'
+                  operation === 'create'
+                    ? 'Creating'
+                    : operation === 'append'
+                      ? 'Adding'
+                      : operation === 'patch'
+                        ? 'Editing'
+                        : operation === 'update'
+                          ? 'Writing'
+                          : operation === 'rename'
+                            ? 'Renaming'
+                            : operation === 'delete'
+                              ? 'Deleting'
+                              : 'Writing'
                 const chunkTitle = args?.title as string | undefined
                 const target = args ? asPayloadRecord(args.target) : undefined
                 const targetFileName = target?.fileName as string | undefined

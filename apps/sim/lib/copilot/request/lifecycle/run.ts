@@ -193,10 +193,17 @@ async function runCheckpointLoop(
         execContext,
         loopOptions
       )
-      context.trace.endSpan(streamSpan)
+      const streamStatus = isAborted(options, context)
+        ? RequestTraceV1SpanStatus.cancelled
+        : context.errors.length > 0
+          ? RequestTraceV1SpanStatus.error
+          : RequestTraceV1SpanStatus.ok
+      context.trace.endSpan(streamSpan, streamStatus)
+      context.trace.setActiveSpan(undefined)
       resumeAttempt = 0
     } catch (streamError) {
       context.trace.endSpan(streamSpan, RequestTraceV1SpanStatus.error)
+      context.trace.setActiveSpan(undefined)
       if (streamError instanceof BillingLimitError) {
         await handleBillingLimitResponse(streamError.userId, context, execContext, options)
         break

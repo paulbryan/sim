@@ -41,6 +41,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   superagent: Blimp,
   user_table: TableIcon,
   workspace_file: File,
+  edit_content: File,
   create_workflow: Layout,
   edit_workflow: Pencil,
   workflow: Hammer,

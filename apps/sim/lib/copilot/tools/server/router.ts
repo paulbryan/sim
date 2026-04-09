@@ -26,6 +26,7 @@ import { searchDocumentationServerTool } from '@/lib/copilot/tools/server/docs/s
 import { createFileServerTool } from '@/lib/copilot/tools/server/files/create-file'
 import { deleteFileServerTool } from '@/lib/copilot/tools/server/files/delete-file'
 import { downloadToWorkspaceFileServerTool } from '@/lib/copilot/tools/server/files/download-to-workspace-file'
+import { editContentServerTool } from '@/lib/copilot/tools/server/files/edit-content'
 import { renameFileServerTool } from '@/lib/copilot/tools/server/files/rename-file'
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
@@ -88,6 +89,7 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [ManageSkill.id]: ['add', 'edit', 'delete'],
   [ManageCredential.id]: ['rename', 'delete'],
   [WorkspaceFile.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
+  [editContentServerTool.name]: ['*'],
   [CreateFile.id]: ['*'],
   [RenameFile.id]: ['*'],
   [DeleteFile.id]: ['*'],
@@ -128,6 +130,7 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [knowledgeBaseServerTool.name]: knowledgeBaseServerTool,
   [userTableServerTool.name]: userTableServerTool,
   [workspaceFileServerTool.name]: workspaceFileServerTool,
+  [editContentServerTool.name]: editContentServerTool,
   [createFileServerTool.name]: createFileServerTool,
   [renameFileServerTool.name]: renameFileServerTool,
   [deleteFileServerTool.name]: deleteFileServerTool,
