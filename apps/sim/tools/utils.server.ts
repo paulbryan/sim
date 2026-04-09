@@ -61,11 +61,14 @@ export async function executeRequest(
         }
       }
 
-      const error = extractErrorMessage({
-        status: resolvedResponse.status,
-        statusText: resolvedResponse.statusText,
-        data: errorData,
-      })
+      const error = extractErrorMessage(
+        {
+          status: resolvedResponse.status,
+          statusText: resolvedResponse.statusText,
+          data: errorData,
+        },
+        tool.errorExtractor
+      )
       logger.error(`${toolId} error:`, { error })
       throw new Error(error)
     }
