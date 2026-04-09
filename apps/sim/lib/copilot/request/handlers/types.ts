@@ -24,7 +24,7 @@ export type StreamHandler = (
   options: OrchestratorOptions
 ) => void | Promise<void>
 
-export type ToolScope = MothershipStreamV1StreamScope['lane']
+export type ToolScope = 'main' | MothershipStreamV1StreamScope['lane']
 
 const logger = createLogger('CopilotHandlerHelpers')
 

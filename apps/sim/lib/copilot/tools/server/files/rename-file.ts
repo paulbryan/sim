@@ -39,10 +39,9 @@ export const renameFileServerTool: BaseServerTool<RenameFileArgs, RenameFileResu
       return { success: false, message: 'Workspace ID is required' }
     }
 
-    const raw = params as Record<string, unknown>
-    const nested = raw.args as Record<string, unknown> | undefined
-    const fileId = (params.fileId as string) ?? (nested?.fileId as string) ?? ''
-    const newName = (params.newName as string) ?? (nested?.newName as string) ?? ''
+    const nested = params.args
+    const fileId = params.fileId || (nested?.fileId as string) || ''
+    const newName = params.newName || (nested?.newName as string) || ''
 
     if (!fileId) return { success: false, message: 'fileId is required' }
 

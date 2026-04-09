@@ -276,12 +276,14 @@ export async function runStreamLoop(
                   newOperation: operation,
                 }
               )
-              const cleared = clearIntentsForWorkspace(execContext.workspaceId)
-              if (cleared > 0) {
-                logger.warn('Cleared orphaned execution intents from store', {
-                  cleared,
-                  workspaceId: execContext.workspaceId,
-                })
+              if (execContext.workspaceId) {
+                const cleared = clearIntentsForWorkspace(execContext.workspaceId)
+                if (cleared > 0) {
+                  logger.warn('Cleared orphaned execution intents from store', {
+                    cleared,
+                    workspaceId: execContext.workspaceId,
+                  })
+                }
               }
             }
 

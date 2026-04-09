@@ -40,11 +40,9 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
       return { success: false, message: 'Workspace ID is required' }
     }
 
-    const raw = params as Record<string, unknown>
-    const nested = raw.args as Record<string, unknown> | undefined
-    const fileName = (params.fileName as string) ?? (nested?.fileName as string) ?? ''
-    const explicitType =
-      (params.contentType as string) ?? (nested?.contentType as string) ?? undefined
+    const nested = params.args
+    const fileName = params.fileName || (nested?.fileName as string) || ''
+    const explicitType = params.contentType || (nested?.contentType as string) || undefined
 
     const nameError = validateFlatWorkspaceFileName(fileName)
     if (nameError) return { success: false, message: nameError }

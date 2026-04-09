@@ -21,8 +21,12 @@ function isOversizedReadPlaceholder(content: string): boolean {
   )
 }
 
-function hasImageAttachment(result: { attachment?: { type?: string } }): boolean {
-  return result.attachment?.type === 'image'
+function hasImageAttachment(result: unknown): boolean {
+  if (!result || typeof result !== 'object') {
+    return false
+  }
+  const attachment = (result as { attachment?: { type?: string } }).attachment
+  return attachment?.type === 'image'
 }
 
 export async function executeVfsGrep(

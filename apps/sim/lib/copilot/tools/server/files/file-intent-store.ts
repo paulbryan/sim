@@ -1,11 +1,11 @@
-import type { UserFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 export type PendingFileIntent = {
   operation: 'append' | 'update' | 'patch'
   fileId: string
   workspaceId: string
   userId: string
-  fileRecord: UserFile
+  fileRecord: WorkspaceFileRecord
   existingContent?: string
   edit?: {
     strategy: string

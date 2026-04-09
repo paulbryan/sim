@@ -33,9 +33,8 @@ export const deleteFileServerTool: BaseServerTool<DeleteFileArgs, DeleteFileResu
       return { success: false, message: 'Workspace ID is required' }
     }
 
-    const raw = params as Record<string, unknown>
-    const nested = raw.args as Record<string, unknown> | undefined
-    const fileId = (params.fileId as string) ?? (nested?.fileId as string) ?? ''
+    const nested = params.args
+    const fileId = params.fileId || (nested?.fileId as string) || ''
 
     if (!fileId) return { success: false, message: 'fileId is required' }
 

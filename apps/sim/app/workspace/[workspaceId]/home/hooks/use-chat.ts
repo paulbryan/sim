@@ -1296,7 +1296,6 @@ export function useChat(
                   const tc = blocks[parentIdx].toolCall!
                   tc.status = 'executing'
                   tc.result = undefined
-                  tc.error = undefined
                   flush()
                   break
                 }
