@@ -90,7 +90,7 @@ import {
 } from '@/triggers/github'
 import { gmailPollingTrigger } from '@/triggers/gmail'
 import { gongCallCompletedTrigger, gongWebhookTrigger } from '@/triggers/gong'
-import { googleDrivePollingTrigger } from '@/triggers/google_drive'
+import { googleDrivePollingTrigger } from '@/triggers/google-drive'
 import { googleCalendarPollingTrigger } from '@/triggers/google-calendar'
 import { googleSheetsPollingTrigger } from '@/triggers/google-sheets'
 import { googleFormsWebhookTrigger } from '@/triggers/googleforms'

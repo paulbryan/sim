@@ -61,7 +61,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       }
 
       // Pre-check: use Drive API to see if the file was modified since last poll
-      const skipPoll = await isDriveFileUnchanged(
+      const { unchanged: skipPoll, currentModifiedTime } = await isDriveFileUnchanged(
         accessToken,
         config.spreadsheetId,
         config.lastModifiedTime,
@@ -79,13 +79,6 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
         logger.info(`[${requestId}] Sheet not modified since last poll for webhook ${webhookId}`)
         return 'success'
       }
-
-      // Get current Drive modifiedTime for state update
-      const currentModifiedTime = await getDriveFileModifiedTime(
-        accessToken,
-        config.spreadsheetId,
-        logger
-      )
 
       // Fetch current row count via column A
       const currentRowCount = await getDataRowCount(
@@ -232,16 +225,16 @@ async function isDriveFileUnchanged(
   lastModifiedTime: string | undefined,
   requestId: string,
   logger: ReturnType<typeof import('@sim/logger').createLogger>
-): Promise<boolean> {
-  if (!lastModifiedTime) return false
+): Promise<{ unchanged: boolean; currentModifiedTime?: string }> {
+  if (!lastModifiedTime) return { unchanged: false }
 
   try {
     const currentModifiedTime = await getDriveFileModifiedTime(accessToken, spreadsheetId, logger)
-    return currentModifiedTime === lastModifiedTime
+    return { unchanged: currentModifiedTime === lastModifiedTime, currentModifiedTime }
   } catch (error) {
     // If Drive check fails, proceed with Sheets API (don't skip)
     logger.warn(`[${requestId}] Drive modifiedTime check failed, proceeding with Sheets API`)
-    return false
+    return { unchanged: false }
   }
 }
 
@@ -278,9 +271,17 @@ async function getDataRowCount(
   })
 
   if (!response.ok) {
+    const status = response.status
     const errorData = await response.json().catch(() => ({}))
+
+    if (status === 403 || status === 429) {
+      throw new Error(
+        `Sheets API rate limit (${status}) — skipping to retry next poll cycle: ${JSON.stringify(errorData)}`
+      )
+    }
+
     throw new Error(
-      `Failed to fetch row count: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`
+      `Failed to fetch row count: ${status} ${response.statusText} - ${JSON.stringify(errorData)}`
     )
   }
 
@@ -312,7 +313,14 @@ async function fetchHeaderRow(
   })
 
   if (!response.ok) {
-    logger.warn(`[${requestId}] Failed to fetch header row, proceeding without headers`)
+    const status = response.status
+    if (status === 403 || status === 429) {
+      logger.warn(
+        `[${requestId}] Sheets API rate limit (${status}) fetching header row, proceeding without headers`
+      )
+    } else {
+      logger.warn(`[${requestId}] Failed to fetch header row, proceeding without headers`)
+    }
     return []
   }
 
@@ -344,9 +352,17 @@ async function fetchRowRange(
   })
 
   if (!response.ok) {
+    const status = response.status
     const errorData = await response.json().catch(() => ({}))
+
+    if (status === 403 || status === 429) {
+      throw new Error(
+        `Sheets API rate limit (${status}) — skipping to retry next poll cycle: ${JSON.stringify(errorData)}`
+      )
+    }
+
     throw new Error(
-      `Failed to fetch rows ${startRow}-${endRow}: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`
+      `Failed to fetch rows ${startRow}-${endRow}: ${status} ${response.statusText} - ${JSON.stringify(errorData)}`
     )
   }
 

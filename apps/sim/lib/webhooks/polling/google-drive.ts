@@ -28,7 +28,6 @@ interface GoogleDriveWebhookConfig {
 interface DriveChangeEntry {
   kind: string
   type: string
-  changeType?: string
   time: string
   removed: boolean
   fileId: string
@@ -215,7 +214,8 @@ async function fetchChanges(
 ): Promise<{ changes: DriveChangeEntry[]; newStartPageToken: string }> {
   const allChanges: DriveChangeEntry[] = []
   let currentPageToken = config.pageToken!
-  let newStartPageToken = currentPageToken
+  let newStartPageToken: string | undefined
+  let lastNextPageToken: string | undefined
   const maxFiles = config.maxFilesPerPoll || MAX_FILES_PER_POLL
   let pages = 0
 
@@ -252,10 +252,10 @@ async function fetchChanges(
       newStartPageToken = data.newStartPageToken as string
     }
 
-    // Stop if no more pages or we have enough changes.
-    // Always use newStartPageToken (not nextPageToken) as the resume point —
-    // nextPageToken paginates the current query but newStartPageToken is the
-    // correct cursor for the next poll cycle.
+    if (data.nextPageToken) {
+      lastNextPageToken = data.nextPageToken as string
+    }
+
     if (!data.nextPageToken || allChanges.length >= maxFiles || pages >= MAX_PAGES) {
       break
     }
@@ -263,7 +263,12 @@ async function fetchChanges(
     currentPageToken = data.nextPageToken as string
   }
 
-  return { changes: allChanges.slice(0, maxFiles), newStartPageToken }
+  // If we exhausted all pages the API returns newStartPageToken on the final page.
+  // If we broke early, fall back to the last nextPageToken so we resume from where
+  // we stopped rather than re-fetching from the original cursor.
+  const resumeToken = newStartPageToken ?? lastNextPageToken ?? config.pageToken!
+
+  return { changes: allChanges.slice(0, maxFiles), newStartPageToken: resumeToken }
 }
 
 function filterChanges(
