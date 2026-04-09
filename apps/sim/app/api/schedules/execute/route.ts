@@ -87,6 +87,9 @@ export async function GET(request: NextRequest) {
 
     const jobQueue = await getJobQueue()
 
+    const workflowUtils =
+      dueSchedules.length > 0 ? await import('@/lib/workflows/utils') : undefined
+
     const schedulePromises = dueSchedules.map(async (schedule) => {
       const queueTime = schedule.lastQueuedAt ?? queuedAt
       const executionId = generateId()
@@ -115,9 +118,8 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        const { getWorkflowById } = await import('@/lib/workflows/utils')
         const resolvedWorkflow = schedule.workflowId
-          ? await getWorkflowById(schedule.workflowId)
+          ? await workflowUtils?.getWorkflowById(schedule.workflowId)
           : null
         const resolvedWorkspaceId = resolvedWorkflow?.workspaceId
 
