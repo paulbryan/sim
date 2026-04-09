@@ -7,10 +7,13 @@ import { z } from 'zod'
 import { AuthType, checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { isWorkflowEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { performDeleteWorkflow } from '@/lib/workflows/orchestration'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { authorizeWorkflowByWorkspacePermission, getWorkflowById } from '@/lib/workflows/utils'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  getWorkflowById,
+  isWorkflowEffectivelyLockedDb,
+} from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowByIdAPI')
 

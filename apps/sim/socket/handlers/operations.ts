@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { ZodError } from 'zod'
 import { generateId } from '@/lib/core/utils/uuid'
-import { isWorkflowEffectivelyLockedDb } from '@/lib/workflows/lock-db'
+import { isWorkflowEffectivelyLockedDb } from '@/lib/workflows/utils'
 import {
   BLOCK_OPERATIONS,
   BLOCKS_OPERATIONS,

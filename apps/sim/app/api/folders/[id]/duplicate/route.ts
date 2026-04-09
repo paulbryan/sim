@@ -8,8 +8,8 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateId } from '@/lib/core/utils/uuid'
-import { isFolderEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
+import { isFolderEffectivelyLockedDb } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FolderDuplicateAPI')

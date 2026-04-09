@@ -9,8 +9,8 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { isFolderEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
+import { isFolderEffectivelyLockedDb } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowDuplicateAPI')
 

@@ -8,7 +8,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateId } from '@/lib/core/utils/uuid'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { isFolderEffectivelyLockedDb } from '@/lib/workflows/lock-db'
+import { isFolderEffectivelyLockedDb } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersAPI')

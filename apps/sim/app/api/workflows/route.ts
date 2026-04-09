@@ -11,9 +11,13 @@ import { generateId } from '@/lib/core/utils/uuid'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
-import { isFolderEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { deduplicateWorkflowName, listWorkflows, type WorkflowScope } from '@/lib/workflows/utils'
+import {
+  deduplicateWorkflowName,
+  isFolderEffectivelyLockedDb,
+  listWorkflows,
+  type WorkflowScope,
+} from '@/lib/workflows/utils'
 import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 

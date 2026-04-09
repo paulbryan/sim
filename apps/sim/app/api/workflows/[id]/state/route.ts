@@ -7,14 +7,16 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { isWorkflowEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import {
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { sanitizeAgentToolsInBlocks } from '@/lib/workflows/sanitization/validation'
-import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import {
+  authorizeWorkflowByWorkspacePermission,
+  isWorkflowEffectivelyLockedDb,
+} from '@/lib/workflows/utils'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'

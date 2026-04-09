@@ -6,9 +6,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { isFolderEffectivelyLockedDb } from '@/lib/workflows/lock-db'
 import { performDeleteFolder } from '@/lib/workflows/orchestration'
-import { checkForCircularReference } from '@/lib/workflows/utils'
+import { checkForCircularReference, isFolderEffectivelyLockedDb } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersIDAPI')
