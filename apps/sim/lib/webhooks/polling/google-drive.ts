@@ -260,7 +260,7 @@ async function fetchChanges(
     const overLimit = allChanges.length >= maxFiles
 
     if (!hasMore || overLimit || pages >= MAX_PAGES) {
-      if (hasMore && !overLimit) {
+      if (hasMore) {
         lastNextPageToken = data.nextPageToken as string
       }
       break

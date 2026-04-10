@@ -282,17 +282,17 @@ async function processEvents(
   let latestUpdated: string | null = null
 
   for (const event of events) {
+    // Client-side event type filter — skip before idempotency so filtered events aren't cached
+    const computedEventType = determineEventType(event)
+    if (eventTypeFilter && computedEventType !== eventTypeFilter) {
+      continue
+    }
+
     // Track the latest `updated` timestamp for clock-skew-free state tracking
     if (event.updated) {
       if (!latestUpdated || event.updated > latestUpdated) {
         latestUpdated = event.updated
       }
-    }
-
-    // Client-side event type filter — skip before idempotency so filtered events aren't cached
-    const computedEventType = determineEventType(event)
-    if (eventTypeFilter && computedEventType !== eventTypeFilter) {
-      continue
     }
 
     try {
