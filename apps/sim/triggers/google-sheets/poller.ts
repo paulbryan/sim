@@ -1,10 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { GoogleSheetsIcon } from '@/components/icons'
-import { isCredentialSetValue } from '@/executor/constants'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
-
-const logger = createLogger('GoogleSheetsPollingTrigger')
 
 export const googleSheetsPollingTrigger: TriggerConfig = {
   id: 'google_sheets_poller',
@@ -26,64 +21,53 @@ export const googleSheetsPollingTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
       supportsCredentialSets: true,
+      canonicalParamId: 'oauthCredential',
     },
     {
       id: 'spreadsheetId',
-      title: 'Spreadsheet ID',
-      type: 'short-input',
-      placeholder: 'e.g., 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms',
-      description:
-        'The spreadsheet ID from the URL: docs.google.com/spreadsheets/d/{spreadsheetId}/edit',
+      title: 'Spreadsheet',
+      type: 'file-selector',
+      description: 'The spreadsheet to monitor for new rows.',
       required: true,
       mode: 'trigger',
+      canonicalParamId: 'spreadsheetId',
+      serviceId: 'google-sheets',
+      selectorKey: 'google.drive',
+      mimeType: 'application/vnd.google-apps.spreadsheet',
+      dependsOn: ['triggerCredentials'],
+    },
+    {
+      id: 'manualSpreadsheetId',
+      title: 'Spreadsheet ID',
+      type: 'short-input',
+      placeholder: 'ID from URL: docs.google.com/spreadsheets/d/{ID}/edit',
+      description: 'The spreadsheet to monitor for new rows.',
+      required: true,
+      mode: 'trigger-advanced',
+      canonicalParamId: 'spreadsheetId',
     },
     {
       id: 'sheetName',
       title: 'Sheet Tab',
-      type: 'dropdown',
-      placeholder: 'Select a sheet tab',
+      type: 'sheet-selector',
       description: 'The sheet tab to monitor for new rows.',
       required: true,
-      options: [],
-      fetchOptions: async (blockId: string) => {
-        const subBlockStore = useSubBlockStore.getState()
-        const credentialId = subBlockStore.getValue(blockId, 'triggerCredentials') as string | null
-        const spreadsheetId = subBlockStore.getValue(blockId, 'spreadsheetId') as string | null
-
-        if (!credentialId) {
-          throw new Error('No Google Sheets credential selected')
-        }
-        if (!spreadsheetId) {
-          throw new Error('No spreadsheet ID provided')
-        }
-
-        // Credential sets can't fetch user-specific data; return empty to allow manual entry
-        if (isCredentialSetValue(credentialId)) {
-          return []
-        }
-
-        try {
-          const response = await fetch(
-            `/api/tools/google_sheets/sheets?credentialId=${credentialId}&spreadsheetId=${spreadsheetId}`
-          )
-          if (!response.ok) {
-            throw new Error('Failed to fetch sheet tabs')
-          }
-          const data = await response.json()
-          if (data.sheets && Array.isArray(data.sheets)) {
-            return data.sheets.map((sheet: { id: string; name: string }) => ({
-              id: sheet.id,
-              label: sheet.name,
-            }))
-          }
-          return []
-        } catch (error) {
-          logger.error('Error fetching sheet tabs:', error)
-          throw error
-        }
-      },
-      dependsOn: ['triggerCredentials', 'spreadsheetId'],
       mode: 'trigger',
+      canonicalParamId: 'sheetName',
+      serviceId: 'google-sheets',
+      selectorKey: 'google.sheets',
+      selectorAllowSearch: false,
+      dependsOn: { all: ['triggerCredentials'], any: ['spreadsheetId', 'manualSpreadsheetId'] },
+    },
+    {
+      id: 'manualSheetName',
+      title: 'Sheet Tab Name',
+      type: 'short-input',
+      placeholder: 'Enter sheet tab name (e.g., Sheet1)',
+      description: 'The sheet tab to monitor for new rows.',
+      required: true,
+      mode: 'trigger-advanced',
+      canonicalParamId: 'sheetName',
     },
     {
       id: 'includeHeaders',
@@ -139,7 +123,7 @@ export const googleSheetsPollingTrigger: TriggerConfig = {
       type: 'text',
       defaultValue: [
         'Connect your Google account using OAuth credentials',
-        'Enter the Spreadsheet ID from your Google Sheets URL',
+        'Select the spreadsheet to monitor',
         'Select the sheet tab to monitor',
         'The system will automatically detect new rows appended to the sheet',
       ]

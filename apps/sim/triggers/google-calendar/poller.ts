@@ -1,12 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { GoogleCalendarIcon } from '@/components/icons'
-import { isCredentialSetValue } from '@/executor/constants'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { TriggerConfig } from '@/triggers/types'
-
-const logger = createLogger('GoogleCalendarPollingTrigger')
-
-const DEFAULT_CALENDARS = [{ id: 'primary', label: 'Primary Calendar' }]
 
 export const googleCalendarPollingTrigger: TriggerConfig = {
   id: 'google_calendar_poller',
@@ -28,54 +21,30 @@ export const googleCalendarPollingTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
       supportsCredentialSets: true,
+      canonicalParamId: 'oauthCredential',
     },
     {
       id: 'calendarId',
       title: 'Calendar',
-      type: 'dropdown',
-      placeholder: 'Select a calendar',
+      type: 'file-selector',
       description: 'The calendar to monitor for event changes.',
       required: false,
-      defaultValue: 'primary',
-      options: [],
-      fetchOptions: async (blockId: string) => {
-        const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
-          | string
-          | null
-
-        if (!credentialId) {
-          throw new Error('No Google Calendar credential selected')
-        }
-
-        // Credential sets can't fetch user-specific calendars
-        if (isCredentialSetValue(credentialId)) {
-          return DEFAULT_CALENDARS
-        }
-
-        try {
-          const response = await fetch(
-            `/api/tools/google_calendar/calendars?credentialId=${credentialId}`
-          )
-          if (!response.ok) {
-            throw new Error('Failed to fetch calendars')
-          }
-          const data = await response.json()
-          if (data.calendars && Array.isArray(data.calendars)) {
-            return data.calendars.map(
-              (calendar: { id: string; summary: string; primary: boolean }) => ({
-                id: calendar.id,
-                label: calendar.primary ? `${calendar.summary} (Primary)` : calendar.summary,
-              })
-            )
-          }
-          return DEFAULT_CALENDARS
-        } catch (error) {
-          logger.error('Error fetching calendars:', error)
-          throw error
-        }
-      },
-      dependsOn: ['triggerCredentials'],
       mode: 'trigger',
+      canonicalParamId: 'calendarId',
+      serviceId: 'google-calendar',
+      selectorKey: 'google.calendar',
+      selectorAllowSearch: false,
+      dependsOn: ['triggerCredentials'],
+    },
+    {
+      id: 'manualCalendarId',
+      title: 'Calendar ID',
+      type: 'short-input',
+      placeholder: 'Enter calendar ID (e.g., primary or calendar@gmail.com)',
+      description: 'The calendar to monitor for event changes.',
+      required: false,
+      mode: 'trigger-advanced',
+      canonicalParamId: 'calendarId',
     },
     {
       id: 'eventTypeFilter',

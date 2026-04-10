@@ -15,7 +15,8 @@ const MAX_PAGES = 10
 type CalendarEventTypeFilter = '' | 'created' | 'updated' | 'cancelled'
 
 interface GoogleCalendarWebhookConfig {
-  calendarId: string
+  calendarId?: string
+  manualCalendarId?: string
   eventTypeFilter?: CalendarEventTypeFilter
   searchTerm?: string
   lastCheckedTimestamp?: string
@@ -99,7 +100,7 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
       )
 
       const config = webhookData.providerConfig as unknown as GoogleCalendarWebhookConfig
-      const calendarId = config.calendarId || 'primary'
+      const calendarId = config.calendarId || config.manualCalendarId || 'primary'
       const now = new Date()
 
       // First poll: seed timestamp, emit nothing

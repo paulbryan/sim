@@ -14,8 +14,10 @@ type ValueRenderOption = 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
 type DateTimeRenderOption = 'SERIAL_NUMBER' | 'FORMATTED_STRING'
 
 interface GoogleSheetsWebhookConfig {
-  spreadsheetId: string
-  sheetName: string
+  spreadsheetId?: string
+  manualSpreadsheetId?: string
+  sheetName?: string
+  manualSheetName?: string
   includeHeaders: boolean
   valueRenderOption?: ValueRenderOption
   dateTimeRenderOption?: DateTimeRenderOption
@@ -52,9 +54,11 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       )
 
       const config = webhookData.providerConfig as unknown as GoogleSheetsWebhookConfig
+      const spreadsheetId = config.spreadsheetId || config.manualSpreadsheetId
+      const sheetName = config.sheetName || config.manualSheetName
       const now = new Date()
 
-      if (!config?.spreadsheetId || !config?.sheetName) {
+      if (!spreadsheetId || !sheetName) {
         logger.error(`[${requestId}] Missing spreadsheetId or sheetName for webhook ${webhookId}`)
         await markWebhookFailed(webhookId, logger)
         return 'failure'
@@ -63,7 +67,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       // Pre-check: use Drive API to see if the file was modified since last poll
       const { unchanged: skipPoll, currentModifiedTime } = await isDriveFileUnchanged(
         accessToken,
-        config.spreadsheetId,
+        spreadsheetId,
         config.lastModifiedTime,
         requestId,
         logger
@@ -83,8 +87,8 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       // Fetch current row count via column A
       const currentRowCount = await getDataRowCount(
         accessToken,
-        config.spreadsheetId,
-        config.sheetName,
+        spreadsheetId,
+        sheetName,
         requestId,
         logger
       )
@@ -148,8 +152,8 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       if (config.includeHeaders !== false) {
         headers = await fetchHeaderRow(
           accessToken,
-          config.spreadsheetId,
-          config.sheetName,
+          spreadsheetId,
+          sheetName,
           valueRender,
           dateTimeRender,
           requestId,
@@ -161,8 +165,8 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       // because lastKnownRowCount includes the header row
       const newRows = await fetchRowRange(
         accessToken,
-        config.spreadsheetId,
-        config.sheetName,
+        spreadsheetId,
+        sheetName,
         startRow,
         endRow,
         valueRender,
@@ -175,6 +179,8 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
         newRows,
         headers,
         startRow,
+        spreadsheetId,
+        sheetName,
         config,
         webhookData,
         workflowData,
@@ -373,6 +379,8 @@ async function processRows(
   rows: string[][],
   headers: string[],
   startRowIndex: number,
+  spreadsheetId: string,
+  sheetName: string,
   config: GoogleSheetsWebhookConfig,
   webhookData: PollWebhookContext['webhookData'],
   workflowData: PollWebhookContext['workflowData'],
@@ -389,7 +397,7 @@ async function processRows(
     try {
       await pollingIdempotency.executeWithIdempotency(
         'google-sheets',
-        `${webhookData.id}:${config.spreadsheetId}:${config.sheetName}:row${rowNumber}:${row.join('|')}`,
+        `${webhookData.id}:${spreadsheetId}:${sheetName}:row${rowNumber}:${row.join('|')}`,
         async () => {
           // Map row values to headers
           let mappedRow: Record<string, string> | null = null
@@ -410,8 +418,8 @@ async function processRows(
             rawRow: row,
             headers,
             rowNumber,
-            spreadsheetId: config.spreadsheetId,
-            sheetName: config.sheetName,
+            spreadsheetId,
+            sheetName,
             timestamp: new Date().toISOString(),
           }
 

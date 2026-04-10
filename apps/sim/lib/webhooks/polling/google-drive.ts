@@ -17,6 +17,7 @@ type DriveEventTypeFilter = '' | 'created' | 'modified' | 'deleted' | 'created_o
 
 interface GoogleDriveWebhookConfig {
   folderId?: string
+  manualFolderId?: string
   mimeTypeFilter?: string
   includeSharedDrives?: boolean
   eventTypeFilter?: DriveEventTypeFilter
@@ -292,8 +293,9 @@ function filterChanges(
     if (file.trashed) return false
 
     // Folder filter: check if file is in the specified folder
-    if (config.folderId) {
-      if (!file.parents || !file.parents.includes(config.folderId)) {
+    const folderId = config.folderId || config.manualFolderId
+    if (folderId) {
+      if (!file.parents || !file.parents.includes(folderId)) {
         return false
       }
     }
