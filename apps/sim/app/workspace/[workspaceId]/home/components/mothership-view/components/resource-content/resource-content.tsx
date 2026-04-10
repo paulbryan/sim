@@ -1,7 +1,8 @@
 'use client'
 
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
@@ -46,7 +47,11 @@ import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/com
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useWorkspaceFileContent, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import {
+  useWorkspaceFileContent,
+  useWorkspaceFiles,
+  workspaceFilesKeys,
+} from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -91,6 +96,7 @@ export const ResourceContent = memo(function ResourceContent({
   streamingFile,
   genericResourceData,
 }: ResourceContentProps) {
+  const queryClient = useQueryClient()
   const streamFileName = streamingFile?.fileName || 'file.md'
 
   const streamOperation = useMemo(() => {
@@ -114,6 +120,7 @@ export const ResourceContent = memo(function ResourceContent({
     previewFileRecord?.type === 'text/x-pptxgenjs' ||
     previewFileRecord?.type === 'text/x-docxjs' ||
     previewFileRecord?.type === 'text/x-pdflibjs'
+  const previewContentMode = isSourceMime ? 'raw' : 'text'
 
   const { data: fetchedFileContent } = useWorkspaceFileContent(
     workspaceId,
@@ -122,11 +129,57 @@ export const ResourceContent = memo(function ResourceContent({
     isSourceMime
   )
 
+  const frozenPreviewBaseKey =
+    streamingFile?.toolCallId &&
+    previewFileRecord?.id &&
+    streamingFile.targetKind === 'file_id' &&
+    (streamOperation === 'append' || streamOperation === 'patch')
+      ? `${streamingFile.toolCallId}:${streamOperation}:${previewFileRecord.id}`
+      : null
+  const cachedFrozenPreviewBase =
+    frozenPreviewBaseKey && previewFileRecord?.id
+      ? queryClient.getQueryData<string>(
+          workspaceFilesKeys.content(workspaceId, previewFileRecord.id, previewContentMode)
+        )
+      : undefined
+  const [frozenPreviewBaseState, setFrozenPreviewBaseState] = useState<{
+    key: string | null
+    content: string | null
+  }>({ key: null, content: null })
+
+  useEffect(() => {
+    if (!frozenPreviewBaseKey || !previewFileRecord?.id) {
+      setFrozenPreviewBaseState((prev) => (prev.key === null ? prev : { key: null, content: null }))
+      return
+    }
+
+    setFrozenPreviewBaseState((prev) => {
+      if (prev.key === frozenPreviewBaseKey) {
+        return prev
+      }
+      return typeof cachedFrozenPreviewBase === 'string'
+        ? { key: frozenPreviewBaseKey, content: cachedFrozenPreviewBase }
+        : { key: frozenPreviewBaseKey, content: null }
+    })
+  }, [cachedFrozenPreviewBase, frozenPreviewBaseKey, previewFileRecord?.id])
+
+  const frozenExistingFilePreviewBase =
+    frozenPreviewBaseState.key === frozenPreviewBaseKey
+      ? (frozenPreviewBaseState.content ?? undefined)
+      : typeof cachedFrozenPreviewBase === 'string'
+        ? cachedFrozenPreviewBase
+        : undefined
+
   const streamingExtractedContent = useMemo(() => {
     if (!streamingFile) return undefined
     if (!streamOperation) return undefined
 
     if (isPatchStream) {
+      if (streamingFile.targetKind === 'file_id') {
+        if (frozenExistingFilePreviewBase === undefined) return undefined
+        if (!shouldApplyPatchPreview(streamingFile)) return undefined
+        return extractPatchPreview(streamingFile, frozenExistingFilePreviewBase)
+      }
       if (fetchedFileContent === undefined) return undefined
       if (!shouldApplyPatchPreview(streamingFile)) return undefined
       return extractPatchPreview(streamingFile, fetchedFileContent)
@@ -138,8 +191,8 @@ export const ResourceContent = memo(function ResourceContent({
 
     if (streamOperation === 'append') {
       if (streamingFile.targetKind === 'file_id') {
-        if (fetchedFileContent === undefined) return undefined
-        return buildAppendPreview(fetchedFileContent, extracted)
+        if (frozenExistingFilePreviewBase === undefined) return undefined
+        return buildAppendPreview(frozenExistingFilePreviewBase, extracted)
       }
       return extracted.length > 0 ? extracted : undefined
     }
@@ -158,6 +211,7 @@ export const ResourceContent = memo(function ResourceContent({
     isPatchStream,
     isUpdateStream,
     fetchedFileContent,
+    frozenExistingFilePreviewBase,
   ])
   const syntheticFile = useMemo(() => {
     const ext = getFileExtension(streamFileName)
@@ -732,13 +786,5 @@ function shouldApplyPatchPreview(streamingFile: {
 function buildAppendPreview(existingContent: string, incomingContent: string): string {
   if (incomingContent.length === 0) return existingContent
   if (existingContent.length === 0) return incomingContent
-  // The fetched file can advance to the just-written content before the
-  // streaming preview clears. Keep append previews idempotent in that window.
-  if (
-    existingContent.endsWith(incomingContent) ||
-    existingContent.endsWith(`\n${incomingContent}`)
-  ) {
-    return existingContent
-  }
   return `${existingContent}\n${incomingContent}`
 }
