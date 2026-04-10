@@ -92,7 +92,7 @@ function mapToolStatusToClientState(
 }
 
 function getOverrideDisplayTitle(tc: NonNullable<ContentBlock['toolCall']>): string | undefined {
-  if (tc.name === ReadTool.id || tc.name.endsWith('_respond')) {
+  if (tc.name === ReadTool.id || tc.name === 'respond' || tc.name.endsWith('_respond')) {
     return resolveToolDisplay(tc.name, mapToolStatusToClientState(tc.status), tc.id, tc.params)
       ?.text
   }
