@@ -118,10 +118,6 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
       const events = await fetchChangedEvents(accessToken, calendarId, config, requestId, logger)
 
       if (!events.length) {
-        // Do not advance the timestamp when no events are found — only server-side timestamps
-        // from actual event responses are used to advance the cursor. Advancing to the client
-        // clock risks skipping events whose server-side updated timestamp falls in any clock
-        // skew gap between the client and Google's servers.
         await markWebhookSuccess(webhookId, logger)
         logger.info(`[${requestId}] No changed events for webhook ${webhookId}`)
         return 'success'
