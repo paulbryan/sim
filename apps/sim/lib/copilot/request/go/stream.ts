@@ -418,10 +418,7 @@ export async function runStreamLoop(
             toolName: 'workspace_file',
             previewPhase: 'file_preview_complete',
             fileId: context.activeFileIntent.target.fileId,
-            data:
-              streamEvent.payload.result !== undefined
-                ? streamEvent.payload.result
-                : streamEvent.payload.data,
+            output: streamEvent.payload.output,
           },
           ...(streamEvent.scope ? { scope: streamEvent.scope } : {}),
         })

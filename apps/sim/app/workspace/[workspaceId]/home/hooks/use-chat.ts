@@ -1033,7 +1033,7 @@ export function useChat(
                 if (previewPhase === 'file_preview_complete') {
                   const fileId =
                     typeof payload.fileId === 'string' ? payload.fileId : prevSession.fileId
-                  const resultData = asPayloadRecord(payload.data)
+                  const resultData = asPayloadRecord(payload.output)
                   sessions.delete(id)
                   activeFilePreviewToolCallIdRef.current = null
 

@@ -423,7 +423,7 @@ export async function executeToolAndReport(
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
         success: result.success,
-        result: result.output,
+        output: result.output,
         ...(result.success
           ? { status: MothershipStreamV1ToolOutcome.success }
           : { status: MothershipStreamV1ToolOutcome.error }),
@@ -527,7 +527,7 @@ export async function executeToolAndReport(
         phase: MothershipStreamV1ToolPhase.result,
         status: MothershipStreamV1ToolOutcome.error,
         error: toolCall.error,
-        result: { error: toolCall.error },
+        output: { error: toolCall.error },
       },
     }
     await options?.onEvent?.(errorEvent)

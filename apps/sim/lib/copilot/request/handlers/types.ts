@@ -209,7 +209,7 @@ export async function emitSyntheticToolResult(
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
         success,
-        result: resultPayload,
+        output: resultPayload,
         ...(completion?.status ? { status: completion.status } : {}),
         ...(!success && completion?.message ? { error: completion.message } : {}),
       },
