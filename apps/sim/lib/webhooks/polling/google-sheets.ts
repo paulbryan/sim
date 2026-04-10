@@ -397,7 +397,7 @@ async function processRows(
     try {
       await pollingIdempotency.executeWithIdempotency(
         'google-sheets',
-        `${webhookData.id}:${spreadsheetId}:${sheetName}:row${rowNumber}:${row.join('|')}`,
+        `${webhookData.id}:${spreadsheetId}:${sheetName}:row${rowNumber}`,
         async () => {
           // Map row values to headers
           let mappedRow: Record<string, string> | null = null
