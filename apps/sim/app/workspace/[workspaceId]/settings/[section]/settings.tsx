@@ -163,6 +163,13 @@ const AccessControl = dynamic(
 const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((m) => m.SSO), {
   loading: () => <SettingsSectionSkeleton />,
 })
+const WhitelabelingSettings = dynamic(
+  () =>
+    import('@/ee/whitelabeling/components/whitelabeling-settings').then(
+      (m) => m.WhitelabelingSettings
+    ),
+  { loading: () => <SettingsSectionSkeleton />, ssr: false }
+)
 
 interface SettingsPageProps {
   section: SettingsSection
@@ -207,6 +214,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {isBillingEnabled && effectiveSection === 'subscription' && <Subscription />}
       {isBillingEnabled && effectiveSection === 'team' && <TeamManagement />}
       {effectiveSection === 'sso' && <SSO />}
+      {effectiveSection === 'whitelabeling' && <WhitelabelingSettings />}
       {effectiveSection === 'byok' && <BYOK />}
       {effectiveSection === 'copilot' && <Copilot />}
       {effectiveSection === 'mcp' && <MCP initialServerId={mcpServerId} />}

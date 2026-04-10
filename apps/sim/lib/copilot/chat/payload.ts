@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { getUserSubscriptionState } from '@/lib/billing/core/subscription'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { isPaid } from '@/lib/billing/plan-helpers'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -58,18 +59,13 @@ export async function buildIntegrationToolSchemas(
     let shouldAppendEmailTagline = false
 
     try {
-      const subscriptionState = await getUserSubscriptionState(userId)
-      shouldAppendEmailTagline = subscriptionState.isFree
+      const subscription = await getHighestPrioritySubscription(userId)
+      shouldAppendEmailTagline = !subscription || !isPaid(subscription.plan)
     } catch (error) {
-      logger.warn(
-        messageId
-          ? `Failed to load subscription state for copilot tool descriptions [messageId:${messageId}]`
-          : 'Failed to load subscription state for copilot tool descriptions',
-        {
-          userId,
-          error: error instanceof Error ? error.message : String(error),
-        }
-      )
+      reqLogger.warn('Failed to load subscription for copilot tool descriptions', {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
 
     for (const [toolId, toolConfig] of Object.entries(latestTools)) {
