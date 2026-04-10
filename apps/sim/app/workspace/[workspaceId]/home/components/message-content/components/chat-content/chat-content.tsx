@@ -241,40 +241,57 @@ export function ChatContent({
   const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')
 
   if (hasSpecialContent) {
+    type RenderGroup =
+      | { kind: 'inline'; markdown: string }
+      | { kind: 'block'; segment: ContentSegment; index: number }
+
+    const groups: RenderGroup[] = []
+    let pendingMarkdown = ''
+
+    const flushMarkdown = () => {
+      if (pendingMarkdown.trim()) {
+        groups.push({ kind: 'inline', markdown: pendingMarkdown })
+      }
+      pendingMarkdown = ''
+    }
+
+    for (let i = 0; i < parsed.segments.length; i++) {
+      const s = parsed.segments[i]
+      if (s.type === 'workspace_resource') {
+        const label = s.data.title || s.data.id
+        pendingMarkdown += `[${label}](#wsres-${s.data.type}-${s.data.id})`
+      } else if (s.type === 'text' || s.type === 'thinking') {
+        pendingMarkdown += s.content
+      } else {
+        flushMarkdown()
+        groups.push({ kind: 'block', segment: s, index: i })
+      }
+    }
+    flushMarkdown()
+
     return (
       <div className='space-y-3'>
-        {parsed.segments.map((segment, i) => {
-          if (
-            segment.type === 'text' ||
-            segment.type === 'thinking' ||
-            segment.type === 'workspace_resource'
-          ) {
-            return null
+        {groups.map((group, i) => {
+          if (group.kind === 'inline') {
+            return (
+              <div
+                key={`inline-${i}`}
+                className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
+              >
+                <Streamdown mode='static' components={MARKDOWN_COMPONENTS}>
+                  {group.markdown}
+                </Streamdown>
+              </div>
+            )
           }
           return (
-            <SpecialTags key={`special-${i}`} segment={segment} onOptionSelect={onOptionSelect} />
+            <SpecialTags
+              key={`special-${group.index}`}
+              segment={group.segment}
+              onOptionSelect={onOptionSelect}
+            />
           )
         })}
-        {(() => {
-          const reassembled = parsed.segments
-            .map((s) => {
-              if (s.type === 'workspace_resource') {
-                const label = s.data.title || s.data.id
-                return `[${label}](#wsres-${s.data.type}-${s.data.id})`
-              }
-              if (s.type === 'text' || s.type === 'thinking') return s.content
-              return ''
-            })
-            .join('')
-          if (!reassembled.trim()) return null
-          return (
-            <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
-              <Streamdown mode='static' components={MARKDOWN_COMPONENTS}>
-                {reassembled}
-              </Streamdown>
-            </div>
-          )
-        })()}
         {parsed.hasPendingTag && isStreaming && <PendingTagIndicator />}
       </div>
     )
