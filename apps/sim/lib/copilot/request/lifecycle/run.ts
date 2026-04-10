@@ -403,6 +403,8 @@ async function buildExecutionContext(
   if (userTimezone) execContext.userTimezone = userTimezone
   execContext.copilotToolExecution = true
   if (requestMode) execContext.requestMode = requestMode
+  execContext.messageId =
+    typeof requestPayload?.messageId === 'string' ? requestPayload.messageId : undefined
   execContext.executionId = executionId
   execContext.runId = runId
   execContext.abortSignal = abortSignal

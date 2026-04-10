@@ -14,11 +14,13 @@ import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/ru
 import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 import {
   cleanupAbortMarker,
+  clearFilePreviewSessions,
   registerActiveStream,
   releasePendingChatStream,
   resetBuffer,
   StreamWriter,
   scheduleBufferCleanup,
+  scheduleFilePreviewSessionCleanup,
   startAbortPoller,
   unregisterActiveStream,
 } from '@/lib/copilot/request/session'
@@ -91,6 +93,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         | undefined
 
       await resetBuffer(streamId)
+      await clearFilePreviewSessions(streamId)
 
       if (chatId) {
         createRunSegment({
@@ -207,6 +210,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           await releasePendingChatStream(chatId, streamId)
         }
         await scheduleBufferCleanup(streamId)
+        await scheduleFilePreviewSessionCleanup(streamId)
         await cleanupAbortMarker(streamId)
 
         const trace = collector.build({

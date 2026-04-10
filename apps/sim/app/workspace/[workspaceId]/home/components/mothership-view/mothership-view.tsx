@@ -1,6 +1,7 @@
 'use client'
 
 import { forwardRef, memo, useCallback, useEffect, useState } from 'react'
+import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -25,24 +26,13 @@ const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
  * when the streamed fileId matches that exact resource.
  */
 function shouldShowStreamingFilePanel(
-  streamingFile:
-    | {
-        toolCallId?: string
-        fileName: string
-        fileId?: string
-        targetKind?: 'new_file' | 'file_id'
-        operation?: string
-        edit?: Record<string, unknown>
-        content: string
-      }
-    | null
-    | undefined,
+  previewSession: FilePreviewSession | null | undefined,
   active: MothershipResource | null
 ): boolean {
-  if (!streamingFile || !active) return false
+  if (!previewSession || previewSession.status === 'complete' || !active) return false
   if (active.id === 'streaming-file') return true
   if (active.type !== 'file') return false
-  if (active.id && streamingFile.fileId === active.id) return true
+  if (active.id && previewSession.fileId === active.id) return true
   return false
 }
 
@@ -58,15 +48,7 @@ interface MothershipViewProps {
   onCollapse: () => void
   isCollapsed: boolean
   className?: string
-  streamingFile?: {
-    toolCallId?: string
-    fileName: string
-    fileId?: string
-    targetKind?: 'new_file' | 'file_id'
-    operation?: string
-    edit?: Record<string, unknown>
-    content: string
-  } | null
+  previewSession?: FilePreviewSession | null
   genericResourceData?: GenericResourceData
 }
 
@@ -84,7 +66,7 @@ export const MothershipView = memo(
       onCollapse,
       isCollapsed,
       className,
-      streamingFile,
+      previewSession,
       genericResourceData,
     }: MothershipViewProps,
     ref
@@ -92,9 +74,9 @@ export const MothershipView = memo(
     const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
     const { canEdit } = useUserPermissionsContext()
 
-    const streamingForActive =
-      streamingFile && active && shouldShowStreamingFilePanel(streamingFile, active)
-        ? streamingFile
+    const previewForActive =
+      previewSession && active && shouldShowStreamingFilePanel(previewSession, active)
+        ? previewSession
         : undefined
 
     const [previewMode, setPreviewMode] = useState<PreviewMode>('preview')
@@ -145,7 +127,7 @@ export const MothershipView = memo(
                 workspaceId={workspaceId}
                 resource={active}
                 previewMode={isActivePreviewable ? previewMode : undefined}
-                streamingFile={streamingForActive}
+                previewSession={previewForActive}
                 genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
               />
             ) : (

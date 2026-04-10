@@ -1,8 +1,7 @@
 'use client'
 
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
 import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
@@ -13,6 +12,7 @@ import {
   SquareArrowUpRight,
   WorkflowX,
 } from '@/components/emcn/icons'
+import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import {
   cancelRunToolExecution,
   markRunToolManuallyStopped,
@@ -47,11 +47,7 @@ import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/com
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import {
-  useWorkspaceFileContent,
-  useWorkspaceFiles,
-  workspaceFilesKeys,
-} from '@/hooks/queries/workspace-files'
+import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -70,15 +66,7 @@ interface ResourceContentProps {
   workspaceId: string
   resource: MothershipResource
   previewMode?: PreviewMode
-  streamingFile?: {
-    toolCallId?: string
-    fileName: string
-    fileId?: string
-    targetKind?: 'new_file' | 'file_id'
-    operation?: string
-    edit?: Record<string, unknown>
-    content: string
-  } | null
+  previewSession?: FilePreviewSession | null
   genericResourceData?: GenericResourceData
 }
 
@@ -93,126 +81,10 @@ export const ResourceContent = memo(function ResourceContent({
   workspaceId,
   resource,
   previewMode,
-  streamingFile,
+  previewSession,
   genericResourceData,
 }: ResourceContentProps) {
-  const queryClient = useQueryClient()
-  const streamFileName = streamingFile?.fileName || 'file.md'
-
-  const streamOperation = useMemo(() => {
-    if (!streamingFile) return undefined
-    return streamingFile.operation
-  }, [streamingFile])
-
-  const isWriteStream = streamOperation === 'create' || streamOperation === 'append'
-  const isPatchStream = streamOperation === 'patch'
-  const isUpdateStream = streamOperation === 'update'
-
-  const { data: allFiles = [] } = useWorkspaceFiles(workspaceId)
-  const previewFileId =
-    streamingFile?.fileId ?? (resource.type === 'file' ? resource.id : undefined)
-  const previewFileRecord = useMemo(() => {
-    if (!previewFileId) return undefined
-    return allFiles.find((f) => f.id === previewFileId)
-  }, [previewFileId, allFiles])
-
-  const isSourceMime =
-    previewFileRecord?.type === 'text/x-pptxgenjs' ||
-    previewFileRecord?.type === 'text/x-docxjs' ||
-    previewFileRecord?.type === 'text/x-pdflibjs'
-  const previewContentMode = isSourceMime ? 'raw' : 'text'
-
-  const { data: fetchedFileContent } = useWorkspaceFileContent(
-    workspaceId,
-    previewFileRecord?.id ?? '',
-    previewFileRecord?.key ?? '',
-    isSourceMime
-  )
-
-  const frozenPreviewBaseKey =
-    streamingFile?.toolCallId &&
-    previewFileRecord?.id &&
-    streamingFile.targetKind === 'file_id' &&
-    (streamOperation === 'append' || streamOperation === 'patch')
-      ? `${streamingFile.toolCallId}:${streamOperation}:${previewFileRecord.id}`
-      : null
-  const cachedFrozenPreviewBase =
-    frozenPreviewBaseKey && previewFileRecord?.id
-      ? queryClient.getQueryData<string>(
-          workspaceFilesKeys.content(workspaceId, previewFileRecord.id, previewContentMode)
-        )
-      : undefined
-  const [frozenPreviewBaseState, setFrozenPreviewBaseState] = useState<{
-    key: string | null
-    content: string | null
-  }>({ key: null, content: null })
-
-  useEffect(() => {
-    if (!frozenPreviewBaseKey || !previewFileRecord?.id) {
-      setFrozenPreviewBaseState((prev) => (prev.key === null ? prev : { key: null, content: null }))
-      return
-    }
-
-    setFrozenPreviewBaseState((prev) => {
-      if (prev.key === frozenPreviewBaseKey) {
-        return prev
-      }
-      return typeof cachedFrozenPreviewBase === 'string'
-        ? { key: frozenPreviewBaseKey, content: cachedFrozenPreviewBase }
-        : { key: frozenPreviewBaseKey, content: null }
-    })
-  }, [cachedFrozenPreviewBase, frozenPreviewBaseKey, previewFileRecord?.id])
-
-  const frozenExistingFilePreviewBase =
-    frozenPreviewBaseState.key === frozenPreviewBaseKey
-      ? (frozenPreviewBaseState.content ?? undefined)
-      : typeof cachedFrozenPreviewBase === 'string'
-        ? cachedFrozenPreviewBase
-        : undefined
-
-  const streamingExtractedContent = useMemo(() => {
-    if (!streamingFile) return undefined
-    if (!streamOperation) return undefined
-
-    if (isPatchStream) {
-      if (streamingFile.targetKind === 'file_id') {
-        if (frozenExistingFilePreviewBase === undefined) return undefined
-        if (!shouldApplyPatchPreview(streamingFile)) return undefined
-        return extractPatchPreview(streamingFile, frozenExistingFilePreviewBase)
-      }
-      if (fetchedFileContent === undefined) return undefined
-      if (!shouldApplyPatchPreview(streamingFile)) return undefined
-      return extractPatchPreview(streamingFile, fetchedFileContent)
-    }
-
-    const extracted = streamingFile.content
-
-    if (isUpdateStream) return extracted
-
-    if (streamOperation === 'append') {
-      if (streamingFile.targetKind === 'file_id') {
-        if (frozenExistingFilePreviewBase === undefined) return undefined
-        return buildAppendPreview(frozenExistingFilePreviewBase, extracted)
-      }
-      return extracted.length > 0 ? extracted : undefined
-    }
-
-    if (streamOperation === 'create') {
-      return extracted.length > 0 ? extracted : undefined
-    }
-
-    if (isWriteStream) return extracted.length > 0 ? extracted : undefined
-
-    return undefined
-  }, [
-    streamingFile,
-    streamOperation,
-    isWriteStream,
-    isPatchStream,
-    isUpdateStream,
-    fetchedFileContent,
-    frozenExistingFilePreviewBase,
-  ])
+  const streamFileName = previewSession?.fileName || 'file.md'
   const syntheticFile = useMemo(() => {
     const ext = getFileExtension(streamFileName)
     const SOURCE_MIME_MAP: Record<string, string> = {
@@ -234,22 +106,21 @@ export const ResourceContent = memo(function ResourceContent({
     }
   }, [workspaceId, streamFileName])
 
-  // ResourceContent now reconstructs full-file preview text per operation,
-  // so the viewer can always treat streaming content as a whole-file replace.
   const streamingFileMode: 'append' | 'replace' = 'replace'
+  const rawPreviewText = previewSession?.previewText
+  const streamingPreviewText =
+    typeof rawPreviewText === 'string' && rawPreviewText.length > 0 ? rawPreviewText : undefined
 
-  const embeddedStreamingContent = streamingExtractedContent
-
-  if (streamingFile && resource.id === 'streaming-file') {
+  if (previewSession && resource.id === 'streaming-file') {
     return (
       <div className='flex h-full flex-col overflow-hidden'>
-        {streamingExtractedContent !== undefined ? (
+        {streamingPreviewText !== undefined ? (
           <FileViewer
             file={syntheticFile}
             workspaceId={workspaceId}
             canEdit={false}
             previewMode={previewMode ?? 'preview'}
-            streamingContent={streamingExtractedContent}
+            streamingContent={streamingPreviewText}
             streamingMode={streamingFileMode}
             useCodeRendererForCodeFiles
           />
@@ -273,7 +144,9 @@ export const ResourceContent = memo(function ResourceContent({
           workspaceId={workspaceId}
           fileId={resource.id}
           previewMode={previewMode}
-          streamingContent={embeddedStreamingContent}
+          streamingContent={
+            previewSession?.fileId === resource.id ? streamingPreviewText : undefined
+          }
           streamingMode={streamingFileMode}
         />
       )
@@ -673,120 +546,4 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
       )}
     </div>
   )
-}
-
-function findAnchorIndex(lines: string[], anchor: string, occurrence = 1, afterIndex = -1): number {
-  const trimmed = anchor.trim()
-  let count = 0
-  for (let i = afterIndex + 1; i < lines.length; i++) {
-    if (lines[i].trim() === trimmed) {
-      count++
-      if (count === occurrence) return i
-    }
-  }
-  return -1
-}
-
-function extractPatchPreview(
-  streamingFile: {
-    content: string
-    edit?: Record<string, unknown>
-  },
-  existingContent: string
-): string | undefined {
-  const edit = streamingFile.edit ?? {}
-  const strategy = typeof edit.strategy === 'string' ? edit.strategy : undefined
-  const lines = existingContent.split('\n')
-  const occurrence =
-    typeof edit.occurrence === 'number' && Number.isFinite(edit.occurrence) ? edit.occurrence : 1
-
-  if (strategy === 'search_replace') {
-    const search = typeof edit.search === 'string' ? edit.search : ''
-    if (!search) return undefined
-    const replace = streamingFile.content
-    if ((edit.replaceAll as boolean | undefined) === true) {
-      return existingContent.split(search).join(replace)
-    }
-    const firstIdx = existingContent.indexOf(search)
-    if (firstIdx === -1) return undefined
-    return (
-      existingContent.slice(0, firstIdx) + replace + existingContent.slice(firstIdx + search.length)
-    )
-  }
-
-  const mode = typeof edit.mode === 'string' ? edit.mode : undefined
-  if (!mode) return undefined
-
-  if (mode === 'replace_between') {
-    const beforeAnchor = typeof edit.before_anchor === 'string' ? edit.before_anchor : undefined
-    const afterAnchor = typeof edit.after_anchor === 'string' ? edit.after_anchor : undefined
-    if (!beforeAnchor || !afterAnchor) return undefined
-
-    const beforeIdx = findAnchorIndex(lines, beforeAnchor, occurrence)
-    const afterIdx = findAnchorIndex(lines, afterAnchor, occurrence, beforeIdx)
-    if (beforeIdx === -1 || afterIdx === -1 || afterIdx <= beforeIdx) return undefined
-
-    const newContent = streamingFile.content
-    const spliced = [
-      ...lines.slice(0, beforeIdx + 1),
-      ...(newContent.length > 0 ? newContent.split('\n') : []),
-      ...lines.slice(afterIdx),
-    ]
-    return spliced.join('\n')
-  }
-
-  if (mode === 'insert_after') {
-    const anchor = typeof edit.anchor === 'string' ? edit.anchor : undefined
-    if (!anchor) return undefined
-
-    const anchorIdx = findAnchorIndex(lines, anchor, occurrence)
-    if (anchorIdx === -1) return undefined
-
-    const newContent = streamingFile.content
-    const spliced = [
-      ...lines.slice(0, anchorIdx + 1),
-      ...(newContent.length > 0 ? newContent.split('\n') : []),
-      ...lines.slice(anchorIdx + 1),
-    ]
-    return spliced.join('\n')
-  }
-
-  if (mode === 'delete_between') {
-    const startAnchor = typeof edit.start_anchor === 'string' ? edit.start_anchor : undefined
-    const endAnchor = typeof edit.end_anchor === 'string' ? edit.end_anchor : undefined
-    if (!startAnchor || !endAnchor) return undefined
-
-    const startIdx = findAnchorIndex(lines, startAnchor, occurrence)
-    const endIdx = findAnchorIndex(lines, endAnchor, occurrence, startIdx)
-    if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) return undefined
-
-    const spliced = [...lines.slice(0, startIdx), ...lines.slice(endIdx)]
-    return spliced.join('\n')
-  }
-
-  return undefined
-}
-
-function shouldApplyPatchPreview(streamingFile: {
-  content: string
-  edit?: Record<string, unknown>
-}): boolean {
-  const edit = streamingFile.edit ?? {}
-  const strategy = typeof edit.strategy === 'string' ? edit.strategy : undefined
-  const mode = typeof edit.mode === 'string' ? edit.mode : undefined
-
-  // delete_between is delete-only and can be previewed from intent metadata alone.
-  if (strategy === 'anchored' && mode === 'delete_between') {
-    return true
-  }
-
-  // For all other patch modes, keep the visible file unchanged until
-  // edit_content actually streams content into the target location.
-  return streamingFile.content.length > 0
-}
-
-function buildAppendPreview(existingContent: string, incomingContent: string): string {
-  if (incomingContent.length === 0) return existingContent
-  if (existingContent.length === 0) return incomingContent
-  return `${existingContent}\n${incomingContent}`
 }

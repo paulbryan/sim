@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -11,7 +12,9 @@ import {
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
+import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import { readEvents } from '@/lib/copilot/request/session/buffer'
+import { readFilePreviewSessions } from '@/lib/copilot/request/session/file-preview-session'
 import { type StreamBatchEvent, toStreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -49,16 +52,37 @@ export async function GET(
 
     let streamSnapshot: {
       events: StreamBatchEvent[]
+      previewSessions: FilePreviewSession[]
       status: string
     } | null = null
 
     if (chat.conversationId) {
       try {
-        const events = await readEvents(chat.conversationId, '0')
+        const [events, previewSessions] = await Promise.all([
+          readEvents(chat.conversationId, '0'),
+          readFilePreviewSessions(chat.conversationId).catch((error) => {
+            logger.warn('Failed to read preview sessions for mothership chat', {
+              chatId,
+              conversationId: chat.conversationId,
+              error: error instanceof Error ? error.message : String(error),
+            })
+            return []
+          }),
+        ])
+        const run = await getLatestRunForStream(chat.conversationId, userId).catch((error) => {
+          logger.warn('Failed to fetch latest run for mothership chat snapshot', {
+            chatId,
+            conversationId: chat.conversationId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+          return null
+        })
 
         streamSnapshot = {
           events: events.map(toStreamBatchEvent),
-          status: events.length > 0 ? 'active' : 'unknown',
+          previewSessions,
+          status:
+            typeof run?.status === 'string' ? run.status : events.length > 0 ? 'active' : 'unknown',
         }
       } catch (error) {
         logger.warn('Failed to read stream snapshot for mothership chat', {

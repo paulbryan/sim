@@ -29,7 +29,6 @@ import {
   useWorkspaceFileContent,
 } from '@/hooks/queries/workspace-files'
 import { useAutosave } from '@/hooks/use-autosave'
-import { useStreamingText } from '@/hooks/use-streaming-text'
 import { DataTable } from './data-table'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
 
@@ -526,8 +525,7 @@ function TextEditor({
 
   const isStreaming = isStreamInteractionLocked
   const isEditorReadOnly = isStreamInteractionLocked || !canEdit
-  const revealedContent = useStreamingText(content, false)
-  const renderedContent = isStreaming ? revealedContent : content
+  const renderedContent = content
   const gutterWidthPx = useMemo(() => {
     const lineCount = renderedContent.split('\n').length
     return calculateGutterWidth(lineCount)
@@ -731,7 +729,7 @@ function TextEditor({
     const el = (shouldUseCodeRenderer ? codeScrollRef.current : textareaRef.current) ?? null
     if (!el) return
     el.scrollTop = el.scrollHeight
-  }, [isStreaming, revealedContent, shouldUseCodeRenderer])
+  }, [isStreaming, renderedContent, shouldUseCodeRenderer])
 
   if (streamingContent === undefined) {
     if (isLoading) return DOCUMENT_SKELETON

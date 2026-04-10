@@ -157,7 +157,7 @@ export function Home({ chatId }: HomeProps = {}) {
     removeFromQueue,
     sendNow,
     editQueuedMessage,
-    streamingFile,
+    previewSession,
     genericResourceData,
   } = useChat(
     workspaceId,
@@ -413,7 +413,7 @@ export function Home({ chatId }: HomeProps = {}) {
         onReorderResources={reorderResources}
         onCollapse={collapseResource}
         isCollapsed={isResourceCollapsed}
-        streamingFile={streamingFile}
+        previewSession={previewSession}
         genericResourceData={genericResourceData ?? undefined}
         className={skipResourceTransition ? '!transition-none' : undefined}
       />

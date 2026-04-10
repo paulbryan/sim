@@ -56,6 +56,7 @@ import {
   WorkspaceFile,
   WorkspaceFileOperation,
 } from '@/lib/copilot/generated/tool-catalog-v1'
+import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import {
   extractResourcesFromToolResult,
@@ -75,6 +76,12 @@ import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
+import {
+  type FilePreviewSessionsState,
+  INITIAL_FILE_PREVIEW_SESSIONS_STATE,
+  reduceFilePreviewSessions,
+  useFilePreviewSessions,
+} from '@/app/workspace/[workspaceId]/home/hooks/use-file-preview-sessions'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import {
   fetchChatHistory,
@@ -88,6 +95,7 @@ import { invalidateWorkflowSelectors } from '@/hooks/queries/utils/invalidate-wo
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { workflowKeys } from '@/hooks/queries/workflows'
+import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution/store'
 import type { ChatContext } from '@/stores/panel'
@@ -127,7 +135,7 @@ export interface UseChatReturn {
   removeFromQueue: (id: string) => void
   sendNow: (id: string) => Promise<void>
   editQueuedMessage: (id: string) => QueuedMessage | undefined
-  streamingFile: StreamingFilePreview | null
+  previewSession: FilePreviewSession | null
   genericResourceData: GenericResourceData | null
 }
 
@@ -470,20 +478,40 @@ type StreamToolUI = {
   clientExecutable?: boolean
 }
 
-type StreamingFilePreview = {
-  toolCallId: string
-  fileName: string
-  fileId?: string
-  targetKind?: 'new_file' | 'file_id'
-  operation?: string
-  edit?: Record<string, unknown>
-  content: string
-}
-
 type StreamBatchResponse = {
   success: boolean
   events: StreamBatchEvent[]
+  previewSessions?: FilePreviewSession[]
   status: string
+}
+
+function buildChatHistoryHydrationKey(chatHistory: TaskChatHistory): string {
+  const resourceKey = chatHistory.resources
+    .map((resource) => `${resource.type}:${resource.id}:${resource.title}`)
+    .join('|')
+  const messageKey = chatHistory.messages.map((message) => message.id).join('|')
+  const streamSnapshot = chatHistory.streamSnapshot
+  const snapshotKey = streamSnapshot
+    ? [
+        streamSnapshot.status,
+        streamSnapshot.events.length,
+        streamSnapshot.events[streamSnapshot.events.length - 1]?.eventId ?? '',
+        streamSnapshot.previewSessions
+          .map(
+            (session) =>
+              `${session.id}:${session.previewVersion}:${session.status}:${session.updatedAt}`
+          )
+          .join('|'),
+      ].join('~')
+    : 'none'
+
+  return [
+    chatHistory.id,
+    chatHistory.activeStreamId ?? '',
+    messageKey,
+    resourceKey,
+    snapshotKey,
+  ].join('::')
 }
 
 const TERMINAL_STREAM_STATUSES = new Set(['complete', 'error', 'cancelled'])
@@ -676,13 +704,80 @@ export function useChat(
   const activeResourceIdRef = useRef(effectiveActiveResourceId)
   activeResourceIdRef.current = effectiveActiveResourceId
 
-  const [streamingFile, setStreamingFile] = useState<StreamingFilePreview | null>(null)
-  const streamingFileRef = useRef(streamingFile)
-  streamingFileRef.current = streamingFile
-  const pendingStreamingFileRef = useRef<{ value: StreamingFilePreview | null } | null>(null)
-  const streamingFileFrameRef = useRef<number | null>(null)
-  const filePreviewSessionsRef = useRef<Map<string, StreamingFilePreview>>(new Map())
-  const activeFilePreviewToolCallIdRef = useRef<string | null>(null)
+  const {
+    previewSession,
+    previewSessionsById,
+    activePreviewSessionId,
+    hydratePreviewSessions,
+    upsertPreviewSession,
+    completePreviewSession,
+    removePreviewSession,
+    resetPreviewSessions,
+  } = useFilePreviewSessions()
+  const previewSessionRef = useRef(previewSession)
+  previewSessionRef.current = previewSession
+  const previewSessionsRef = useRef(previewSessionsById)
+  previewSessionsRef.current = previewSessionsById
+  const activePreviewSessionIdRef = useRef(activePreviewSessionId)
+  activePreviewSessionIdRef.current = activePreviewSessionId
+  const previewSessionsStateRef = useRef<FilePreviewSessionsState>({
+    activeSessionId: activePreviewSessionId,
+    sessions: previewSessionsById,
+  })
+  previewSessionsStateRef.current = {
+    activeSessionId: activePreviewSessionId,
+    sessions: previewSessionsById,
+  }
+
+  const syncPreviewSessionRefs = useCallback((nextState: FilePreviewSessionsState) => {
+    previewSessionsStateRef.current = nextState
+    previewSessionsRef.current = nextState.sessions
+    activePreviewSessionIdRef.current = nextState.activeSessionId
+    previewSessionRef.current =
+      nextState.activeSessionId !== null
+        ? (nextState.sessions[nextState.activeSessionId] ?? null)
+        : null
+  }, [])
+
+  const applyPreviewSessionUpdate = useCallback(
+    (session: FilePreviewSession, options?: { activate?: boolean }) => {
+      const nextState = reduceFilePreviewSessions(previewSessionsStateRef.current, {
+        type: 'upsert',
+        session,
+        ...(options?.activate === false ? { activate: false } : {}),
+      })
+      syncPreviewSessionRefs(nextState)
+      upsertPreviewSession(session, options)
+      return nextState
+    },
+    [syncPreviewSessionRefs, upsertPreviewSession]
+  )
+
+  const applyCompletedPreviewSession = useCallback(
+    (session: FilePreviewSession) => {
+      const nextState = reduceFilePreviewSessions(previewSessionsStateRef.current, {
+        type: 'complete',
+        session,
+      })
+      syncPreviewSessionRefs(nextState)
+      completePreviewSession(session)
+      return nextState
+    },
+    [completePreviewSession, syncPreviewSessionRefs]
+  )
+
+  const removePreviewSessionImmediate = useCallback(
+    (sessionId: string) => {
+      const nextState = reduceFilePreviewSessions(previewSessionsStateRef.current, {
+        type: 'remove',
+        sessionId,
+      })
+      syncPreviewSessionRefs(nextState)
+      removePreviewSession(sessionId)
+      return nextState
+    },
+    [removePreviewSession, syncPreviewSessionRefs]
+  )
 
   const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const messageQueueRef = useRef<QueuedMessage[]>([])
@@ -711,47 +806,69 @@ export function useChat(
   >(async () => false)
   const finalizeRef = useRef<(options?: { error?: boolean }) => void>(() => {})
 
-  const cancelQueuedStreamingFileUpdate = useCallback(() => {
-    if (streamingFileFrameRef.current !== null) {
-      cancelAnimationFrame(streamingFileFrameRef.current)
-      streamingFileFrameRef.current = null
-    }
-    pendingStreamingFileRef.current = null
-  }, [])
-
-  const setStreamingFileImmediate = useCallback(
-    (next: StreamingFilePreview | null) => {
-      cancelQueuedStreamingFileUpdate()
-      streamingFileRef.current = next
-      setStreamingFile(next)
-    },
-    [cancelQueuedStreamingFileUpdate]
-  )
-
   const resetEphemeralPreviewState = useCallback(
     (options?: { removeStreamingResource?: boolean }) => {
-      setStreamingFileImmediate(null)
-      filePreviewSessionsRef.current.clear()
-      activeFilePreviewToolCallIdRef.current = null
+      syncPreviewSessionRefs(INITIAL_FILE_PREVIEW_SESSIONS_STATE)
+      resetPreviewSessions()
       if (options?.removeStreamingResource) {
         setResources((current) => current.filter((resource) => resource.id !== 'streaming-file'))
       }
     },
-    [setStreamingFileImmediate]
+    [resetPreviewSessions, syncPreviewSessionRefs]
   )
 
-  const queueStreamingFileUpdate = useCallback((next: StreamingFilePreview) => {
-    streamingFileRef.current = next
-    pendingStreamingFileRef.current = { value: next }
-    if (streamingFileFrameRef.current !== null) return
-    streamingFileFrameRef.current = requestAnimationFrame(() => {
-      streamingFileFrameRef.current = null
-      const pending = pendingStreamingFileRef.current
-      pendingStreamingFileRef.current = null
-      if (!pending) return
-      setStreamingFile(pending.value)
-    })
+  const syncPreviewResourceChrome = useCallback((session: FilePreviewSession) => {
+    if (session.targetKind === 'new_file') {
+      setResources((current) => {
+        const existing = current.find((resource) => resource.id === 'streaming-file')
+        if (existing) {
+          return current.map((resource) =>
+            resource.id === 'streaming-file'
+              ? { ...resource, title: session.fileName || 'Writing file...' }
+              : resource
+          )
+        }
+        return [
+          ...current,
+          {
+            type: 'file',
+            id: 'streaming-file',
+            title: session.fileName || 'Writing file...',
+          },
+        ]
+      })
+      setActiveResourceId('streaming-file')
+      return
+    }
+
+    if (session.fileId) {
+      setResources((current) => current.filter((resource) => resource.id !== 'streaming-file'))
+      setActiveResourceId(session.fileId)
+    }
   }, [])
+
+  const seedPreviewSessions = useCallback(
+    (sessions: FilePreviewSession[]) => {
+      if (sessions.length === 0) {
+        return
+      }
+
+      const nextState = reduceFilePreviewSessions(previewSessionsStateRef.current, {
+        type: 'hydrate',
+        sessions,
+      })
+      syncPreviewSessionRefs(nextState)
+      hydratePreviewSessions(sessions)
+      const active =
+        nextState.activeSessionId !== null
+          ? (nextState.sessions[nextState.activeSessionId] ?? null)
+          : null
+      if (active) {
+        syncPreviewResourceChrome(active)
+      }
+    },
+    [hydratePreviewSessions, syncPreviewResourceChrome, syncPreviewSessionRefs]
+  )
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
@@ -759,7 +876,7 @@ export function useChat(
   /** Panel/task selection — drives createNewChat + request chatId; may differ from chatIdRef while a stream is still finishing. */
   const selectedChatIdRef = useRef<string | undefined>(initialChatId)
   selectedChatIdRef.current = initialChatId
-  const appliedChatIdRef = useRef<string | undefined>(undefined)
+  const appliedChatHistoryKeyRef = useRef<string | undefined>(undefined)
   const pendingUserMsgRef = useRef<{ id: string; content: string } | null>(null)
   const streamIdRef = useRef<string | undefined>(undefined)
   const lastCursorRef = useRef('0')
@@ -887,7 +1004,7 @@ export function useChat(
     chatIdRef.current = initialChatId
     lastCursorRef.current = '0'
     setResolvedChatId(initialChatId)
-    appliedChatIdRef.current = undefined
+    appliedChatHistoryKeyRef.current = undefined
     setMessages([])
     setError(null)
     setIsSending(false)
@@ -905,7 +1022,7 @@ export function useChat(
     chatIdRef.current = undefined
     lastCursorRef.current = '0'
     setResolvedChatId(undefined)
-    appliedChatIdRef.current = undefined
+    appliedChatHistoryKeyRef.current = undefined
     abortControllerRef.current = null
     sendingRef.current = false
     setMessages([])
@@ -919,10 +1036,13 @@ export function useChat(
   }, [isHomePage, resetEphemeralPreviewState])
 
   useEffect(() => {
-    if (!chatHistory || appliedChatIdRef.current === chatHistory.id) return
+    if (!chatHistory) return
+
+    const hydrationKey = buildChatHistoryHydrationKey(chatHistory)
+    if (appliedChatHistoryKeyRef.current === hydrationKey) return
 
     const activeStreamId = chatHistory.activeStreamId
-    appliedChatIdRef.current = chatHistory.id
+    appliedChatHistoryKeyRef.current = hydrationKey
     const mappedMessages = chatHistory.messages.map(toDisplayMessage)
     const shouldPreserveActiveStreamingMessage =
       sendingRef.current && Boolean(activeStreamId) && activeStreamId === streamIdRef.current
@@ -973,6 +1093,13 @@ export function useChat(
       setActiveResourceId(null)
     }
 
+    const snapshotPreviewSessions = Array.isArray(chatHistory.streamSnapshot?.previewSessions)
+      ? (chatHistory.streamSnapshot.previewSessions as FilePreviewSession[])
+      : []
+    if (snapshotPreviewSessions.length > 0) {
+      seedPreviewSessions(snapshotPreviewSessions)
+    }
+
     if (activeStreamId && !sendingRef.current) {
       const gen = ++streamGenRef.current
       const abortController = new AbortController()
@@ -998,6 +1125,7 @@ export function useChat(
                 initialBatch: {
                   success: true,
                   events: snapshotEvents,
+                  previewSessions: snapshotPreviewSessions,
                   status: initialSnapshot?.status ?? 'unknown',
                 },
                 afterCursor: String(snapshotEvents[snapshotEvents.length - 1]?.eventId ?? '0'),
@@ -1026,7 +1154,13 @@ export function useChat(
       }
       reconnect()
     }
-  }, [chatHistory, workspaceId, queryClient, recoverPendingClientWorkflowTools])
+  }, [
+    chatHistory,
+    workspaceId,
+    queryClient,
+    recoverPendingClientWorkflowTools,
+    seedPreviewSessions,
+  ])
 
   const processSSEStream = useCallback(
     async (
@@ -1285,126 +1419,129 @@ export function useChat(
               if (!id) break
 
               if (previewPhase) {
-                const sessions = filePreviewSessionsRef.current
-                const prevSession = sessions.get(id) ?? {
+                const prevSession = previewSessionsRef.current[id]
+                const target = asPayloadRecord(payload.target)
+                const targetKind =
+                  payload.targetKind === 'new_file' || payload.targetKind === 'file_id'
+                    ? (payload.targetKind as 'new_file' | 'file_id')
+                    : target?.kind === 'new_file' || target?.kind === 'file_id'
+                      ? (target.kind as 'new_file' | 'file_id')
+                      : prevSession?.targetKind
+                const fileId =
+                  typeof payload.fileId === 'string'
+                    ? payload.fileId
+                    : typeof target?.fileId === 'string'
+                      ? target.fileId
+                      : prevSession?.fileId
+                const fileName =
+                  typeof payload.fileName === 'string'
+                    ? payload.fileName
+                    : typeof target?.fileName === 'string'
+                      ? target.fileName
+                      : (prevSession?.fileName ?? '')
+                const operation =
+                  typeof payload.operation === 'string' ? payload.operation : prevSession?.operation
+                const edit = asPayloadRecord(payload.edit) ?? prevSession?.edit
+                const streamId = parsed.stream?.streamId ?? prevSession?.streamId ?? ''
+                const nextPreviewVersion =
+                  typeof payload.previewVersion === 'number' &&
+                  Number.isFinite(payload.previewVersion)
+                    ? payload.previewVersion
+                    : (prevSession?.previewVersion ?? 0) + 1
+                const baseSession: FilePreviewSession = {
+                  schemaVersion: 1,
+                  id,
+                  streamId,
                   toolCallId: id,
-                  fileName: '',
-                  content: '',
+                  status: prevSession?.status ?? 'pending',
+                  fileName,
+                  ...(fileId ? { fileId } : {}),
+                  ...(targetKind ? { targetKind } : {}),
+                  ...(operation ? { operation } : {}),
+                  ...(edit ? { edit } : {}),
+                  previewText: prevSession?.previewText ?? '',
+                  previewVersion: prevSession?.previewVersion ?? 0,
+                  updatedAt: prevSession?.updatedAt ?? new Date().toISOString(),
+                  ...(prevSession?.completedAt ? { completedAt: prevSession.completedAt } : {}),
                 }
 
                 if (previewPhase === 'file_preview_start') {
-                  const nextSession: StreamingFilePreview = {
-                    ...prevSession,
-                    toolCallId: id,
-                    ...(typeof payload.operation === 'string'
-                      ? { operation: payload.operation }
-                      : {}),
-                    ...(typeof payload.fileId === 'string'
-                      ? { fileId: payload.fileId, targetKind: 'file_id' as const }
-                      : {}),
+                  const nextSession: FilePreviewSession = {
+                    ...baseSession,
+                    status: 'pending',
+                    updatedAt: new Date().toISOString(),
                   }
-                  sessions.set(id, nextSession)
-                  activeFilePreviewToolCallIdRef.current = id
                   if (nextSession.fileId) {
                     setActiveResourceId(nextSession.fileId)
                   }
-                  setStreamingFileImmediate(nextSession)
+                  applyPreviewSessionUpdate(nextSession)
                   break
                 }
 
                 if (previewPhase === 'file_preview_target') {
-                  const target = asPayloadRecord(payload.target)
-                  const nextSession: StreamingFilePreview = {
-                    ...prevSession,
-                    operation:
-                      typeof payload.operation === 'string'
-                        ? payload.operation
-                        : prevSession.operation,
-                    targetKind:
-                      target?.kind === 'new_file' || target?.kind === 'file_id'
-                        ? (target.kind as 'new_file' | 'file_id')
-                        : prevSession.targetKind,
-                    fileId: typeof target?.fileId === 'string' ? target.fileId : prevSession.fileId,
-                    fileName:
-                      typeof target?.fileName === 'string' ? target.fileName : prevSession.fileName,
+                  const nextSession: FilePreviewSession = {
+                    ...baseSession,
+                    updatedAt: new Date().toISOString(),
                   }
-                  sessions.set(id, nextSession)
-                  activeFilePreviewToolCallIdRef.current = id
-
-                  if (nextSession.targetKind === 'new_file') {
-                    const hasStreamingResource = resourcesRef.current.some(
-                      (resource) => resource.id === 'streaming-file'
-                    )
-                    if (!hasStreamingResource) {
-                      addResource({
-                        type: 'file',
-                        id: 'streaming-file',
-                        title: nextSession.fileName || 'Writing file...',
-                      })
-                      setActiveResourceId('streaming-file')
-                    }
-                  } else if (nextSession.fileId) {
-                    setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
-                    if (
-                      activeResourceIdRef.current === null ||
-                      activeResourceIdRef.current === 'streaming-file'
-                    ) {
-                      setActiveResourceId(nextSession.fileId)
-                    }
+                  const nextState = applyPreviewSessionUpdate(nextSession)
+                  const activePreview =
+                    nextState.activeSessionId !== null
+                      ? (nextState.sessions[nextState.activeSessionId] ?? null)
+                      : null
+                  if (activePreview?.id === nextSession.id) {
+                    syncPreviewResourceChrome(activePreview)
                   }
-
-                  setStreamingFileImmediate(nextSession)
                   break
                 }
 
                 if (previewPhase === 'file_preview_edit_meta') {
-                  const nextSession: StreamingFilePreview = {
-                    ...prevSession,
-                    edit: asPayloadRecord(payload.edit),
+                  const nextSession: FilePreviewSession = {
+                    ...baseSession,
+                    status: prevSession?.status ?? 'pending',
+                    updatedAt: new Date().toISOString(),
                   }
-                  sessions.set(id, nextSession)
-                  activeFilePreviewToolCallIdRef.current = id
-                  setStreamingFileImmediate(nextSession)
+                  applyPreviewSessionUpdate(nextSession)
                   break
                 }
 
                 if (previewPhase === 'file_preview_content') {
                   const content = typeof payload.content === 'string' ? payload.content : ''
-                  const contentMode =
-                    typeof payload.contentMode === 'string' ? payload.contentMode : undefined
-                  let nextContent: string
-                  if (contentMode === 'snapshot') {
-                    nextContent = content
-                  } else if (contentMode === 'delta') {
-                    nextContent = (prevSession.content ?? '') + content
-                  } else {
-                    const isAppendOp = prevSession.operation === 'append'
-                    const prevContent = streamingFileRef.current?.content ?? ''
-                    nextContent = isAppendOp ? prevContent + content : content
+                  const contentMode = payload.contentMode === 'delta' ? 'delta' : 'snapshot'
+                  const nextPreviewText =
+                    contentMode === 'delta' ? (prevSession?.previewText ?? '') + content : content
+                  const nextSession: FilePreviewSession = {
+                    ...baseSession,
+                    status: 'streaming',
+                    previewText: nextPreviewText,
+                    previewVersion: nextPreviewVersion,
+                    updatedAt: new Date().toISOString(),
                   }
-                  const nextSession: StreamingFilePreview = {
-                    ...prevSession,
-                    content: nextContent,
-                  }
-                  sessions.set(id, nextSession)
-                  activeFilePreviewToolCallIdRef.current = id
+                  applyPreviewSessionUpdate(nextSession)
                   const previewToolIdx = toolMap.get(id)
                   if (previewToolIdx !== undefined && blocks[previewToolIdx].toolCall) {
                     blocks[previewToolIdx].toolCall!.status = 'executing'
                   }
-                  queueStreamingFileUpdate(nextSession)
                   break
                 }
 
                 if (previewPhase === 'file_preview_complete') {
-                  const fileId =
-                    typeof payload.fileId === 'string' ? payload.fileId : prevSession.fileId
                   const resultData = asPayloadRecord(payload.output)
-                  sessions.delete(id)
-                  activeFilePreviewToolCallIdRef.current = null
+                  const completedAt = new Date().toISOString()
+                  const nextSession: FilePreviewSession = {
+                    ...baseSession,
+                    status: 'complete',
+                    previewVersion:
+                      typeof payload.previewVersion === 'number' &&
+                      Number.isFinite(payload.previewVersion)
+                        ? payload.previewVersion
+                        : (prevSession?.previewVersion ?? 0),
+                    updatedAt: completedAt,
+                    completedAt,
+                  }
+                  const nextState = applyCompletedPreviewSession(nextSession)
 
                   if (fileId && resultData?.id) {
-                    const fileName = (resultData.name as string) ?? prevSession.fileName ?? 'File'
+                    const fileName = (resultData.name as string) ?? nextSession.fileName ?? 'File'
                     const fileResource = { type: 'file' as const, id: fileId, title: fileName }
                     setResources((rs) => {
                       const without = rs.filter((r) => r.id !== 'streaming-file')
@@ -1414,11 +1551,21 @@ export function useChat(
                       return [...without, fileResource]
                     })
                     setActiveResourceId(fileId)
+                    if (nextSession.previewText) {
+                      queryClient.setQueryData(
+                        workspaceFilesKeys.content(workspaceId, fileId, 'text'),
+                        nextSession.previewText
+                      )
+                    }
                     invalidateResourceQueries(queryClient, workspaceId, 'file', fileId)
-                  }
-
-                  if (!activeSubagent || activeSubagent !== FileTool.id) {
-                    setStreamingFileImmediate(null)
+                  } else {
+                    const activePreview =
+                      nextState.activeSessionId !== null
+                        ? (nextState.sessions[nextState.activeSessionId] ?? null)
+                        : null
+                    if (activePreview) {
+                      syncPreviewResourceChrome(activePreview)
+                    }
                   }
                   break
                 }
@@ -1544,12 +1691,8 @@ export function useChat(
                   (tc.name === WorkspaceFile.id || tc.name === 'edit_content') &&
                   !shouldKeepWorkspacePreviewOpen
                 ) {
-                  filePreviewSessionsRef.current.delete(id)
-                  if (activeFilePreviewToolCallIdRef.current === id) {
-                    activeFilePreviewToolCallIdRef.current = null
-                    if (!activeSubagent || activeSubagent !== FileTool.id) {
-                      setStreamingFileImmediate(null)
-                    }
+                  if (tc.name === WorkspaceFile.id) {
+                    removePreviewSessionImmediate(id)
                   }
                   const fileResource = extractedResources.find((r) => r.type === 'file')
                   if (fileResource) {
@@ -1591,7 +1734,7 @@ export function useChat(
 
               if (name === 'edit_content') {
                 const parentToolCallId =
-                  activeFilePreviewToolCallIdRef.current ?? streamingFileRef.current?.toolCallId
+                  activePreviewSessionIdRef.current ?? previewSessionRef.current?.toolCallId
                 const parentIdx =
                   parentToolCallId !== null && parentToolCallId !== undefined
                     ? toolMap.get(parentToolCallId)
@@ -1767,20 +1910,24 @@ export function useChat(
                   blocks.push({ type: 'subagent', content: name })
                 }
                 if (name === FileTool.id && !isSameActiveSubagent) {
-                  const emptyFile: StreamingFilePreview = {
+                  applyPreviewSessionUpdate({
+                    schemaVersion: 1,
+                    id: parentToolCallId || 'file-preview',
+                    streamId: streamIdRef.current ?? '',
                     toolCallId: parentToolCallId || 'file-preview',
+                    status: 'pending',
                     fileName: '',
-                    content: '',
-                  }
-                  setStreamingFileImmediate(emptyFile)
+                    previewText: '',
+                    previewVersion: 0,
+                    updatedAt: new Date().toISOString(),
+                  })
                 }
                 flush()
               } else if (spanEvent === MothershipStreamV1SpanLifecycleEvent.end) {
                 if (isPendingPause) {
                   break
                 }
-                if (streamingFileRef.current && !activeFilePreviewToolCallIdRef.current) {
-                  setStreamingFileImmediate(null)
+                if (previewSessionRef.current && !activePreviewSessionIdRef.current) {
                   const lastFileResource = resourcesRef.current.find(
                     (r) => r.type === 'file' && r.id !== 'streaming-file'
                   )
@@ -1820,7 +1967,16 @@ export function useChat(
       }
       return { sawStreamError, sawComplete: sawCompleteEvent }
     },
-    [workspaceId, queryClient, addResource, removeResource]
+    [
+      workspaceId,
+      queryClient,
+      addResource,
+      removeResource,
+      applyPreviewSessionUpdate,
+      applyCompletedPreviewSession,
+      removePreviewSessionImmediate,
+      syncPreviewResourceChrome,
+    ]
   )
   processSSEStreamRef.current = processSSEStream
 
@@ -1859,9 +2015,13 @@ export function useChat(
       if (!response.ok) {
         throw new Error(`Stream resume batch failed: ${response.status}`)
       }
-      return response.json()
+      const batch = (await response.json()) as StreamBatchResponse
+      if (Array.isArray(batch.previewSessions) && batch.previewSessions.length > 0) {
+        seedPreviewSessions(batch.previewSessions)
+      }
+      return batch
     },
-    []
+    [seedPreviewSessions]
   )
 
   const attachToExistingStream = useCallback(
@@ -2492,13 +2652,12 @@ export function useChat(
 
   useEffect(() => {
     return () => {
-      cancelQueuedStreamingFileUpdate()
       streamReaderRef.current = null
       abortControllerRef.current = null
       streamGenRef.current++
       sendingRef.current = false
     }
-  }, [cancelQueuedStreamingFileUpdate])
+  }, [])
 
   return {
     messages,
@@ -2518,7 +2677,7 @@ export function useChat(
     removeFromQueue,
     sendNow,
     editQueuedMessage,
-    streamingFile,
+    previewSession,
     genericResourceData,
   }
 }

@@ -18,6 +18,7 @@ export function createServerToolHandler(toolId: string): ToolHandler {
         workspaceId: context.workspaceId,
         userPermission: context.userPermission ?? undefined,
         chatId: context.chatId,
+        messageId: context.messageId,
         abortSignal: context.abortSignal,
       })
 

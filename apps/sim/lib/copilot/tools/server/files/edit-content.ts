@@ -85,7 +85,10 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       return { success: false, message: 'content is required for edit_content' }
     }
 
-    const intent = consumeLatestFileIntent(workspaceId)
+    const intent = await consumeLatestFileIntent(workspaceId, {
+      chatId: context.chatId,
+      messageId: context.messageId,
+    })
     if (!intent) {
       return {
         success: false,

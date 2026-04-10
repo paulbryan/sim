@@ -5,6 +5,7 @@ export interface ToolExecutionContext {
   workflowId: string
   workspaceId?: string
   chatId?: string
+  messageId?: string
   executionId?: string
   runId?: string
   copilotToolExecution?: boolean

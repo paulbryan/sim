@@ -3,6 +3,7 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -10,6 +11,9 @@ import {
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
+import { readFilePreviewSessions } from '@/lib/copilot/request/session'
+import { readEvents } from '@/lib/copilot/request/session/buffer'
+import { toStreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -63,8 +67,60 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
 
+      let streamSnapshot: {
+        events: ReturnType<typeof toStreamBatchEvent>[]
+        previewSessions: Awaited<ReturnType<typeof readFilePreviewSessions>>
+        status: string
+      } | null = null
+      if (chat.conversationId) {
+        try {
+          const [events, previewSessions, run] = await Promise.all([
+            readEvents(chat.conversationId, '0'),
+            readFilePreviewSessions(chat.conversationId).catch((error) => {
+              logger.warn('Failed to read preview sessions for copilot chat', {
+                chatId,
+                conversationId: chat.conversationId,
+                error: error instanceof Error ? error.message : String(error),
+              })
+              return []
+            }),
+            getLatestRunForStream(chat.conversationId, authenticatedUserId).catch((error) => {
+              logger.warn('Failed to fetch latest run for copilot chat snapshot', {
+                chatId,
+                conversationId: chat.conversationId,
+                error: error instanceof Error ? error.message : String(error),
+              })
+              return null
+            }),
+          ])
+
+          streamSnapshot = {
+            events: events.map(toStreamBatchEvent),
+            previewSessions,
+            status:
+              typeof run?.status === 'string'
+                ? run.status
+                : events.length > 0
+                  ? 'active'
+                  : 'unknown',
+          }
+        } catch (error) {
+          logger.warn('Failed to load copilot chat stream snapshot', {
+            chatId,
+            conversationId: chat.conversationId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
+
       logger.info(`Retrieved chat ${chatId}`)
-      return NextResponse.json({ success: true, chat: transformChat(chat) })
+      return NextResponse.json({
+        success: true,
+        chat: {
+          ...transformChat(chat),
+          ...(streamSnapshot ? { streamSnapshot } : {}),
+        },
+      })
     }
 
     if (!workflowId && !workspaceId) {

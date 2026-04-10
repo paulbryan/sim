@@ -10,7 +10,9 @@ const {
   createRunSegment,
   updateRunStatus,
   resetBuffer,
+  clearFilePreviewSessions,
   scheduleBufferCleanup,
+  scheduleFilePreviewSessionCleanup,
   allocateCursor,
   appendEvent,
   cleanupAbortMarker,
@@ -21,7 +23,9 @@ const {
   createRunSegment: vi.fn(),
   updateRunStatus: vi.fn(),
   resetBuffer: vi.fn(),
+  clearFilePreviewSessions: vi.fn(),
   scheduleBufferCleanup: vi.fn(),
+  scheduleFilePreviewSessionCleanup: vi.fn(),
   allocateCursor: vi.fn(),
   appendEvent: vi.fn(),
   cleanupAbortMarker: vi.fn(),
@@ -42,7 +46,9 @@ let mockPublisherController: ReadableStreamDefaultController | null = null
 
 vi.mock('@/lib/copilot/request/session', () => ({
   resetBuffer,
+  clearFilePreviewSessions,
   scheduleBufferCleanup,
+  scheduleFilePreviewSessionCleanup,
   allocateCursor,
   appendEvent,
   cleanupAbortMarker,
@@ -110,7 +116,9 @@ describe('createSSEStream terminal error handling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetBuffer.mockResolvedValue(undefined)
+    clearFilePreviewSessions.mockResolvedValue(undefined)
     scheduleBufferCleanup.mockResolvedValue(undefined)
+    scheduleFilePreviewSessionCleanup.mockResolvedValue(undefined)
     allocateCursor
       .mockResolvedValueOnce({ seq: 1, cursor: '1' })
       .mockResolvedValueOnce({ seq: 2, cursor: '2' })

@@ -11,6 +11,7 @@ import {
   createEvent,
   encodeSSEEnvelope,
   readEvents,
+  readFilePreviewSessions,
   SSE_RESPONSE_HEADERS,
 } from '@/lib/copilot/request/session'
 import { toStreamBatchEvent } from '@/lib/copilot/request/session/types'
@@ -113,17 +114,28 @@ export async function GET(request: NextRequest) {
 
   if (batchMode) {
     const afterSeq = afterCursor || '0'
-    const events = await readEvents(streamId, afterSeq)
+    const [events, previewSessions] = await Promise.all([
+      readEvents(streamId, afterSeq),
+      readFilePreviewSessions(streamId).catch((error) => {
+        logger.warn('Failed to read preview sessions for stream batch', {
+          streamId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        return []
+      }),
+    ])
     const batchEvents = events.map(toStreamBatchEvent)
     logger.info('[Resume] Batch response', {
       streamId,
       afterCursor: afterSeq,
       eventCount: batchEvents.length,
+      previewSessionCount: previewSessions.length,
       runStatus: run.status,
     })
     return NextResponse.json({
       success: true,
       events: batchEvents,
+      previewSessions,
       status: run.status,
     })
   }

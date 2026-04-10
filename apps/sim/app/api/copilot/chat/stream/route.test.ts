@@ -12,11 +12,13 @@ import {
 const {
   getLatestRunForStream,
   readEvents,
+  readFilePreviewSessions,
   checkForReplayGap,
   authenticateCopilotRequestSessionOnly,
 } = vi.hoisted(() => ({
   getLatestRunForStream: vi.fn(),
   readEvents: vi.fn(),
+  readFilePreviewSessions: vi.fn(),
   checkForReplayGap: vi.fn(),
   authenticateCopilotRequestSessionOnly: vi.fn(),
 }))
@@ -27,6 +29,7 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
 
 vi.mock('@/lib/copilot/request/session', () => ({
   readEvents,
+  readFilePreviewSessions,
   checkForReplayGap,
   createEvent: (event: Record<string, unknown>) => ({
     stream: {
@@ -74,7 +77,48 @@ describe('copilot chat stream replay route', () => {
       isAuthenticated: true,
     })
     readEvents.mockResolvedValue([])
+    readFilePreviewSessions.mockResolvedValue([])
     checkForReplayGap.mockResolvedValue(null)
+  })
+
+  it('returns preview sessions in batch mode', async () => {
+    getLatestRunForStream.mockResolvedValue({
+      status: 'active',
+      executionId: 'exec-1',
+      id: 'run-1',
+    })
+    readFilePreviewSessions.mockResolvedValue([
+      {
+        schemaVersion: 1,
+        id: 'preview-1',
+        streamId: 'stream-1',
+        toolCallId: 'preview-1',
+        status: 'streaming',
+        fileName: 'draft.md',
+        previewText: 'hello',
+        previewVersion: 2,
+        updatedAt: '2026-04-10T00:00:00.000Z',
+      },
+    ])
+
+    const response = await GET(
+      new NextRequest(
+        'http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0&batch=true'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      previewSessions: [
+        expect.objectContaining({
+          id: 'preview-1',
+          previewText: 'hello',
+          previewVersion: 2,
+        }),
+      ],
+      status: 'active',
+    })
   })
 
   it('stops replay polling when run becomes cancelled', async () => {

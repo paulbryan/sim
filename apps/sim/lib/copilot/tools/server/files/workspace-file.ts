@@ -264,11 +264,13 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
 
           const currentBuffer = await downloadWsFile(existingFile)
-          storeFileIntent(workspaceId, target.fileId, {
+          await storeFileIntent(workspaceId, target.fileId, {
             operation: 'append',
             fileId: target.fileId,
             workspaceId,
             userId: context.userId,
+            chatId: context.chatId,
+            messageId: context.messageId,
             fileRecord: existingFile,
             existingContent: currentBuffer.toString('utf-8'),
             contentType: normalized.contentType,
@@ -305,11 +307,13 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             }
           }
 
-          storeFileIntent(workspaceId, target.fileId, {
+          await storeFileIntent(workspaceId, target.fileId, {
             operation: 'update',
             fileId: target.fileId,
             workspaceId,
             userId: context.userId,
+            chatId: context.chatId,
+            messageId: context.messageId,
             fileRecord,
             contentType: normalized.contentType,
             title: normalized.title,
@@ -441,11 +445,13 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             }
           }
 
-          storeFileIntent(workspaceId, target.fileId, {
+          await storeFileIntent(workspaceId, target.fileId, {
             operation: 'patch',
             fileId: target.fileId,
             workspaceId,
             userId: context.userId,
+            chatId: context.chatId,
+            messageId: context.messageId,
             fileRecord,
             existingContent,
             edit: {
