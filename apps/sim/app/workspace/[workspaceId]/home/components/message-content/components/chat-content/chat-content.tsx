@@ -17,6 +17,7 @@ import {
   parseSpecialTags,
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { useStreamingText } from '@/hooks/use-streaming-text'
 
 const LANG_ALIASES: Record<string, string> = {
@@ -119,6 +120,28 @@ const MARKDOWN_COMPONENTS = {
     )
   },
   a({ children, href }: { children?: React.ReactNode; href?: string }) {
+    if (href?.startsWith('#wsres-')) {
+      return (
+        <a
+          href={href}
+          className='text-[var(--text-primary)] underline decoration-dashed underline-offset-4'
+          onClick={(e) => {
+            e.preventDefault()
+            const match = href.match(/^#wsres-(\w+)-(.+)$/)
+            if (match) {
+              const linkText = e.currentTarget.textContent || match[2]
+              window.dispatchEvent(
+                new CustomEvent('wsres-click', {
+                  detail: { type: match[1], id: match[2], title: linkText },
+                })
+              )
+            }
+          }}
+        >
+          {children}
+        </a>
+      )
+    }
     return (
       <a
         href={href}
@@ -172,6 +195,7 @@ interface ChatContentProps {
   content: string
   isStreaming?: boolean
   onOptionSelect?: (id: string) => void
+  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
   smoothStreaming?: boolean
 }
 
@@ -179,6 +203,7 @@ export function ChatContent({
   content,
   isStreaming = false,
   onOptionSelect,
+  onWorkspaceResourceSelect,
   smoothStreaming = true,
 }: ChatContentProps) {
   const hydratedStreamingRef = useRef(isStreaming && content.trim().length > 0)
@@ -193,6 +218,23 @@ export function ChatContent({
     previousIsStreamingRef.current = isStreaming
   }, [content, isStreaming])
 
+  const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
+  onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { type, id, title } = (e as CustomEvent).detail
+      const RESOURCE_TYPE_MAP: Record<string, string> = {}
+      onWorkspaceResourceSelectRef.current?.({
+        type: RESOURCE_TYPE_MAP[type] || type,
+        id,
+        title: title || id,
+      })
+    }
+    window.addEventListener('wsres-click', handler)
+    return () => window.removeEventListener('wsres-click', handler)
+  }, [])
+
   const rendered = useStreamingText(content, isStreaming && smoothStreaming)
 
   const parsed = useMemo(() => parseSpecialTags(rendered, isStreaming), [rendered, isStreaming])
@@ -202,22 +244,37 @@ export function ChatContent({
     return (
       <div className='space-y-3'>
         {parsed.segments.map((segment, i) => {
-          if (segment.type === 'text' || segment.type === 'thinking') {
-            return (
-              <div
-                key={`${segment.type}-${i}`}
-                className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
-              >
-                <Streamdown mode='static' components={MARKDOWN_COMPONENTS}>
-                  {segment.content}
-                </Streamdown>
-              </div>
-            )
+          if (
+            segment.type === 'text' ||
+            segment.type === 'thinking' ||
+            segment.type === 'workspace_resource'
+          ) {
+            return null
           }
           return (
             <SpecialTags key={`special-${i}`} segment={segment} onOptionSelect={onOptionSelect} />
           )
         })}
+        {(() => {
+          const reassembled = parsed.segments
+            .map((s) => {
+              if (s.type === 'workspace_resource') {
+                const label = s.data.title || s.data.id
+                return `[${label}](#wsres-${s.data.type}-${s.data.id})`
+              }
+              if (s.type === 'text' || s.type === 'thinking') return s.content
+              return ''
+            })
+            .join('')
+          if (!reassembled.trim()) return null
+          return (
+            <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
+              <Streamdown mode='static' components={MARKDOWN_COMPONENTS}>
+                {reassembled}
+              </Streamdown>
+            </div>
+          )
+        })()}
         {parsed.hasPendingTag && isStreaming && <PendingTagIndicator />}
       </div>
     )

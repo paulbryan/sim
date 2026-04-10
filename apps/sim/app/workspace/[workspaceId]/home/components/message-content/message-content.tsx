@@ -8,7 +8,7 @@ import {
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
-import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
+import type { ContentBlock, MothershipResource, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '../../types'
 import type { AgentGroupItem } from './components'
 import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
@@ -331,6 +331,7 @@ interface MessageContentProps {
   fallbackContent: string
   isStreaming: boolean
   onOptionSelect?: (id: string) => void
+  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
 }
 
 export function MessageContent({
@@ -338,6 +339,7 @@ export function MessageContent({
   fallbackContent,
   isStreaming = false,
   onOptionSelect,
+  onWorkspaceResourceSelect,
 }: MessageContentProps) {
   const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
 
@@ -391,6 +393,7 @@ export function MessageContent({
                 content={segment.content}
                 isStreaming={isStreaming}
                 onOptionSelect={onOptionSelect}
+                onWorkspaceResourceSelect={onWorkspaceResourceSelect}
                 smoothStreaming={!hasStructuredSegments}
               />
             )

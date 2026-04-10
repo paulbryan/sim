@@ -17,7 +17,7 @@ import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
 import type { ChatContext } from '@/stores/panel'
 import { MothershipChat, MothershipView, TemplatePrompts, UserInput } from './components'
 import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hooks'
-import type { FileAttachmentForApi, MothershipResourceType } from './types'
+import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
 
@@ -299,6 +299,17 @@ export function Home({ chatId }: HomeProps = {}) {
     [resolveResourceFromContext, removeResource]
   )
 
+  const handleWorkspaceResourceSelect = useCallback(
+    (resource: MothershipResource) => {
+      const wasAdded = addResource(resource)
+      if (!wasAdded) {
+        setActiveResourceId(resource.id)
+      }
+      handleResourceEvent()
+    },
+    [addResource, handleResourceEvent, setActiveResourceId]
+  )
+
   const hasMessages = messages.length > 0
 
   useEffect(() => {
@@ -368,6 +379,7 @@ export function Home({ chatId }: HomeProps = {}) {
           chatId={resolvedChatId}
           onContextAdd={handleContextAdd}
           onContextRemove={handleContextRemove}
+          onWorkspaceResourceSelect={handleWorkspaceResourceSelect}
           editValue={editingInputValue}
           onEditValueConsumed={clearEditingValue}
           animateInput={isInputEntering}

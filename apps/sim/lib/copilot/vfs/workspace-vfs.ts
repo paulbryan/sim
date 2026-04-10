@@ -380,7 +380,8 @@ export class WorkspaceVFS {
         knowledgeBases: kbSummary,
         tables: tblSummary,
         files: fileSummary,
-        credentials: envSummary,
+        oauthIntegrations: envSummary.oauthIntegrations,
+        envVariables: envSummary.envVariables,
         tasks: taskSummary,
         customTools: toolsSummary,
         mcpServers: mcpServersSummary,
@@ -776,7 +777,7 @@ export class WorkspaceVFS {
         )
       }
 
-      return files.map((f) => ({ name: f.name, type: f.type, size: f.size }))
+      return files.map((f) => ({ id: f.id, name: f.name, type: f.type, size: f.size }))
     } catch (err) {
       logger.warn('Failed to materialize files', {
         workspaceId,
@@ -1219,7 +1220,10 @@ export class WorkspaceVFS {
   private async materializeEnvironment(
     workspaceId: string,
     userId: string
-  ): Promise<WorkspaceMdData['credentials']> {
+  ): Promise<{
+    oauthIntegrations: WorkspaceMdData['oauthIntegrations']
+    envVariables: WorkspaceMdData['envVariables']
+  }> {
     try {
       const [envCredentials, oauthCredentials, apiKeyRows, envData] = await Promise.all([
         getAccessibleEnvCredentials(workspaceId, userId),
@@ -1255,16 +1259,18 @@ export class WorkspaceVFS {
         serializeEnvironmentVariables(personalVarNames, workspaceVarNames)
       )
 
-      const envKeys = envCredentials.map((c) => c.envKey)
-      const oauthProviders = oauthCredentials.map((c) => c.providerId)
-      const allProviders = [...new Set([...oauthProviders, ...envKeys])]
-      return allProviders.map((key) => ({ providerId: key }))
+      const oauthProviders = [...new Set(oauthCredentials.map((c) => c.providerId))]
+      const envKeys = [...new Set(envCredentials.map((c) => c.envKey))]
+      return {
+        oauthIntegrations: oauthProviders.map((key) => ({ providerId: key })),
+        envVariables: envKeys,
+      }
     } catch (err) {
       logger.warn('Failed to materialize environment data', {
         workspaceId,
         error: err instanceof Error ? err.message : String(err),
       })
-      return []
+      return { oauthIntegrations: [], envVariables: [] }
     }
   }
 }

@@ -54,8 +54,9 @@ export interface WorkspaceMdData {
     connectorTypes?: string[]
   }>
   tables: Array<{ id: string; name: string; description?: string | null; rowCount: number }>
-  files: Array<{ name: string; type: string; size: number }>
-  credentials: Array<{ providerId: string }>
+  files: Array<{ id: string; name: string; type: string; size: number }>
+  oauthIntegrations: Array<{ providerId: string }>
+  envVariables: string[]
   tasks?: Array<{ id: string; title: string; updatedAt: Date }>
   customTools?: Array<{ id: string; name: string }>
   mcpServers?: Array<{ id: string; name: string; url?: string | null; enabled: boolean }>
@@ -158,21 +159,28 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   }
 
   if (data.files.length > 0) {
-    const lines = data.files.map((f) => `- **${f.name}** (${f.type}, ${formatSize(f.size)})`)
+    const lines = data.files.map(
+      (f) => `- **${f.name}** (${f.id}) — ${f.type}, ${formatSize(f.size)}`
+    )
     sections.push(`## Files (${data.files.length})\n${lines.join('\n')}`)
   } else {
     sections.push('## Files (0)\n(none)')
   }
 
-  if (data.credentials.length > 0) {
-    const providers = [...new Set(data.credentials.map((c) => c.providerId))]
+  if (data.oauthIntegrations.length > 0) {
+    const providers = [...new Set(data.oauthIntegrations.map((c) => c.providerId))]
     const lines = providers.map((p) => {
       const services = PROVIDER_SERVICES[p]
       return services ? `- ${p} (${services.join(', ')})` : `- ${p}`
     })
-    sections.push(`## Connected Services\n${lines.join('\n')}`)
+    sections.push(`## Connected Integrations\n${lines.join('\n')}`)
   } else {
-    sections.push('## Connected Services\n(none)')
+    sections.push('## Connected Integrations\n(none)')
+  }
+
+  if (data.envVariables.length > 0) {
+    const lines = data.envVariables.map((v) => `- ${v}`)
+    sections.push(`## Environment Variables (${data.envVariables.length})\n${lines.join('\n')}`)
   }
 
   if (data.customTools && data.customTools.length > 0) {
@@ -360,8 +368,9 @@ export async function generateWorkspaceContext(
         connectorTypes: connectorTypesByKb.get(kb.id),
       })),
       tables: tables.map((t, i) => ({ ...t, rowCount: rowCounts[i] ?? 0 })),
-      files: files.map((f) => ({ name: f.name, type: f.type, size: f.size })),
-      credentials: credentials.map((c) => ({ providerId: c.providerId })),
+      files: files.map((f) => ({ id: f.id, name: f.name, type: f.type, size: f.size })),
+      oauthIntegrations: credentials.map((c) => ({ providerId: c.providerId })),
+      envVariables: [],
       customTools: customTools.map((t) => ({ id: t.id, name: t.title })),
       mcpServers: mcpServerRows,
       skills: skillRows.map((s) => ({ id: s.id, name: s.name, description: s.description })),
@@ -382,7 +391,7 @@ export async function generateWorkspaceContext(
       workspaceId,
       error: err instanceof Error ? err.message : String(err),
     })
-    return '## Workspace\n(unavailable)\n\n## Workflows\n(unavailable)\n\n## Knowledge Bases\n(unavailable)\n\n## Tables\n(unavailable)\n\n## Files\n(unavailable)\n\n## Credentials\n(unavailable)'
+    return '## Workspace\n(unavailable)\n\n## Workflows\n(unavailable)\n\n## Knowledge Bases\n(unavailable)\n\n## Tables\n(unavailable)\n\n## Files\n(unavailable)\n\n## Connected Integrations\n(unavailable)'
   }
 }
 

@@ -15,6 +15,7 @@ import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/component
 import type {
   ChatMessage,
   FileAttachmentForApi,
+  MothershipResource,
   QueuedMessage,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
@@ -38,6 +39,7 @@ interface MothershipChatProps {
   chatId?: string
   onContextAdd?: (context: ChatContext) => void
   onContextRemove?: (context: ChatContext) => void
+  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
   editValue?: string
   onEditValueConsumed?: () => void
   layout?: 'mothership-view' | 'copilot-view'
@@ -85,6 +87,7 @@ export function MothershipChat({
   chatId,
   onContextAdd,
   onContextRemove,
+  onWorkspaceResourceSelect,
   editValue,
   onEditValueConsumed,
   layout = 'mothership-view',
@@ -175,6 +178,7 @@ export function MothershipChat({
                   fallbackContent={msg.content}
                   isStreaming={isThisStreaming}
                   onOptionSelect={isLastMessage ? onSubmit : undefined}
+                  onWorkspaceResourceSelect={onWorkspaceResourceSelect}
                 />
                 {!isThisStreaming && (msg.content || msg.contentBlocks?.length) && (
                   <div className='mt-2.5'>
