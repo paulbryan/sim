@@ -701,6 +701,38 @@ export const DownloadToWorkspaceFile: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
+export const EditContent: ToolCatalogEntry = {
+  id: 'edit_content',
+  name: 'edit_content',
+  executor: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      content: {
+        type: 'string',
+        description:
+          'The text content to write. For append: text to append. For update: full replacement text. For patch with search_replace: the replacement text. For patch with anchored: the insert/replacement text.',
+      },
+    },
+    required: ['content'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      data: {
+        type: 'object',
+        description:
+          'Optional operation metadata such as file id, file name, size, and content type.',
+      },
+      message: { type: 'string', description: 'Human-readable summary of the outcome.' },
+      success: { type: 'boolean', description: 'Whether the content was applied successfully.' },
+    },
+    required: ['success', 'message'],
+  },
+  requiredPermission: 'write',
+}
+
 export const EditWorkflow: ToolCatalogEntry = {
   id: 'edit_workflow',
   name: 'edit_workflow',
@@ -1138,10 +1170,10 @@ export const Glob: ToolCatalogEntry = {
         description:
           'Glob pattern to match file paths. Supports * (any segment) and ** (any depth).',
       },
-      title: {
+      toolTitle: {
         type: 'string',
         description:
-          "Short human-readable label shown in the UI while this search runs (e.g. 'Finding workflow configs', 'Listing knowledge bases').",
+          'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "workflow configs" or "knowledge bases", not a full sentence like "Finding workflow configs".',
       },
     },
     required: ['pattern'],
@@ -1183,10 +1215,10 @@ export const Grep: ToolCatalogEntry = {
           "Optional path prefix to scope the search (e.g. 'workflows/', 'environment/', 'internal/', 'components/blocks/').",
       },
       pattern: { type: 'string', description: 'Regex pattern to search for in file contents.' },
-      title: {
+      toolTitle: {
         type: 'string',
         description:
-          "Short human-readable label shown in the UI while this search runs (e.g. 'Searching Slack integrations', 'Finding deployed workflows').",
+          'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "Slack integrations" or "deployed workflows", not a full sentence like "Searching for Slack integrations".',
       },
     },
     required: ['pattern'],
@@ -2170,6 +2202,11 @@ export const SearchOnline: ToolCatalogEntry = {
       include_text: { type: 'boolean', description: 'Include page text content (default true)' },
       num_results: { type: 'number', description: 'Number of results (default 10, max 25)' },
       query: { type: 'string', description: 'Natural language search query' },
+      toolTitle: {
+        type: 'string',
+        description:
+          'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "pricing changes" or "Slack webhook docs", not a full sentence like "Searching online for pricing changes".',
+      },
     },
     required: ['query'],
   },
@@ -2593,11 +2630,6 @@ export const WorkspaceFile: ToolCatalogEntry = {
         type: 'object',
         description: 'Explicit file target. Use kind=file_id + fileId for existing files.',
         properties: {
-          kind: {
-            type: 'string',
-            description: 'How the file target is identified.',
-            enum: ['new_file', 'file_id'],
-          },
           fileId: {
             type: 'string',
             description: 'Canonical existing workspace file ID. Required when target.kind=file_id.',
@@ -2606,6 +2638,11 @@ export const WorkspaceFile: ToolCatalogEntry = {
             type: 'string',
             description:
               'Plain workspace filename including extension, e.g. "main.py" or "report.docx". Required when target.kind=new_file.',
+          },
+          kind: {
+            type: 'string',
+            description: 'How the file target is identified.',
+            enum: ['new_file', 'file_id'],
           },
         },
         required: ['kind'],
@@ -2635,35 +2672,6 @@ export const WorkspaceFile: ToolCatalogEntry = {
         description:
           'Patch metadata. Use strategy=search_replace for exact text replacement, or strategy=anchored for line-based inserts/replacements/deletions. The actual replacement/insert content is provided via the paired edit_content tool call.',
         properties: {
-          strategy: {
-            type: 'string',
-            description: 'Patch strategy.',
-            enum: ['search_replace', 'anchored'],
-          },
-          search: {
-            type: 'string',
-            description:
-              'Exact text to find when strategy=search_replace. Must match exactly once unless replaceAll=true.',
-          },
-          replaceAll: {
-            type: 'boolean',
-            description:
-              'When true and strategy=search_replace, replace every match instead of requiring a unique single match.',
-          },
-          mode: {
-            type: 'string',
-            description: 'Anchored edit mode when strategy=anchored.',
-            enum: ['replace_between', 'insert_after', 'delete_between'],
-          },
-          occurrence: {
-            type: 'number',
-            description: '1-based occurrence for repeated anchor lines. Optional; defaults to 1.',
-          },
-          before_anchor: {
-            type: 'string',
-            description:
-              'Boundary line kept before inserted replacement content. Required for mode=replace_between.',
-          },
           after_anchor: {
             type: 'string',
             description:
@@ -2674,15 +2682,48 @@ export const WorkspaceFile: ToolCatalogEntry = {
             description:
               'Anchor line after which new content is inserted. Required for mode=insert_after.',
           },
-          start_anchor: {
+          before_anchor: {
             type: 'string',
-            description: 'First line to delete. Required for mode=delete_between.',
+            description:
+              'Boundary line kept before inserted replacement content. Required for mode=replace_between.',
           },
           end_anchor: {
             type: 'string',
             description: 'First line to keep after deletion. Required for mode=delete_between.',
           },
+          mode: {
+            type: 'string',
+            description: 'Anchored edit mode when strategy=anchored.',
+            enum: ['replace_between', 'insert_after', 'delete_between'],
+          },
+          occurrence: {
+            type: 'number',
+            description: '1-based occurrence for repeated anchor lines. Optional; defaults to 1.',
+          },
+          replaceAll: {
+            type: 'boolean',
+            description:
+              'When true and strategy=search_replace, replace every match instead of requiring a unique single match.',
+          },
+          search: {
+            type: 'string',
+            description:
+              'Exact text to find when strategy=search_replace. Must match exactly once unless replaceAll=true.',
+          },
+          start_anchor: {
+            type: 'string',
+            description: 'First line to delete. Required for mode=delete_between.',
+          },
+          strategy: {
+            type: 'string',
+            description: 'Patch strategy.',
+            enum: ['search_replace', 'anchored'],
+          },
         },
+      },
+      newName: {
+        type: 'string',
+        description: 'New file name for rename. Must be a plain workspace filename like "main.py".',
       },
     },
     required: ['operation', 'target', 'title'],
@@ -2703,37 +2744,227 @@ export const WorkspaceFile: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
-export const EditContent: ToolCatalogEntry = {
-  id: 'edit_content',
-  name: 'edit_content',
-  executor: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      content: {
-        type: 'string',
-        description:
-          'The text content to write. For append: text to append. For update: full replacement text. For patch with search_replace: the replacement text. For patch with anchored: the insert/replacement text.',
-      },
-    },
-    required: ['content'],
-  },
-  resultSchema: {
-    type: 'object',
-    properties: {
-      data: {
-        type: 'object',
-        description:
-          'Optional operation metadata such as file id, file name, size, and content type.',
-      },
-      message: { type: 'string', description: 'Human-readable summary of the outcome.' },
-      success: { type: 'boolean', description: 'Whether the content was applied successfully.' },
-    },
-    required: ['success', 'message'],
-  },
-  requiredPermission: 'write',
-}
+export const KnowledgeBaseOperation = {
+  create: 'create',
+  get: 'get',
+  query: 'query',
+  addFile: 'add_file',
+  update: 'update',
+  delete: 'delete',
+  deleteDocument: 'delete_document',
+  updateDocument: 'update_document',
+  listTags: 'list_tags',
+  createTag: 'create_tag',
+  updateTag: 'update_tag',
+  deleteTag: 'delete_tag',
+  getTagUsage: 'get_tag_usage',
+  addConnector: 'add_connector',
+  updateConnector: 'update_connector',
+  deleteConnector: 'delete_connector',
+  syncConnector: 'sync_connector',
+} as const
+
+export type KnowledgeBaseOperation =
+  (typeof KnowledgeBaseOperation)[keyof typeof KnowledgeBaseOperation]
+
+export const KnowledgeBaseOperationValues = [
+  KnowledgeBaseOperation.create,
+  KnowledgeBaseOperation.get,
+  KnowledgeBaseOperation.query,
+  KnowledgeBaseOperation.addFile,
+  KnowledgeBaseOperation.update,
+  KnowledgeBaseOperation.delete,
+  KnowledgeBaseOperation.deleteDocument,
+  KnowledgeBaseOperation.updateDocument,
+  KnowledgeBaseOperation.listTags,
+  KnowledgeBaseOperation.createTag,
+  KnowledgeBaseOperation.updateTag,
+  KnowledgeBaseOperation.deleteTag,
+  KnowledgeBaseOperation.getTagUsage,
+  KnowledgeBaseOperation.addConnector,
+  KnowledgeBaseOperation.updateConnector,
+  KnowledgeBaseOperation.deleteConnector,
+  KnowledgeBaseOperation.syncConnector,
+] as const
+
+export const ManageCredentialOperation = {
+  rename: 'rename',
+  delete: 'delete',
+} as const
+
+export type ManageCredentialOperation =
+  (typeof ManageCredentialOperation)[keyof typeof ManageCredentialOperation]
+
+export const ManageCredentialOperationValues = [
+  ManageCredentialOperation.rename,
+  ManageCredentialOperation.delete,
+] as const
+
+export const ManageCustomToolOperation = {
+  add: 'add',
+  edit: 'edit',
+  delete: 'delete',
+  list: 'list',
+} as const
+
+export type ManageCustomToolOperation =
+  (typeof ManageCustomToolOperation)[keyof typeof ManageCustomToolOperation]
+
+export const ManageCustomToolOperationValues = [
+  ManageCustomToolOperation.add,
+  ManageCustomToolOperation.edit,
+  ManageCustomToolOperation.delete,
+  ManageCustomToolOperation.list,
+] as const
+
+export const ManageJobOperation = {
+  create: 'create',
+  list: 'list',
+  get: 'get',
+  update: 'update',
+  delete: 'delete',
+} as const
+
+export type ManageJobOperation = (typeof ManageJobOperation)[keyof typeof ManageJobOperation]
+
+export const ManageJobOperationValues = [
+  ManageJobOperation.create,
+  ManageJobOperation.list,
+  ManageJobOperation.get,
+  ManageJobOperation.update,
+  ManageJobOperation.delete,
+] as const
+
+export const ManageMcpToolOperation = {
+  add: 'add',
+  edit: 'edit',
+  delete: 'delete',
+  list: 'list',
+} as const
+
+export type ManageMcpToolOperation =
+  (typeof ManageMcpToolOperation)[keyof typeof ManageMcpToolOperation]
+
+export const ManageMcpToolOperationValues = [
+  ManageMcpToolOperation.add,
+  ManageMcpToolOperation.edit,
+  ManageMcpToolOperation.delete,
+  ManageMcpToolOperation.list,
+] as const
+
+export const ManageSkillOperation = {
+  add: 'add',
+  edit: 'edit',
+  delete: 'delete',
+  list: 'list',
+} as const
+
+export type ManageSkillOperation = (typeof ManageSkillOperation)[keyof typeof ManageSkillOperation]
+
+export const ManageSkillOperationValues = [
+  ManageSkillOperation.add,
+  ManageSkillOperation.edit,
+  ManageSkillOperation.delete,
+  ManageSkillOperation.list,
+] as const
+
+export const MaterializeFileOperation = {
+  save: 'save',
+  import: 'import',
+  table: 'table',
+  knowledgeBase: 'knowledge_base',
+} as const
+
+export type MaterializeFileOperation =
+  (typeof MaterializeFileOperation)[keyof typeof MaterializeFileOperation]
+
+export const MaterializeFileOperationValues = [
+  MaterializeFileOperation.save,
+  MaterializeFileOperation.import,
+  MaterializeFileOperation.table,
+  MaterializeFileOperation.knowledgeBase,
+] as const
+
+export const UserMemoryOperation = {
+  add: 'add',
+  search: 'search',
+  delete: 'delete',
+  correct: 'correct',
+  list: 'list',
+} as const
+
+export type UserMemoryOperation = (typeof UserMemoryOperation)[keyof typeof UserMemoryOperation]
+
+export const UserMemoryOperationValues = [
+  UserMemoryOperation.add,
+  UserMemoryOperation.search,
+  UserMemoryOperation.delete,
+  UserMemoryOperation.correct,
+  UserMemoryOperation.list,
+] as const
+
+export const UserTableOperation = {
+  create: 'create',
+  createFromFile: 'create_from_file',
+  importFile: 'import_file',
+  get: 'get',
+  getSchema: 'get_schema',
+  delete: 'delete',
+  insertRow: 'insert_row',
+  batchInsertRows: 'batch_insert_rows',
+  getRow: 'get_row',
+  queryRows: 'query_rows',
+  updateRow: 'update_row',
+  deleteRow: 'delete_row',
+  updateRowsByFilter: 'update_rows_by_filter',
+  deleteRowsByFilter: 'delete_rows_by_filter',
+  batchUpdateRows: 'batch_update_rows',
+  batchDeleteRows: 'batch_delete_rows',
+  addColumn: 'add_column',
+  renameColumn: 'rename_column',
+  deleteColumn: 'delete_column',
+  updateColumn: 'update_column',
+} as const
+
+export type UserTableOperation = (typeof UserTableOperation)[keyof typeof UserTableOperation]
+
+export const UserTableOperationValues = [
+  UserTableOperation.create,
+  UserTableOperation.createFromFile,
+  UserTableOperation.importFile,
+  UserTableOperation.get,
+  UserTableOperation.getSchema,
+  UserTableOperation.delete,
+  UserTableOperation.insertRow,
+  UserTableOperation.batchInsertRows,
+  UserTableOperation.getRow,
+  UserTableOperation.queryRows,
+  UserTableOperation.updateRow,
+  UserTableOperation.deleteRow,
+  UserTableOperation.updateRowsByFilter,
+  UserTableOperation.deleteRowsByFilter,
+  UserTableOperation.batchUpdateRows,
+  UserTableOperation.batchDeleteRows,
+  UserTableOperation.addColumn,
+  UserTableOperation.renameColumn,
+  UserTableOperation.deleteColumn,
+  UserTableOperation.updateColumn,
+] as const
+
+export const WorkspaceFileOperation = {
+  append: 'append',
+  update: 'update',
+  patch: 'patch',
+} as const
+
+export type WorkspaceFileOperation =
+  (typeof WorkspaceFileOperation)[keyof typeof WorkspaceFileOperation]
+
+export const WorkspaceFileOperationValues = [
+  WorkspaceFileOperation.append,
+  WorkspaceFileOperation.update,
+  WorkspaceFileOperation.patch,
+] as const
 
 export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Agent.id]: Agent,
@@ -2757,6 +2988,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [DeployChat.id]: DeployChat,
   [DeployMcp.id]: DeployMcp,
   [DownloadToWorkspaceFile.id]: DownloadToWorkspaceFile,
+  [EditContent.id]: EditContent,
   [EditWorkflow.id]: EditWorkflow,
   [File.id]: File,
   [FunctionExecute.id]: FunctionExecute,
@@ -2820,5 +3052,4 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [UserTable.id]: UserTable,
   [Workflow.id]: Workflow,
   [WorkspaceFile.id]: WorkspaceFile,
-  [EditContent.id]: EditContent,
 }

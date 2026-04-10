@@ -180,19 +180,19 @@ export interface ChatMessage {
 }
 
 export const SUBAGENT_LABELS: Record<string, string> = {
-  workflow: 'Workflow agent',
-  deploy: 'Deploy agent',
-  auth: 'Integration agent',
-  research: 'Research agent',
-  knowledge: 'Knowledge agent',
-  table: 'Table agent',
-  custom_tool: 'Custom Tool agent',
+  workflow: 'Workflow Agent',
+  deploy: 'Deploy Agent',
+  auth: 'Auth Agent',
+  research: 'Research Agent',
+  knowledge: 'Knowledge Agent',
+  table: 'Table Agent',
+  custom_tool: 'Custom Tool Agent',
   superagent: 'Superagent',
-  debug: 'Debug agent',
-  run: 'Run agent',
-  agent: 'Agent manager',
-  job: 'Job agent',
-  file: 'File',
+  debug: 'Debug Agent',
+  run: 'Run Agent',
+  agent: 'Tools Agent',
+  job: 'Job Agent',
+  file: 'File Agent',
 } as const
 
 export interface ToolUIMetadata {
@@ -208,12 +208,12 @@ export interface ToolUIMetadata {
  */
 export const TOOL_UI_METADATA: Record<string, ToolUIMetadata> = {
   [Glob.id]: {
-    title: 'Searching files',
+    title: 'Finding files',
     phaseLabel: 'Workspace',
     phase: 'workspace',
   },
   [Grep.id]: {
-    title: 'Searching code',
+    title: 'Searching',
     phaseLabel: 'Workspace',
     phase: 'workspace',
   },
@@ -239,12 +239,12 @@ export const TOOL_UI_METADATA: Record<string, ToolUIMetadata> = {
     phase: 'search',
   },
   [ManageMcpTool.id]: {
-    title: 'Managing MCP tool',
+    title: 'MCP server action',
     phaseLabel: 'Management',
     phase: 'management',
   },
   [ManageSkill.id]: {
-    title: 'Managing skill',
+    title: 'Skill action',
     phaseLabel: 'Management',
     phase: 'management',
   },
@@ -288,16 +288,16 @@ export const TOOL_UI_METADATA: Record<string, ToolUIMetadata> = {
     phaseLabel: 'Resource',
     phase: 'resource',
   },
-  [Workflow.id]: { title: 'Managing workflow', phaseLabel: 'Workflow', phase: 'subagent' },
-  [Run.id]: { title: 'Running', phaseLabel: 'Run', phase: 'subagent' },
-  [Deploy.id]: { title: 'Deploying', phaseLabel: 'Deploy', phase: 'subagent' },
+  [Workflow.id]: { title: 'Workflow Agent', phaseLabel: 'Workflow', phase: 'subagent' },
+  [Run.id]: { title: 'Run Agent', phaseLabel: 'Run', phase: 'subagent' },
+  [Deploy.id]: { title: 'Deploy Agent', phaseLabel: 'Deploy', phase: 'subagent' },
   [Auth.id]: {
-    title: 'Connecting credentials',
+    title: 'Auth Agent',
     phaseLabel: 'Auth',
     phase: 'subagent',
   },
   [Knowledge.id]: {
-    title: 'Managing knowledge',
+    title: 'Knowledge Agent',
     phaseLabel: 'Knowledge',
     phase: 'subagent',
   },
@@ -306,16 +306,16 @@ export const TOOL_UI_METADATA: Record<string, ToolUIMetadata> = {
     phaseLabel: 'Resource',
     phase: 'resource',
   },
-  [Table.id]: { title: 'Managing tables', phaseLabel: 'Table', phase: 'subagent' },
-  [Job.id]: { title: 'Managing jobs', phaseLabel: 'Job', phase: 'subagent' },
-  [Agent.id]: { title: 'Agent action', phaseLabel: 'Agent', phase: 'subagent' },
+  [Table.id]: { title: 'Table Agent', phaseLabel: 'Table', phase: 'subagent' },
+  [Job.id]: { title: 'Job Agent', phaseLabel: 'Job', phase: 'subagent' },
+  [Agent.id]: { title: 'Tools Agent', phaseLabel: 'Agent', phase: 'subagent' },
   custom_tool: {
     title: 'Creating tool',
     phaseLabel: 'Tool',
     phase: 'subagent',
   },
-  [Research.id]: { title: 'Researching', phaseLabel: 'Research', phase: 'subagent' },
-  [Debug.id]: { title: 'Debugging', phaseLabel: 'Debug', phase: 'subagent' },
+  [Research.id]: { title: 'Research Agent', phaseLabel: 'Research', phase: 'subagent' },
+  [Debug.id]: { title: 'Debug Agent', phaseLabel: 'Debug', phase: 'subagent' },
   [OpenResource.id]: {
     title: 'Opening resource',
     phaseLabel: 'Resource',

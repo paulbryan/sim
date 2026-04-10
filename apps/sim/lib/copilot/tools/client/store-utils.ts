@@ -35,6 +35,7 @@ const logger = createLogger('CopilotStoreUtils')
 
 /** Respond tools are internal handoff tools shown with a friendly generic label. */
 const HIDDEN_TOOL_SUFFIX = '_respond'
+const INTERNAL_RESPOND_TOOL = 'respond'
 const HIDDEN_TOOL_NAMES = new Set(['tool_search_tool_regex'])
 
 /** UI metadata sent by the copilot on SSE tool_call events. */
@@ -127,7 +128,7 @@ function specialToolDisplay(
   state: ClientToolCallState,
   params?: Record<string, unknown>
 ): ClientToolDisplay | undefined {
-  if (toolName.endsWith(HIDDEN_TOOL_SUFFIX)) {
+  if (toolName === INTERNAL_RESPOND_TOOL || toolName.endsWith(HIDDEN_TOOL_SUFFIX)) {
     return {
       text: formatRespondLabel(state),
       icon: Loader2,
@@ -146,17 +147,8 @@ function specialToolDisplay(
 }
 
 function formatRespondLabel(state: ClientToolCallState): string {
-  switch (state) {
-    case ClientToolCallState.success:
-      return 'Returned results'
-    case ClientToolCallState.error:
-      return 'Failed returning results'
-    case ClientToolCallState.rejected:
-    case ClientToolCallState.aborted:
-      return 'Skipped returning results'
-    default:
-      return 'Returning results'
-  }
+  void state
+  return 'Gathering thoughts'
 }
 
 function readStringParam(

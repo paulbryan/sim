@@ -20,6 +20,7 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
+  CrawlWebsite,
   CreateFolder,
   DeleteFolder,
   DeleteWorkflow,
@@ -27,13 +28,33 @@ import {
   DeployChat,
   DeployMcp,
   File as FileTool,
+  GetPageContents,
+  GetWorkflowLogs,
+  Glob,
+  Grep,
+  ManageCredential,
+  ManageCredentialOperation,
+  ManageCustomTool,
+  ManageCustomToolOperation,
+  ManageJob,
+  ManageJobOperation,
+  ManageMcpTool,
+  ManageMcpToolOperation,
+  ManageSkill,
+  ManageSkillOperation,
   MoveFolder,
   MoveWorkflow,
   Read as ReadTool,
   Redeploy,
   RenameWorkflow,
+  RunFromBlock,
+  RunWorkflow,
+  RunWorkflowUntilBlock,
+  ScrapePage,
+  SearchOnline,
   ToolSearchToolRegex,
   WorkspaceFile,
+  WorkspaceFileOperation,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import {
@@ -72,6 +93,7 @@ import type { ChatContext } from '@/stores/panel'
 import { useTerminalConsoleStore } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type {
   ChatMessage,
   ContentBlock,
@@ -131,6 +153,314 @@ const RECONNECT_MAX_DELAY_MS = 30_000
 const logger = createLogger('useChat')
 
 type StreamPayload = Record<string, unknown>
+
+function stringParam(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function stringArrayParam(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+}
+
+function resolveWorkflowNameForDisplay(workflowId: unknown): string | undefined {
+  const id = stringParam(workflowId)
+  if (!id) return undefined
+  const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
+  if (!workspaceId) return undefined
+  return getWorkflowById(workspaceId, id)?.name
+}
+
+function resolveBlockNameForDisplay(blockId: unknown): string | undefined {
+  const id = stringParam(blockId)
+  if (!id) return undefined
+  return useWorkflowStore.getState().blocks[id]?.name
+}
+
+function resolveWorkspaceFileDisplayTitle(
+  operation: unknown,
+  title: unknown,
+  targetFileName?: unknown
+): string | undefined {
+  const chunkTitle = stringParam(title)
+  const fileName = stringParam(targetFileName)
+  let verb = 'Writing'
+
+  switch (operation) {
+    case WorkspaceFileOperation.append:
+      verb = 'Adding'
+      break
+    case WorkspaceFileOperation.patch:
+      verb = 'Editing'
+      break
+    case WorkspaceFileOperation.update:
+      verb = 'Writing'
+      break
+  }
+
+  if (chunkTitle) return `${verb} ${chunkTitle}`
+  if (fileName) return `${verb} ${fileName}`
+  return undefined
+}
+
+function resolveOperationDisplayTitle(
+  operation: unknown,
+  labels: Partial<Record<string, string>>,
+  fallback: string
+): string {
+  const label = typeof operation === 'string' ? labels[operation] : undefined
+  return label ?? fallback
+}
+
+function resolveToolDisplayTitle(name: string, args?: Record<string, unknown>): string | undefined {
+  if (!args) return undefined
+
+  if (name === WorkspaceFile.id) {
+    const target = asPayloadRecord(args.target)
+    return resolveWorkspaceFileDisplayTitle(args.operation, args.title, target?.fileName)
+  }
+
+  if (name === SearchOnline.id) {
+    const toolTitle = stringParam(args.toolTitle)
+    return toolTitle ? `Searching online for ${toolTitle}` : 'Searching online'
+  }
+
+  if (name === Grep.id) {
+    const toolTitle = stringParam(args.toolTitle)
+    return toolTitle ? `Searching for ${toolTitle}` : 'Searching'
+  }
+
+  if (name === Glob.id) {
+    const toolTitle = stringParam(args.toolTitle)
+    return toolTitle ? `Finding ${toolTitle}` : 'Finding files'
+  }
+
+  if (name === ScrapePage.id) {
+    const url = stringParam(args.url)
+    return url ? `Scraping ${url}` : 'Scraping page'
+  }
+
+  if (name === CrawlWebsite.id) {
+    const url = stringParam(args.url)
+    return url ? `Crawling ${url}` : 'Crawling website'
+  }
+
+  if (name === GetPageContents.id) {
+    const urls = stringArrayParam(args.urls)
+    if (urls.length === 1) return `Getting ${urls[0]}`
+    if (urls.length > 1) return `Getting ${urls.length} pages`
+    return 'Getting page contents'
+  }
+
+  if (name === ManageCustomTool.id) {
+    return resolveOperationDisplayTitle(
+      args.operation,
+      {
+        [ManageCustomToolOperation.add]: 'Creating custom tool',
+        [ManageCustomToolOperation.edit]: 'Updating custom tool',
+        [ManageCustomToolOperation.delete]: 'Deleting custom tool',
+        [ManageCustomToolOperation.list]: 'Listing custom tools',
+      },
+      'Custom tool action'
+    )
+  }
+
+  if (name === ManageMcpTool.id) {
+    return resolveOperationDisplayTitle(
+      args.operation,
+      {
+        [ManageMcpToolOperation.add]: 'Creating MCP server',
+        [ManageMcpToolOperation.edit]: 'Updating MCP server',
+        [ManageMcpToolOperation.delete]: 'Deleting MCP server',
+        [ManageMcpToolOperation.list]: 'Listing MCP servers',
+      },
+      'MCP server action'
+    )
+  }
+
+  if (name === ManageSkill.id) {
+    return resolveOperationDisplayTitle(
+      args.operation,
+      {
+        [ManageSkillOperation.add]: 'Creating skill',
+        [ManageSkillOperation.edit]: 'Updating skill',
+        [ManageSkillOperation.delete]: 'Deleting skill',
+        [ManageSkillOperation.list]: 'Listing skills',
+      },
+      'Skill action'
+    )
+  }
+
+  if (name === ManageJob.id) {
+    return resolveOperationDisplayTitle(
+      args.operation,
+      {
+        [ManageJobOperation.create]: 'Creating job',
+        [ManageJobOperation.get]: 'Getting job',
+        [ManageJobOperation.update]: 'Updating job',
+        [ManageJobOperation.delete]: 'Deleting job',
+        [ManageJobOperation.list]: 'Listing jobs',
+      },
+      'Job action'
+    )
+  }
+
+  if (name === ManageCredential.id) {
+    return resolveOperationDisplayTitle(
+      args.operation,
+      {
+        [ManageCredentialOperation.rename]: 'Renaming credential',
+        [ManageCredentialOperation.delete]: 'Deleting credential',
+      },
+      'Credential action'
+    )
+  }
+
+  if (name === RunWorkflow.id) {
+    const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
+    return workflowName ? `Running ${workflowName}` : 'Running workflow'
+  }
+
+  if (name === RunFromBlock.id) {
+    const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
+    const blockName = resolveBlockNameForDisplay(args.startBlockId)
+    if (workflowName && blockName) return `Running ${workflowName} from ${blockName}`
+    if (workflowName) return `Running ${workflowName}`
+    if (blockName) return `Running from ${blockName}`
+    return 'Running workflow'
+  }
+
+  if (name === RunWorkflowUntilBlock.id) {
+    const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
+    const blockName = resolveBlockNameForDisplay(args.stopAfterBlockId)
+    if (workflowName && blockName) return `Running ${workflowName} until ${blockName}`
+    if (workflowName) return `Running ${workflowName}`
+    if (blockName) return `Running until ${blockName}`
+    return 'Running workflow'
+  }
+
+  if (name === GetWorkflowLogs.id) {
+    const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
+    return workflowName ? `Getting logs for ${workflowName}` : 'Getting logs'
+  }
+
+  return undefined
+}
+
+function decodeStreamingString(value: string): string {
+  return value
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_: string, hex: string) =>
+      String.fromCharCode(Number.parseInt(hex, 16))
+    )
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\')
+}
+
+function matchStreamingStringArg(streamingArgs: string, key: string): string | undefined {
+  const match = streamingArgs.match(new RegExp(`"${key}"\\s*:\\s*"([^"]*)"`, 'm'))
+  return match?.[1] ? decodeStreamingString(match[1]) : undefined
+}
+
+function resolveStreamingToolDisplayTitle(name: string, streamingArgs: string): string | undefined {
+  if (name === WorkspaceFile.id) {
+    return resolveWorkspaceFileDisplayTitle(
+      matchStreamingStringArg(streamingArgs, 'operation'),
+      matchStreamingStringArg(streamingArgs, 'title'),
+      matchStreamingStringArg(streamingArgs, 'fileName')
+    )
+  }
+
+  if (name === SearchOnline.id) {
+    const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
+    return toolTitle ? `Searching online for ${toolTitle}` : undefined
+  }
+
+  if (name === Grep.id) {
+    const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
+    return toolTitle ? `Searching for ${toolTitle}` : undefined
+  }
+
+  if (name === Glob.id) {
+    const toolTitle = matchStreamingStringArg(streamingArgs, 'toolTitle')
+    return toolTitle ? `Finding ${toolTitle}` : undefined
+  }
+
+  if (name === ScrapePage.id) {
+    const url = matchStreamingStringArg(streamingArgs, 'url')
+    return url ? `Scraping ${url}` : undefined
+  }
+
+  if (name === CrawlWebsite.id) {
+    const url = matchStreamingStringArg(streamingArgs, 'url')
+    return url ? `Crawling ${url}` : undefined
+  }
+
+  if (name === ManageCustomTool.id) {
+    return resolveOperationDisplayTitle(
+      matchStreamingStringArg(streamingArgs, 'operation'),
+      {
+        [ManageCustomToolOperation.add]: 'Creating custom tool',
+        [ManageCustomToolOperation.edit]: 'Updating custom tool',
+        [ManageCustomToolOperation.delete]: 'Deleting custom tool',
+        [ManageCustomToolOperation.list]: 'Listing custom tools',
+      },
+      'Custom tool action'
+    )
+  }
+
+  if (name === ManageMcpTool.id) {
+    return resolveOperationDisplayTitle(
+      matchStreamingStringArg(streamingArgs, 'operation'),
+      {
+        [ManageMcpToolOperation.add]: 'Creating MCP server',
+        [ManageMcpToolOperation.edit]: 'Updating MCP server',
+        [ManageMcpToolOperation.delete]: 'Deleting MCP server',
+        [ManageMcpToolOperation.list]: 'Listing MCP servers',
+      },
+      'MCP server action'
+    )
+  }
+
+  if (name === ManageSkill.id) {
+    return resolveOperationDisplayTitle(
+      matchStreamingStringArg(streamingArgs, 'operation'),
+      {
+        [ManageSkillOperation.add]: 'Creating skill',
+        [ManageSkillOperation.edit]: 'Updating skill',
+        [ManageSkillOperation.delete]: 'Deleting skill',
+        [ManageSkillOperation.list]: 'Listing skills',
+      },
+      'Skill action'
+    )
+  }
+
+  if (name === ManageJob.id) {
+    return resolveOperationDisplayTitle(
+      matchStreamingStringArg(streamingArgs, 'operation'),
+      {
+        [ManageJobOperation.create]: 'Creating job',
+        [ManageJobOperation.get]: 'Getting job',
+        [ManageJobOperation.update]: 'Updating job',
+        [ManageJobOperation.delete]: 'Deleting job',
+        [ManageJobOperation.list]: 'Listing jobs',
+      },
+      'Job action'
+    )
+  }
+
+  if (name === ManageCredential.id) {
+    return resolveOperationDisplayTitle(
+      matchStreamingStringArg(streamingArgs, 'operation'),
+      {
+        [ManageCredentialOperation.rename]: 'Renaming credential',
+        [ManageCredentialOperation.delete]: 'Deleting credential',
+      },
+      'Credential action'
+    )
+  }
+
+  return undefined
+}
 
 type StreamToolUI = {
   hidden?: boolean
@@ -1068,35 +1398,8 @@ export function useChat(
                 if (idx !== undefined && blocks[idx].toolCall) {
                   const tc = blocks[idx].toolCall!
                   tc.streamingArgs = (tc.streamingArgs ?? '') + delta
-
-                  if (tc.name === WorkspaceFile.id) {
-                    const opMatch = tc.streamingArgs.match(/"operation"\s*:\s*"(\w+)"/)
-                    const op = opMatch?.[1] ?? ''
-                    const verb =
-                      op === 'create'
-                        ? 'Creating'
-                        : op === 'append'
-                          ? 'Adding'
-                          : op === 'patch'
-                            ? 'Editing'
-                            : op === 'update'
-                              ? 'Writing'
-                              : op === 'rename'
-                                ? 'Renaming'
-                                : op === 'delete'
-                                  ? 'Deleting'
-                                  : 'Writing'
-                    const titleMatch = tc.streamingArgs.match(/"title"\s*:\s*"([^"]*)"/)
-                    if (titleMatch?.[1]) {
-                      const unescaped = titleMatch[1]
-                        .replace(/\\u([0-9a-fA-F]{4})/g, (_: string, hex: string) =>
-                          String.fromCharCode(Number.parseInt(hex, 16))
-                        )
-                        .replace(/\\"/g, '"')
-                        .replace(/\\\\/g, '\\')
-                      tc.displayTitle = `${verb} ${unescaped}`
-                    }
-                  }
+                  const displayTitle = resolveStreamingToolDisplayTitle(tc.name, tc.streamingArgs)
+                  if (displayTitle) tc.displayTitle = displayTitle
 
                   flush()
                 }
@@ -1252,31 +1555,7 @@ export function useChat(
                 | Record<string, unknown>
                 | undefined
 
-              if (name === WorkspaceFile.id) {
-                const operation = typeof args?.operation === 'string' ? args.operation : ''
-                const verb =
-                  operation === 'create'
-                    ? 'Creating'
-                    : operation === 'append'
-                      ? 'Adding'
-                      : operation === 'patch'
-                        ? 'Editing'
-                        : operation === 'update'
-                          ? 'Writing'
-                          : operation === 'rename'
-                            ? 'Renaming'
-                            : operation === 'delete'
-                              ? 'Deleting'
-                              : 'Writing'
-                const chunkTitle = args?.title as string | undefined
-                const target = args ? asPayloadRecord(args.target) : undefined
-                const targetFileName = target?.fileName as string | undefined
-                if (chunkTitle) {
-                  displayTitle = `${verb} ${chunkTitle}`
-                } else if (targetFileName) {
-                  displayTitle = `${verb} ${targetFileName}`
-                }
-              }
+              displayTitle = resolveToolDisplayTitle(name, args) ?? displayTitle
 
               if (name === 'edit_content') {
                 const parentToolCallId =

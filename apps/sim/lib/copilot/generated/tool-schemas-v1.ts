@@ -513,6 +513,38 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  edit_content: {
+    parameters: {
+      type: 'object',
+      properties: {
+        content: {
+          type: 'string',
+          description:
+            'The text content to write. For append: text to append. For update: full replacement text. For patch with search_replace: the replacement text. For patch with anchored: the insert/replacement text.',
+        },
+      },
+      required: ['content'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'object',
+          description:
+            'Optional operation metadata such as file id, file name, size, and content type.',
+        },
+        message: {
+          type: 'string',
+          description: 'Human-readable summary of the outcome.',
+        },
+        success: {
+          type: 'boolean',
+          description: 'Whether the content was applied successfully.',
+        },
+      },
+      required: ['success', 'message'],
+    },
+  },
   edit_workflow: {
     parameters: {
       type: 'object',
@@ -928,10 +960,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description:
             'Glob pattern to match file paths. Supports * (any segment) and ** (any depth).',
         },
-        title: {
+        toolTitle: {
           type: 'string',
           description:
-            "Short human-readable label shown in the UI while this search runs (e.g. 'Finding workflow configs', 'Listing knowledge bases').",
+            'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "workflow configs" or "knowledge bases", not a full sentence like "Finding workflow configs".',
         },
       },
       required: ['pattern'],
@@ -975,10 +1007,10 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
           description: 'Regex pattern to search for in file contents.',
         },
-        title: {
+        toolTitle: {
           type: 'string',
           description:
-            "Short human-readable label shown in the UI while this search runs (e.g. 'Searching Slack integrations', 'Finding deployed workflows').",
+            'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "Slack integrations" or "deployed workflows", not a full sentence like "Searching for Slack integrations".',
         },
       },
       required: ['pattern'],
@@ -1936,6 +1968,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
           description: 'Natural language search query',
         },
+        toolTitle: {
+          type: 'string',
+          description:
+            'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "pricing changes" or "Slack webhook docs", not a full sentence like "Searching online for pricing changes".',
+        },
       },
       required: ['query'],
     },
@@ -2361,11 +2398,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'object',
           description: 'Explicit file target. Use kind=file_id + fileId for existing files.',
           properties: {
-            kind: {
-              type: 'string',
-              description: 'How the file target is identified.',
-              enum: ['new_file', 'file_id'],
-            },
             fileId: {
               type: 'string',
               description:
@@ -2375,6 +2407,11 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'string',
               description:
                 'Plain workspace filename including extension, e.g. "main.py" or "report.docx". Required when target.kind=new_file.',
+            },
+            kind: {
+              type: 'string',
+              description: 'How the file target is identified.',
+              enum: ['new_file', 'file_id'],
             },
           },
           required: ['kind'],
@@ -2404,35 +2441,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description:
             'Patch metadata. Use strategy=search_replace for exact text replacement, or strategy=anchored for line-based inserts/replacements/deletions. The actual replacement/insert content is provided via the paired edit_content tool call.',
           properties: {
-            strategy: {
-              type: 'string',
-              description: 'Patch strategy.',
-              enum: ['search_replace', 'anchored'],
-            },
-            search: {
-              type: 'string',
-              description:
-                'Exact text to find when strategy=search_replace. Must match exactly once unless replaceAll=true.',
-            },
-            replaceAll: {
-              type: 'boolean',
-              description:
-                'When true and strategy=search_replace, replace every match instead of requiring a unique single match.',
-            },
-            mode: {
-              type: 'string',
-              description: 'Anchored edit mode when strategy=anchored.',
-              enum: ['replace_between', 'insert_after', 'delete_between'],
-            },
-            occurrence: {
-              type: 'number',
-              description: '1-based occurrence for repeated anchor lines. Optional; defaults to 1.',
-            },
-            before_anchor: {
-              type: 'string',
-              description:
-                'Boundary line kept before inserted replacement content. Required for mode=replace_between.',
-            },
             after_anchor: {
               type: 'string',
               description:
@@ -2443,15 +2451,49 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               description:
                 'Anchor line after which new content is inserted. Required for mode=insert_after.',
             },
-            start_anchor: {
+            before_anchor: {
               type: 'string',
-              description: 'First line to delete. Required for mode=delete_between.',
+              description:
+                'Boundary line kept before inserted replacement content. Required for mode=replace_between.',
             },
             end_anchor: {
               type: 'string',
               description: 'First line to keep after deletion. Required for mode=delete_between.',
             },
+            mode: {
+              type: 'string',
+              description: 'Anchored edit mode when strategy=anchored.',
+              enum: ['replace_between', 'insert_after', 'delete_between'],
+            },
+            occurrence: {
+              type: 'number',
+              description: '1-based occurrence for repeated anchor lines. Optional; defaults to 1.',
+            },
+            replaceAll: {
+              type: 'boolean',
+              description:
+                'When true and strategy=search_replace, replace every match instead of requiring a unique single match.',
+            },
+            search: {
+              type: 'string',
+              description:
+                'Exact text to find when strategy=search_replace. Must match exactly once unless replaceAll=true.',
+            },
+            start_anchor: {
+              type: 'string',
+              description: 'First line to delete. Required for mode=delete_between.',
+            },
+            strategy: {
+              type: 'string',
+              description: 'Patch strategy.',
+              enum: ['search_replace', 'anchored'],
+            },
           },
+        },
+        newName: {
+          type: 'string',
+          description:
+            'New file name for rename. Must be a plain workspace filename like "main.py".',
         },
       },
       required: ['operation', 'target', 'title'],
@@ -2471,38 +2513,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         success: {
           type: 'boolean',
           description: 'Whether the file operation succeeded.',
-        },
-      },
-      required: ['success', 'message'],
-    },
-  },
-  edit_content: {
-    parameters: {
-      type: 'object',
-      properties: {
-        content: {
-          type: 'string',
-          description:
-            'The text content to write. For append: text to append. For update: full replacement text. For patch with search_replace: the replacement text. For patch with anchored: the insert/replacement text.',
-        },
-      },
-      required: ['content'],
-    },
-    resultSchema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          description:
-            'Optional operation metadata such as file id, file name, size, and content type.',
-        },
-        message: {
-          type: 'string',
-          description: 'Human-readable summary of the outcome.',
-        },
-        success: {
-          type: 'boolean',
-          description: 'Whether the content was applied successfully.',
         },
       },
       required: ['success', 'message'],
