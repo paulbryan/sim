@@ -732,5 +732,13 @@ function shouldApplyPatchPreview(streamingFile: {
 function buildAppendPreview(existingContent: string, incomingContent: string): string {
   if (incomingContent.length === 0) return existingContent
   if (existingContent.length === 0) return incomingContent
+  // The fetched file can advance to the just-written content before the
+  // streaming preview clears. Keep append previews idempotent in that window.
+  if (
+    existingContent.endsWith(incomingContent) ||
+    existingContent.endsWith(`\n${incomingContent}`)
+  ) {
+    return existingContent
+  }
   return `${existingContent}\n${incomingContent}`
 }
