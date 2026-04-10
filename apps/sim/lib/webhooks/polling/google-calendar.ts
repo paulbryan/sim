@@ -141,7 +141,7 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
       )
 
       const newTimestamp =
-        processedCount === 0 && failedCount > 0
+        failedCount > 0
           ? config.lastCheckedTimestamp
           : latestUpdated
             ? new Date(new Date(latestUpdated).getTime() + 1).toISOString()
