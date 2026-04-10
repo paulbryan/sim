@@ -111,7 +111,7 @@ function createCustomComponents(LinkComponent: typeof LinkWithPreview) {
     },
 
     inlineCode: ({ children }: { children?: React.ReactNode }) => (
-      <code className='rounded bg-gray-200 px-1 py-0.5 font-mono text-[0.9em] text-gray-800 dark:bg-gray-700 dark:text-gray-200'>
+      <code className='rounded bg-gray-200 px-1 py-0.5 font-mono text-inherit text-gray-800 dark:bg-gray-700 dark:text-gray-200'>
         {children}
       </code>
     ),

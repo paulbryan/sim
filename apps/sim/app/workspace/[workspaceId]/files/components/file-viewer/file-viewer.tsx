@@ -204,7 +204,13 @@ interface FileViewerProps {
 
 function isCodeFile(file: { type: string; name: string }): boolean {
   const ext = getFileExtension(file.name)
-  return SUPPORTED_CODE_EXTENSIONS.includes(ext as (typeof SUPPORTED_CODE_EXTENSIONS)[number])
+  return (
+    SUPPORTED_CODE_EXTENSIONS.includes(ext as (typeof SUPPORTED_CODE_EXTENSIONS)[number]) ||
+    ext === 'html' ||
+    ext === 'htm' ||
+    ext === 'xml' ||
+    ext === 'svg'
+  )
 }
 
 function resolveCodeEditorLanguage(file: { type: string; name: string }): CodeEditorLanguage {
