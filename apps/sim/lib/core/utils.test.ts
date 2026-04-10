@@ -1,6 +1,5 @@
 import { createEnvMock } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -311,28 +310,3 @@ describe('getInvalidCharacters', () => {
   })
 })
 
-describe('getRotatingApiKey', () => {
-  it.concurrent('should return OpenAI API key based on current minute', () => {
-    const result = getRotatingApiKey('openai')
-    expect(result).toMatch(/^test-openai-key-[1-3]$/)
-  })
-
-  it.concurrent('should return Anthropic API key based on current minute', () => {
-    const result = getRotatingApiKey('anthropic')
-    expect(result).toMatch(/^test-anthropic-key-[1-3]$/)
-  })
-
-  it.concurrent('should return Gemini API key based on current minute', () => {
-    const result = getRotatingApiKey('gemini')
-    expect(result).toMatch(/^test-gemini-key-[1-3]$/)
-  })
-
-  it.concurrent('should throw error for unsupported provider', () => {
-    expect(() => getRotatingApiKey('unsupported')).toThrow('No rotation implemented for provider')
-  })
-
-  it.concurrent('should rotate keys based on minute modulo', () => {
-    const result = getRotatingApiKey('openai')
-    expect(['test-openai-key-1', 'test-openai-key-2', 'test-openai-key-3']).toContain(result)
-  })
-})

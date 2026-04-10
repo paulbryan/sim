@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getBYOKKey } from '@/lib/api-key/byok'
+import { acquireHostedKey, calculateHostedCost } from '@/lib/api-key/hosted-key'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
@@ -19,10 +19,8 @@ import type { ExecutionContext } from '@/executor/types'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import type {
-  BYOKProviderId,
   OAuthTokenPayload,
   ToolConfig,
-  ToolHostingPricing,
   ToolResponse,
   ToolRetryConfig,
 } from '@/tools/types'
@@ -68,8 +66,9 @@ interface HostedKeyInjectionResult {
 
 /**
  * Inject hosted API key if tool supports it and user didn't provide one.
- * Checks BYOK workspace keys first, then uses the HostedKeyRateLimiter for round-robin key selection.
- * Returns whether a hosted (billable) key was injected and which env var it came from.
+ * Delegates to the shared {@link acquireHostedKey} helper for the BYOK →
+ * rate-limiter → 429/503 ladder; this wrapper adds tool-specific concerns
+ * (parameter injection, telemetry, the `{ isUsingHostedKey, envVarName }` return shape).
  */
 async function injectHostedKeyIfNeeded(
   tool: ToolConfig,
@@ -80,80 +79,50 @@ async function injectHostedKeyIfNeeded(
   if (!tool.hosting) return { isUsingHostedKey: false }
   if (!isHosted) return { isUsingHostedKey: false }
 
-  const { envKeyPrefix, apiKeyParam, byokProviderId, rateLimit } = tool.hosting
-
   const { workspaceId, userId, workflowId } = resolveToolScope(params, executionContext)
-
-  // Check BYOK workspace key first
-  if (byokProviderId && workspaceId) {
-    try {
-      const byokResult = await getBYOKKey(workspaceId, byokProviderId as BYOKProviderId)
-      if (byokResult) {
-        params[apiKeyParam] = byokResult.apiKey
-        logger.info(`[${requestId}] Using BYOK key for ${tool.id}`)
-        return { isUsingHostedKey: false } // Don't bill - user's own key
-      }
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to get BYOK key for ${tool.id}:`, error)
-      // Fall through to hosted key
-    }
-  }
-
-  const rateLimiter = getHostedKeyRateLimiter()
-  const provider = byokProviderId || tool.id
-  const billingActorId = workspaceId
-
-  if (!billingActorId) {
+  if (!workspaceId) {
     logger.error(`[${requestId}] No workspace ID available for hosted key rate limiting`)
     return { isUsingHostedKey: false }
   }
 
-  const acquireResult = await rateLimiter.acquireKey(
-    provider,
-    envKeyPrefix,
-    rateLimit,
-    billingActorId
-  )
+  try {
+    const result = await acquireHostedKey(tool.hosting, workspaceId, tool.id)
 
-  if (!acquireResult.success && acquireResult.billingActorRateLimited) {
-    logger.warn(`[${requestId}] Billing actor ${billingActorId} rate limited for ${tool.id}`, {
-      provider,
-      retryAfterMs: acquireResult.retryAfterMs,
+    params[tool.hosting.apiKeyParam] = result.apiKey
+
+    if (result.isBYOK) {
+      logger.info(`[${requestId}] Using BYOK key for ${tool.id}`)
+      return { isUsingHostedKey: false } // Don't bill - user's own key
+    }
+
+    logger.info(`[${requestId}] Using hosted key for ${tool.id} (${result.envVarName})`, {
+      keyIndex: result.keyIndex,
+      provider: tool.hosting.byokProviderId || tool.id,
     })
-
-    PlatformEvents.hostedKeyUserThrottled({
-      toolId: tool.id,
-      reason: 'billing_actor_limit',
-      provider,
-      retryAfterMs: acquireResult.retryAfterMs ?? 0,
-      userId,
-      workspaceId,
-      workflowId,
-    })
-
-    const error = new Error(acquireResult.error || `Rate limit exceeded for ${tool.id}`)
-    ;(error as any).status = 429
-    ;(error as any).retryAfterMs = acquireResult.retryAfterMs
+    return { isUsingHostedKey: true, envVarName: result.envVarName }
+  } catch (error) {
+    const status = (error as { status?: number }).status
+    if (status === 429) {
+      const retryAfterMs = (error as { retryAfterMs?: number }).retryAfterMs
+      logger.warn(`[${requestId}] Billing actor ${workspaceId} rate limited for ${tool.id}`, {
+        provider: tool.hosting.byokProviderId || tool.id,
+        retryAfterMs,
+      })
+      PlatformEvents.hostedKeyUserThrottled({
+        toolId: tool.id,
+        reason: 'billing_actor_limit',
+        provider: tool.hosting.byokProviderId || tool.id,
+        retryAfterMs: retryAfterMs ?? 0,
+        userId,
+        workspaceId,
+        workflowId,
+      })
+    } else if (status === 503) {
+      logger.error(
+        `[${requestId}] No hosted keys configured for ${tool.id}: ${(error as Error).message}`
+      )
+    }
     throw error
-  }
-
-  // Handle no keys configured (503)
-  if (!acquireResult.success) {
-    logger.error(`[${requestId}] No hosted keys configured for ${tool.id}: ${acquireResult.error}`)
-    const error = new Error(acquireResult.error || `No hosted keys configured for ${tool.id}`)
-    ;(error as any).status = 503
-    throw error
-  }
-
-  params[apiKeyParam] = acquireResult.key
-  logger.info(`[${requestId}] Using hosted key for ${tool.id} (${acquireResult.envVarName})`, {
-    keyIndex: acquireResult.keyIndex,
-    provider,
-  })
-
-  return {
-    isUsingHostedKey: true,
-    envVarName: acquireResult.envVarName,
   }
 }
 
@@ -241,39 +210,6 @@ async function executeWithRetry<T>(
   throw lastError
 }
 
-/** Result from cost calculation */
-interface ToolCostResult {
-  cost: number
-  metadata?: Record<string, unknown>
-}
-
-/**
- * Calculate cost based on pricing model
- */
-function calculateToolCost(
-  pricing: ToolHostingPricing,
-  params: Record<string, unknown>,
-  response: Record<string, unknown>
-): ToolCostResult {
-  switch (pricing.type) {
-    case 'per_request':
-      return { cost: pricing.cost }
-
-    case 'custom': {
-      const result = pricing.getCost(params, response)
-      if (typeof result === 'number') {
-        return { cost: result }
-      }
-      return result
-    }
-
-    default: {
-      const exhaustiveCheck: never = pricing
-      throw new Error(`Unknown pricing type: ${(exhaustiveCheck as ToolHostingPricing).type}`)
-    }
-  }
-}
-
 interface HostedKeyCostResult {
   cost: number
   metadata?: Record<string, unknown>
@@ -281,7 +217,8 @@ interface HostedKeyCostResult {
 
 /**
  * Calculate and log hosted key cost for a tool execution.
- * Logs to usageLog for audit trail and returns cost + metadata for output.
+ * Delegates to the shared {@link calculateHostedCost} helper, then adds
+ * tool-specific logging.
  */
 async function processHostedKeyCost(
   tool: ToolConfig,
@@ -294,7 +231,7 @@ async function processHostedKeyCost(
     return { cost: 0 }
   }
 
-  const { cost, metadata } = calculateToolCost(tool.hosting.pricing, params, response)
+  const { cost, metadata } = calculateHostedCost(tool.hosting.pricing, params, response)
 
   if (cost <= 0) return { cost: 0 }
 

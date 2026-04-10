@@ -1,19 +1,24 @@
 import { createLogger } from '@sim/logger'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
-import { getCostMultiplier } from '@/lib/core/config/feature-flags'
+import { calculateHostedCost } from '@/lib/api-key/hosted-key'
 import type { StreamingExecution } from '@/executor/types'
+import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { getProviderExecutor } from '@/providers/registry'
-import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
+import type { ModelPricing, ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
-  calculateCost,
   generateStructuredOutputInstructions,
-  shouldBillModelUsage,
   sumToolCosts,
   supportsReasoningEffort,
   supportsTemperature,
   supportsThinking,
   supportsVerbosity,
 } from '@/providers/utils'
+
+const ZERO_PRICING: ModelPricing = {
+  input: 0,
+  output: 0,
+  updatedAt: new Date(0).toISOString(),
+}
 
 const logger = createLogger('Providers')
 
@@ -67,7 +72,7 @@ export async function executeProviderRequest(
     throw new Error(`Provider ${providerId} does not implement executeRequest`)
   }
 
-  let resolvedRequest = sanitizeRequest(request)
+  const resolvedRequest = sanitizeRequest(request) as ProviderRequest & Record<string, unknown>
   let isBYOK = false
 
   if (request.workspaceId) {
@@ -78,7 +83,8 @@ export async function executeProviderRequest(
         request.workspaceId,
         request.apiKey
       )
-      resolvedRequest = { ...resolvedRequest, apiKey: result.apiKey }
+      const apiKeyField = PROVIDER_DEFINITIONS[providerId]?.hosting?.apiKeyParam ?? 'apiKey'
+      resolvedRequest[apiKeyField] = result.apiKey
       isBYOK = result.isBYOK
     } catch (error) {
       logger.error('Failed to resolve API key:', {
@@ -128,36 +134,36 @@ export async function executeProviderRequest(
   }
 
   if (response.tokens) {
-    const { input: promptTokens = 0, output: completionTokens = 0 } = response.tokens
-    const useCachedInput = !!request.context && request.context.length > 0
-
-    const shouldBill = shouldBillModelUsage(response.model) && !isBYOK
-    if (shouldBill) {
-      const costMultiplier = getCostMultiplier()
-      response.cost = calculateCost(
-        response.model,
-        promptTokens,
-        completionTokens,
-        useCachedInput,
-        costMultiplier,
-        costMultiplier
+    const hostingPricing = PROVIDER_DEFINITIONS[providerId]?.hosting?.pricing
+    if (hostingPricing && !isBYOK) {
+      const result = calculateHostedCost(
+        hostingPricing,
+        sanitizedRequest as unknown as Record<string, unknown>,
+        response as unknown as Record<string, unknown>
       )
+      const meta = (result.metadata ?? {}) as {
+        input?: number
+        output?: number
+        pricing?: ModelPricing
+      }
+      response.cost = {
+        input: meta.input ?? 0,
+        output: meta.output ?? 0,
+        total: result.cost,
+        pricing: meta.pricing ?? ZERO_PRICING,
+      }
     } else {
       response.cost = {
         input: 0,
         output: 0,
         total: 0,
-        pricing: {
-          input: 0,
-          output: 0,
-          updatedAt: new Date().toISOString(),
-        },
+        pricing: { ...ZERO_PRICING, updatedAt: new Date().toISOString() },
       }
       if (isBYOK) {
         logger.debug(`Not billing model usage for ${response.model} - workspace BYOK key used`)
       } else {
         logger.debug(
-          `Not billing model usage for ${response.model} - user provided API key or not hosted model`
+          `Not billing model usage for ${response.model} - provider has no hosting.pricing or non-hosted model`
         )
       }
     }

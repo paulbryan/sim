@@ -1,5 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as environmentModule from '@/lib/core/config/feature-flags'
+import { describe, expect, it } from 'vitest'
 import {
   calculateCost,
   extractAndParseJSON,
@@ -9,7 +8,6 @@ import {
   getAllModelProviders,
   getAllModels,
   getAllProviderIds,
-  getApiKey,
   getBaseModelProviders,
   getHostedModels,
   getMaxOutputTokensForModel,
@@ -32,7 +30,6 @@ import {
   PROVIDERS_WITH_TOOL_USAGE_CONTROL,
   prepareToolExecution,
   prepareToolsWithUsageControl,
-  shouldBillModelUsage,
   supportsReasoningEffort,
   supportsTemperature,
   supportsThinking,
@@ -40,135 +37,6 @@ import {
   supportsVerbosity,
   updateOllamaProviderModels,
 } from '@/providers/utils'
-
-const isHostedSpy = vi.spyOn(environmentModule, 'isHosted', 'get') as unknown as {
-  mockReturnValue: (value: boolean) => void
-}
-const mockGetRotatingApiKey = vi.fn().mockReturnValue('rotating-server-key')
-const originalRequire = module.require
-
-describe('getApiKey', () => {
-  const originalEnv = { ...process.env }
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-
-    isHostedSpy.mockReturnValue(false)
-
-    module.require = vi.fn(() => ({
-      getRotatingApiKey: mockGetRotatingApiKey,
-    }))
-  })
-
-  afterEach(() => {
-    process.env = { ...originalEnv }
-    module.require = originalRequire
-  })
-
-  it.concurrent('should return user-provided key when not in hosted environment', () => {
-    isHostedSpy.mockReturnValue(false)
-
-    const key1 = getApiKey('openai', 'gpt-4', 'user-key-openai')
-    expect(key1).toBe('user-key-openai')
-
-    const key2 = getApiKey('anthropic', 'claude-3', 'user-key-anthropic')
-    expect(key2).toBe('user-key-anthropic')
-
-    const key3 = getApiKey('google', 'gemini-2.5-flash', 'user-key-google')
-    expect(key3).toBe('user-key-google')
-  })
-
-  it.concurrent('should throw error if no key provided in non-hosted environment', () => {
-    isHostedSpy.mockReturnValue(false)
-
-    expect(() => getApiKey('openai', 'gpt-4')).toThrow('API key is required for openai gpt-4')
-    expect(() => getApiKey('anthropic', 'claude-3')).toThrow(
-      'API key is required for anthropic claude-3'
-    )
-  })
-
-  it.concurrent('should fall back to user key in hosted environment if rotation fails', () => {
-    isHostedSpy.mockReturnValue(true)
-
-    module.require = vi.fn(() => {
-      throw new Error('Rotation failed')
-    })
-
-    const key = getApiKey('openai', 'gpt-4o', 'user-fallback-key')
-    expect(key).toBe('user-fallback-key')
-  })
-
-  it.concurrent(
-    'should throw error in hosted environment if rotation fails and no user key',
-    () => {
-      isHostedSpy.mockReturnValue(true)
-
-      module.require = vi.fn(() => {
-        throw new Error('Rotation failed')
-      })
-
-      expect(() => getApiKey('openai', 'gpt-4o')).toThrow('No API key available for openai gpt-4o')
-    }
-  )
-
-  it.concurrent(
-    'should require user key for non-OpenAI/Anthropic providers even in hosted environment',
-    () => {
-      isHostedSpy.mockReturnValue(true)
-
-      const key = getApiKey('other-provider', 'some-model', 'user-key')
-      expect(key).toBe('user-key')
-
-      expect(() => getApiKey('other-provider', 'some-model')).toThrow(
-        'API key is required for other-provider some-model'
-      )
-    }
-  )
-
-  it.concurrent(
-    'should require user key for models NOT in hosted list even if provider matches',
-    () => {
-      isHostedSpy.mockReturnValue(true)
-
-      const key1 = getApiKey('anthropic', 'claude-sonnet-4-20250514', 'user-key-anthropic')
-      expect(key1).toBe('user-key-anthropic')
-
-      expect(() => getApiKey('anthropic', 'claude-sonnet-4-20250514')).toThrow(
-        'API key is required for anthropic claude-sonnet-4-20250514'
-      )
-
-      const key2 = getApiKey('openai', 'gpt-4o-2024-08-06', 'user-key-openai')
-      expect(key2).toBe('user-key-openai')
-
-      expect(() => getApiKey('openai', 'gpt-4o-2024-08-06')).toThrow(
-        'API key is required for openai gpt-4o-2024-08-06'
-      )
-    }
-  )
-
-  it.concurrent('should return empty for ollama provider without requiring API key', () => {
-    isHostedSpy.mockReturnValue(false)
-
-    const key = getApiKey('ollama', 'llama2')
-    expect(key).toBe('empty')
-
-    const key2 = getApiKey('ollama', 'codellama', 'user-key')
-    expect(key2).toBe('empty')
-  })
-
-  it.concurrent(
-    'should return empty or user-provided key for vllm provider without requiring API key',
-    () => {
-      isHostedSpy.mockReturnValue(false)
-
-      const key = getApiKey('vllm', 'vllm/qwen-3')
-      expect(key).toBe('empty')
-
-      const key2 = getApiKey('vllm', 'vllm/llama', 'user-key')
-      expect(key2).toBe('user-key')
-    }
-  )
-})
 
 describe('Model Capabilities', () => {
   describe('supportsTemperature', () => {
@@ -824,44 +692,6 @@ describe('getHostedModels', () => {
     hostedModels.forEach((model) => {
       expect(typeof model).toBe('string')
     })
-  })
-})
-
-describe('shouldBillModelUsage', () => {
-  it.concurrent('should return true for exact matches of hosted models', () => {
-    expect(shouldBillModelUsage('gpt-4o')).toBe(true)
-    expect(shouldBillModelUsage('o1')).toBe(true)
-
-    expect(shouldBillModelUsage('claude-sonnet-4-0')).toBe(true)
-    expect(shouldBillModelUsage('claude-opus-4-0')).toBe(true)
-
-    expect(shouldBillModelUsage('gemini-2.5-pro')).toBe(true)
-    expect(shouldBillModelUsage('gemini-2.5-flash')).toBe(true)
-  })
-
-  it.concurrent('should return false for non-hosted models', () => {
-    expect(shouldBillModelUsage('deepseek-v3')).toBe(false)
-    expect(shouldBillModelUsage('grok-4-latest')).toBe(false)
-
-    expect(shouldBillModelUsage('unknown-model')).toBe(false)
-  })
-
-  it.concurrent('should return false for versioned model names not in hosted list', () => {
-    expect(shouldBillModelUsage('claude-sonnet-4-20250514')).toBe(false)
-    expect(shouldBillModelUsage('gpt-4o-2024-08-06')).toBe(false)
-    expect(shouldBillModelUsage('claude-3-5-sonnet-20241022')).toBe(false)
-  })
-
-  it.concurrent('should be case insensitive', () => {
-    expect(shouldBillModelUsage('GPT-4O')).toBe(true)
-    expect(shouldBillModelUsage('Claude-Sonnet-4-0')).toBe(true)
-    expect(shouldBillModelUsage('GEMINI-2.5-PRO')).toBe(true)
-  })
-
-  it.concurrent('should not match partial model names', () => {
-    expect(shouldBillModelUsage('gpt-4')).toBe(false)
-    expect(shouldBillModelUsage('claude-sonnet')).toBe(false)
-    expect(shouldBillModelUsage('gemini')).toBe(false)
   })
 })
 

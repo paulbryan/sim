@@ -44,9 +44,7 @@ vi.mock('@/lib/core/config/environment', () => ({
   isHosted: false,
 }))
 
-vi.mock('@/lib/core/config/api-keys', () => ({
-  getRotatingApiKey: vi.fn(),
-}))
+vi.mock('@/lib/core/config/api-keys', () => ({}))
 
 // Tools module
 vi.mock('@/tools')

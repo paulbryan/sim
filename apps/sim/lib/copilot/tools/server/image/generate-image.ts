@@ -5,7 +5,8 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { getRotatingApiKey } from '@/lib/core/config/api-keys'
+import { acquireHostedKey } from '@/lib/api-key/hosted-key'
+import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
   downloadWorkspaceFile,
@@ -76,8 +77,12 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
     }
 
     try {
-      const apiKey = getRotatingApiKey('gemini')
-      const ai = new GoogleGenAI({ apiKey })
+      const googleHosting = PROVIDER_DEFINITIONS.google?.hosting
+      if (!googleHosting) {
+        throw new Error('No hosted key config for google')
+      }
+      const acquired = await acquireHostedKey(googleHosting, workspaceId, 'gemini-image')
+      const ai = new GoogleGenAI({ apiKey: acquired.apiKey })
 
       const aspectRatio = params.aspectRatio || '1:1'
       const sizeHint = ASPECT_RATIO_TO_SIZE[aspectRatio]

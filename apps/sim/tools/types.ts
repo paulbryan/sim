@@ -175,7 +175,7 @@ export interface ToolConfig<P = any, R = any> {
    * When configured, the tool can use Sim's hosted API keys if user doesn't provide their own.
    * Usage is billed according to the pricing config.
    */
-  hosting?: ToolHostingConfig<P>
+  hosting?: HostingConfig<P>
 }
 
 export interface TableRow {
@@ -274,11 +274,15 @@ export interface CustomPricing<P = Record<string, unknown>> {
 }
 
 /** Union of all pricing models */
-export type ToolHostingPricing<P = Record<string, unknown>> = PerRequestPricing | CustomPricing<P>
+export type HostingPricing<P = Record<string, unknown>> = PerRequestPricing | CustomPricing<P>
+
+/** @deprecated Use {@link HostingPricing} */
+export type ToolHostingPricing<P = Record<string, unknown>> = HostingPricing<P>
 
 /**
  * Configuration for hosted API key support.
- * When configured, the tool can use Sim's hosted API keys if user doesn't provide their own.
+ * Used by both tools (e.g. Exa) and LLM providers to declare that the platform
+ * supplies rate-limited keys for this resource and BYOK workspace keys take precedence.
  *
  * ### Hosted key env var convention
  *
@@ -300,19 +304,27 @@ export type ToolHostingPricing<P = Record<string, unknown>> = PerRequestPricing 
  * Adding more keys only requires updating the count and adding the new env var —
  * no code changes needed.
  */
-export interface ToolHostingConfig<P = Record<string, unknown>> {
+export interface HostingConfig<P = Record<string, unknown>> {
   /**
    * Env var name prefix for hosted keys.
    * At runtime, `{envKeyPrefix}_COUNT` is read to determine how many keys exist,
    * then `{envKeyPrefix}_1` through `{envKeyPrefix}_N` are resolved.
    */
   envKeyPrefix: string
-  /** The parameter name that receives the API key */
+  /**
+   * Name of the field on the downstream request/params that receives the
+   * resolved API key. For tools this is whatever the tool's request body
+   * expects (commonly `'apiKey'`). For LLM providers this is `'apiKey'` —
+   * the typed field on `ProviderRequest`.
+   */
   apiKeyParam: string
   /** BYOK provider ID for workspace key lookup */
   byokProviderId?: BYOKProviderId
-  /** Pricing when using hosted key */
-  pricing: ToolHostingPricing<P>
+  /** Pricing for usage of the hosted key */
+  pricing: HostingPricing<P>
   /** Hosted key rate limit configuration (required for hosted key distribution) */
   rateLimit: HostedKeyRateLimitConfig
 }
+
+/** @deprecated Use {@link HostingConfig} */
+export type ToolHostingConfig<P = Record<string, unknown>> = HostingConfig<P>

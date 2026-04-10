@@ -25,6 +25,8 @@ import {
   VllmIcon,
   xAIIcon,
 } from '@/components/icons'
+import type { HostingConfig } from '@/lib/api-key/hosted-key'
+import { buildLlmTokenPricing } from '@/providers/llm-token-pricing'
 import type { ModelPricing, ProviderId } from '@/providers/types'
 
 export interface ModelCapabilities {
@@ -69,6 +71,12 @@ export interface ProviderDefinition {
   icon?: React.ComponentType<{ className?: string }>
   capabilities?: ModelCapabilities
   contextInformationAvailable?: boolean
+  /**
+   * Hosted-key configuration. When set, the platform supplies rate-limited API
+   * keys for this provider and BYOK workspace keys take precedence. See
+   * {@link HostingConfig} for the shared shape used by tools and providers alike.
+   */
+  hosting?: HostingConfig
 }
 
 export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
@@ -122,6 +130,13 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     icon: OpenAIIcon,
     capabilities: {
       toolUsageControl: true,
+    },
+    hosting: {
+      envKeyPrefix: 'OPENAI_API_KEY',
+      apiKeyParam: 'apiKey',
+      byokProviderId: 'openai',
+      rateLimit: { mode: 'per_request', requestsPerMinute: 10000 },
+      pricing: buildLlmTokenPricing(),
     },
     models: [
       // GPT-4.1 family
@@ -477,6 +492,13 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     icon: AnthropicIcon,
     capabilities: {
       toolUsageControl: true,
+    },
+    hosting: {
+      envKeyPrefix: 'ANTHROPIC_API_KEY',
+      apiKeyParam: 'apiKey',
+      byokProviderId: 'anthropic',
+      rateLimit: { mode: 'per_request', requestsPerMinute: 10000 },
+      pricing: buildLlmTokenPricing(),
     },
     models: [
       {
@@ -1050,6 +1072,13 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     modelPatterns: [/^gemini/, /^deep-research/],
     capabilities: {
       toolUsageControl: true,
+    },
+    hosting: {
+      envKeyPrefix: 'GEMINI_API_KEY',
+      apiKeyParam: 'apiKey',
+      byokProviderId: 'google',
+      rateLimit: { mode: 'per_request', requestsPerMinute: 10000 },
+      pricing: buildLlmTokenPricing(),
     },
     icon: GeminiIcon,
     models: [
@@ -1731,6 +1760,13 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     icon: MistralIcon,
     capabilities: {
       toolUsageControl: true,
+    },
+    hosting: {
+      envKeyPrefix: 'MISTRAL_API_KEY',
+      apiKeyParam: 'apiKey',
+      byokProviderId: 'mistral',
+      rateLimit: { mode: 'per_request', requestsPerMinute: 10000 },
+      pricing: buildLlmTokenPricing(),
     },
     models: [
       {
@@ -2602,11 +2638,15 @@ export function getProvidersWithToolUsageControl(): string[] {
 }
 
 export function getHostedModels(): string[] {
-  return [
-    ...getProviderModels('openai'),
-    ...getProviderModels('anthropic'),
-    ...getProviderModels('google'),
-  ]
+  const models: string[] = []
+  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
+    if (provider.hosting) {
+      for (const model of provider.models) {
+        models.push(model.id)
+      }
+    }
+  }
+  return models
 }
 
 export function getComputerUseModels(): string[] {

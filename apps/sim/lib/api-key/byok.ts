@@ -2,12 +2,12 @@ import { db } from '@sim/db'
 import { workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
-import { getRotatingApiKey } from '@/lib/core/config/api-keys'
+import { acquireHostedKey } from '@/lib/api-key/hosted-key'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
-import { getHostedModels } from '@/providers/models'
+import { getHostedModels, PROVIDER_DEFINITIONS } from '@/providers/models'
 import { PROVIDER_PLACEHOLDER_KEY } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 import type { BYOKProviderId } from '@/tools/types'
@@ -107,41 +107,26 @@ export async function getApiKeyWithBYOK(
     return { apiKey: userProvidedKey || env.AZURE_ANTHROPIC_API_KEY || '', isBYOK: false }
   }
 
-  const isOpenAIModel = provider === 'openai'
-  const isClaudeModel = provider === 'anthropic'
-  const isGeminiModel = provider === 'google'
-  const isMistralModel = provider === 'mistral'
+  const hosting = PROVIDER_DEFINITIONS[provider]?.hosting
 
-  const byokProviderId = isGeminiModel ? 'google' : (provider as BYOKProviderId)
-
-  if (
-    isHosted &&
-    workspaceId &&
-    (isOpenAIModel || isClaudeModel || isGeminiModel || isMistralModel)
-  ) {
+  if (isHosted && workspaceId && hosting) {
     const hostedModels = getHostedModels()
     const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())
 
     logger.debug('BYOK check', { provider, model, workspaceId, isHosted, isModelHosted })
 
-    if (isModelHosted || isMistralModel) {
-      const byokResult = await getBYOKKey(workspaceId, byokProviderId)
-      if (byokResult) {
-        logger.info('Using BYOK key', { provider, model, workspaceId })
-        return byokResult
-      }
-      logger.debug('No BYOK key found, falling back', { provider, model, workspaceId })
-
-      if (isModelHosted) {
-        try {
-          const serverKey = getRotatingApiKey(isGeminiModel ? 'gemini' : provider)
-          return { apiKey: serverKey, isBYOK: false }
-        } catch (_error) {
-          if (userProvidedKey) {
-            return { apiKey: userProvidedKey, isBYOK: false }
-          }
-          throw new Error(`No API key available for ${provider} ${model}`)
+    if (isModelHosted) {
+      try {
+        const result = await acquireHostedKey(hosting, workspaceId, `${provider} ${model}`)
+        return { apiKey: result.apiKey, isBYOK: result.isBYOK }
+      } catch (error) {
+        const status = (error as { status?: number }).status
+        // Fall back to user-provided key only when no platform keys are configured.
+        // Rate-limit (429) errors must surface so the workspace gets the right signal.
+        if (status === 503 && userProvidedKey) {
+          return { apiKey: userProvidedKey, isBYOK: false }
         }
+        throw error
       }
     }
   }

@@ -4,7 +4,6 @@ import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { env } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/feature-flags'
 import {
   buildCanonicalIndex,
   type CanonicalGroup,
@@ -39,7 +38,6 @@ import {
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
-import { useProvidersStore } from '@/stores/providers/store'
 import { mergeToolParameters } from '@/tools/params'
 
 const logger = createLogger('ProviderUtils')
@@ -708,77 +706,11 @@ export function getHostedModels(): string[] {
 }
 
 /**
- * Determine if model usage should be billed to the user
- *
- * @param model The model name
- * @returns true if the usage should be billed to the user
- */
-export function shouldBillModelUsage(model: string): boolean {
-  const hostedModels = getHostedModels()
-  return hostedModels.some((hostedModel) => model.toLowerCase() === hostedModel.toLowerCase())
-}
-
-/**
  * Placeholder returned for providers that use their own credential mechanism
  * rather than a user-supplied API key (e.g. AWS Bedrock via IAM/instance profiles).
  * Must be truthy so upstream key-presence checks don't reject it.
  */
 export const PROVIDER_PLACEHOLDER_KEY = 'provider-uses-own-credentials'
-
-/**
- * Get an API key for a specific provider, handling rotation and fallbacks
- * For use server-side only
- */
-export function getApiKey(provider: string, model: string, userProvidedKey?: string): string {
-  const hasUserKey = !!userProvidedKey
-
-  const isOllamaModel =
-    provider === 'ollama' || useProvidersStore.getState().providers.ollama.models.includes(model)
-  if (isOllamaModel) {
-    return 'empty'
-  }
-
-  const isVllmModel =
-    provider === 'vllm' || useProvidersStore.getState().providers.vllm.models.includes(model)
-  if (isVllmModel) {
-    return userProvidedKey || 'empty'
-  }
-
-  // Bedrock uses its own credentials (bedrockAccessKeyId/bedrockSecretKey), not apiKey
-  const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
-  if (isBedrockModel) {
-    return PROVIDER_PLACEHOLDER_KEY
-  }
-
-  const isOpenAIModel = provider === 'openai'
-  const isClaudeModel = provider === 'anthropic'
-  const isGeminiModel = provider === 'google'
-
-  if (isHosted && (isOpenAIModel || isClaudeModel || isGeminiModel)) {
-    const hostedModels = getHostedModels()
-    const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())
-
-    if (isModelHosted) {
-      try {
-        const { getRotatingApiKey } = require('@/lib/core/config/api-keys')
-        const serverKey = getRotatingApiKey(isGeminiModel ? 'gemini' : provider)
-        return serverKey
-      } catch (_error) {
-        if (hasUserKey) {
-          return userProvidedKey!
-        }
-
-        throw new Error(`No API key available for ${provider} ${model}`)
-      }
-    }
-  }
-
-  if (!hasUserKey) {
-    throw new Error(`API key is required for ${provider} ${model}`)
-  }
-
-  return userProvidedKey!
-}
 
 /**
  * Prepares tool configuration for provider requests with consistent tool usage control behavior
