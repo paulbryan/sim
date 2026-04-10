@@ -1,5 +1,5 @@
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { MothershipResourceType } from '@/lib/copilot/resources/types'
+import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { getTableById } from '@/lib/table/service'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -12,7 +12,7 @@ const VALID_OPEN_RESOURCE_TYPES = new Set(Object.values(MothershipResourceType))
 async function resolveResource(
   item: ValidOpenResourceParams,
   context: ExecutionContext
-): Promise<{ type: string; id: string; title: string } | { error: string }> {
+): Promise<MothershipResource | { error: string }> {
   const resourceType = item.type
   let resourceId = item.id
   let title: string = resourceType
@@ -68,7 +68,7 @@ export async function executeOpenResource(
     return { success: false, error: 'resources array is required' }
   }
 
-  const resources: Array<{ type: string; id: string; title: string }> = []
+  const resources: MothershipResource[] = []
   const errors: string[] = []
 
   for (const item of items) {

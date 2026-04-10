@@ -13,6 +13,7 @@ import { CopyCodeButton } from '@/components/ui/copy-code-button'
 import { cn } from '@/lib/core/utils/cn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import {
+  type ContentSegment,
   PendingTagIndicator,
   parseSpecialTags,
   SpecialTags,
@@ -241,9 +242,10 @@ export function ChatContent({
   const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')
 
   if (hasSpecialContent) {
+    type BlockSegment = Exclude<ContentSegment, { type: 'text' } | { type: 'thinking' } | { type: 'workspace_resource' }>
     type RenderGroup =
       | { kind: 'inline'; markdown: string }
-      | { kind: 'block'; segment: ContentSegment; index: number }
+      | { kind: 'block'; segment: BlockSegment; index: number }
 
     const groups: RenderGroup[] = []
     let pendingMarkdown = ''
