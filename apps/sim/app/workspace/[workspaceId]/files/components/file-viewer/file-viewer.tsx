@@ -702,8 +702,8 @@ function TextEditor({
     const el = (shouldUseCodeRenderer ? codeScrollRef.current : textareaRef.current) ?? null
     if (!el) return
 
-    const onWheel = (e: WheelEvent) => {
-      if (e.deltaY < 0) textareaStuckRef.current = false
+    const onWheel = (e: Event) => {
+      if ((e as WheelEvent).deltaY < 0) textareaStuckRef.current = false
     }
 
     const onScroll = () => {
