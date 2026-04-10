@@ -256,6 +256,12 @@ function TextEditor({
               fetchedContent.endsWith(`\n${streamingContent}`)
             ? fetchedContent
             : `${fetchedContent}\n${streamingContent}`
+      if (nextContent === contentRef.current) {
+        pendingStreamReconcileRef.current = true
+        lastStreamedContentRef.current = nextContent
+        initializedRef.current = true
+        return
+      }
       pendingStreamReconcileRef.current = true
       lastStreamedContentRef.current = nextContent
       setContent(nextContent)

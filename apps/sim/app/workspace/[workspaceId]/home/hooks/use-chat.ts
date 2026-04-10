@@ -642,8 +642,9 @@ export function useChat(
   const [error, setError] = useState<string | null>(null)
   const [resolvedChatId, setResolvedChatId] = useState<string | undefined>(initialChatId)
   const [resources, setResources] = useState<MothershipResource[]>([])
-  const [activeResourceId, setActiveResourceId] = useState<string | null>(null)
-  const initialActiveResourceIdRef = useRef(options?.initialActiveResourceId)
+  const [activeResourceId, setActiveResourceId] = useState<string | null>(
+    options?.initialActiveResourceId ?? null
+  )
   const [genericResourceData, setGenericResourceData] = useState<GenericResourceData | null>(null)
   const onResourceEventRef = useRef(options?.onResourceEvent)
   onResourceEventRef.current = options?.onResourceEvent
@@ -677,9 +678,10 @@ export function useChat(
   const [streamingFile, setStreamingFile] = useState<StreamingFilePreview | null>(null)
   const streamingFileRef = useRef(streamingFile)
   streamingFileRef.current = streamingFile
+  const pendingStreamingFileRef = useRef<{ value: StreamingFilePreview | null } | null>(null)
+  const streamingFileFrameRef = useRef<number | null>(null)
   const filePreviewSessionsRef = useRef<Map<string, StreamingFilePreview>>(new Map())
   const activeFilePreviewToolCallIdRef = useRef<string | null>(null)
-  const editContentParentToolCallIdRef = useRef<Map<string, string>>(new Map())
 
   const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const messageQueueRef = useRef<QueuedMessage[]>([])
@@ -707,6 +709,48 @@ export function useChat(
     (opts: { streamId: string; assistantId: string; gen: number }) => Promise<boolean>
   >(async () => false)
   const finalizeRef = useRef<(options?: { error?: boolean }) => void>(() => {})
+
+  const cancelQueuedStreamingFileUpdate = useCallback(() => {
+    if (streamingFileFrameRef.current !== null) {
+      cancelAnimationFrame(streamingFileFrameRef.current)
+      streamingFileFrameRef.current = null
+    }
+    pendingStreamingFileRef.current = null
+  }, [])
+
+  const setStreamingFileImmediate = useCallback(
+    (next: StreamingFilePreview | null) => {
+      cancelQueuedStreamingFileUpdate()
+      streamingFileRef.current = next
+      setStreamingFile(next)
+    },
+    [cancelQueuedStreamingFileUpdate]
+  )
+
+  const resetEphemeralPreviewState = useCallback(
+    (options?: { removeStreamingResource?: boolean }) => {
+      setStreamingFileImmediate(null)
+      filePreviewSessionsRef.current.clear()
+      activeFilePreviewToolCallIdRef.current = null
+      if (options?.removeStreamingResource) {
+        setResources((current) => current.filter((resource) => resource.id !== 'streaming-file'))
+      }
+    },
+    [setStreamingFileImmediate]
+  )
+
+  const queueStreamingFileUpdate = useCallback((next: StreamingFilePreview) => {
+    streamingFileRef.current = next
+    pendingStreamingFileRef.current = { value: next }
+    if (streamingFileFrameRef.current !== null) return
+    streamingFileFrameRef.current = requestAnimationFrame(() => {
+      streamingFileFrameRef.current = null
+      const pending = pendingStreamingFileRef.current
+      pendingStreamingFileRef.current = null
+      if (!pending) return
+      setStreamingFile(pending.value)
+    })
+  }, [])
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
@@ -849,13 +893,9 @@ export function useChat(
     setIsReconnecting(false)
     setResources([])
     setActiveResourceId(null)
-    setStreamingFile(null)
-    streamingFileRef.current = null
-    filePreviewSessionsRef.current.clear()
-    activeFilePreviewToolCallIdRef.current = null
-    editContentParentToolCallIdRef.current.clear()
+    resetEphemeralPreviewState()
     setMessageQueue([])
-  }, [initialChatId, queryClient])
+  }, [initialChatId, queryClient, resetEphemeralPreviewState])
 
   useEffect(() => {
     if (workflowIdRef.current) return
@@ -873,13 +913,9 @@ export function useChat(
     setIsReconnecting(false)
     setResources([])
     setActiveResourceId(null)
-    setStreamingFile(null)
-    streamingFileRef.current = null
-    filePreviewSessionsRef.current.clear()
-    activeFilePreviewToolCallIdRef.current = null
-    editContentParentToolCallIdRef.current.clear()
+    resetEphemeralPreviewState()
     setMessageQueue([])
-  }, [isHomePage])
+  }, [isHomePage, resetEphemeralPreviewState])
 
   useEffect(() => {
     if (!chatHistory || appliedChatIdRef.current === chatHistory.id) return
@@ -1271,7 +1307,7 @@ export function useChat(
                   if (nextSession.fileId) {
                     setActiveResourceId(nextSession.fileId)
                   }
-                  setStreamingFile(nextSession)
+                  setStreamingFileImmediate(nextSession)
                   break
                 }
 
@@ -1316,7 +1352,7 @@ export function useChat(
                     }
                   }
 
-                  setStreamingFile(nextSession)
+                  setStreamingFileImmediate(nextSession)
                   break
                 }
 
@@ -1327,7 +1363,7 @@ export function useChat(
                   }
                   sessions.set(id, nextSession)
                   activeFilePreviewToolCallIdRef.current = id
-                  setStreamingFile(nextSession)
+                  setStreamingFileImmediate(nextSession)
                   break
                 }
 
@@ -1351,12 +1387,11 @@ export function useChat(
                   }
                   sessions.set(id, nextSession)
                   activeFilePreviewToolCallIdRef.current = id
-                  streamingFileRef.current = nextSession
                   const previewToolIdx = toolMap.get(id)
                   if (previewToolIdx !== undefined && blocks[previewToolIdx].toolCall) {
                     blocks[previewToolIdx].toolCall!.status = 'executing'
                   }
-                  setStreamingFile(nextSession)
+                  queueStreamingFileUpdate(nextSession)
                   break
                 }
 
@@ -1382,8 +1417,7 @@ export function useChat(
                   }
 
                   if (!activeSubagent || activeSubagent !== FileTool.id) {
-                    setStreamingFile(null)
-                    streamingFileRef.current = null
+                    setStreamingFileImmediate(null)
                   }
                   break
                 }
@@ -1407,7 +1441,6 @@ export function useChat(
               }
 
               if (phase === MothershipStreamV1ToolPhase.result) {
-                const resultToolName = typeof payload.toolName === 'string' ? payload.toolName : ''
                 const idx = toolMap.get(id)
                 if (idx === undefined || !blocks[idx].toolCall) {
                   break
@@ -1514,8 +1547,7 @@ export function useChat(
                   if (activeFilePreviewToolCallIdRef.current === id) {
                     activeFilePreviewToolCallIdRef.current = null
                     if (!activeSubagent || activeSubagent !== FileTool.id) {
-                      setStreamingFile(null)
-                      streamingFileRef.current = null
+                      setStreamingFileImmediate(null)
                     }
                   }
                   const fileResource = extractedResources.find((r) => r.type === 'file')
@@ -1533,7 +1565,6 @@ export function useChat(
                     setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
                   }
                 }
-                editContentParentToolCallIdRef.current.delete(id)
                 break
               }
 
@@ -1566,7 +1597,6 @@ export function useChat(
                     : undefined
                 if (parentIdx !== undefined && blocks[parentIdx].toolCall) {
                   toolMap.set(id, parentIdx)
-                  editContentParentToolCallIdRef.current.set(id, parentToolCallId!)
                   const tc = blocks[parentIdx].toolCall!
                   tc.status = 'executing'
                   tc.result = undefined
@@ -1741,8 +1771,7 @@ export function useChat(
                     fileName: '',
                     content: '',
                   }
-                  streamingFileRef.current = emptyFile
-                  setStreamingFile(emptyFile)
+                  setStreamingFileImmediate(emptyFile)
                 }
                 flush()
               } else if (spanEvent === MothershipStreamV1SpanLifecycleEvent.end) {
@@ -1750,8 +1779,7 @@ export function useChat(
                   break
                 }
                 if (streamingFileRef.current && !activeFilePreviewToolCallIdRef.current) {
-                  setStreamingFile(null)
-                  streamingFileRef.current = null
+                  setStreamingFileImmediate(null)
                   const lastFileResource = resourcesRef.current.find(
                     (r) => r.type === 'file' && r.id !== 'streaming-file'
                   )
@@ -2118,6 +2146,7 @@ export function useChat(
     (options?: { error?: boolean }) => {
       sendingRef.current = false
       setIsSending(false)
+      setIsReconnecting(false)
       abortControllerRef.current = null
       invalidateChatQueries()
 
@@ -2389,12 +2418,7 @@ export function useChat(
       await persistPartialResponse()
     }
     invalidateChatQueries()
-    setStreamingFile(null)
-    streamingFileRef.current = null
-    filePreviewSessionsRef.current.clear()
-    activeFilePreviewToolCallIdRef.current = null
-    editContentParentToolCallIdRef.current.clear()
-    setResources((rs) => rs.filter((resource) => resource.id !== 'streaming-file'))
+    resetEphemeralPreviewState({ removeStreamingResource: true })
 
     const execState = useExecutionStore.getState()
     const consoleStore = useTerminalConsoleStore.getState()
@@ -2437,7 +2461,7 @@ export function useChat(
 
       reportManualRunToolStop(workflowId, toolCallId).catch(() => {})
     }
-  }, [invalidateChatQueries, persistPartialResponse, executionStream])
+  }, [invalidateChatQueries, persistPartialResponse, executionStream, resetEphemeralPreviewState])
 
   const removeFromQueue = useCallback((id: string) => {
     messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
@@ -2467,12 +2491,13 @@ export function useChat(
 
   useEffect(() => {
     return () => {
+      cancelQueuedStreamingFileUpdate()
       streamReaderRef.current = null
       abortControllerRef.current = null
       streamGenRef.current++
       sendingRef.current = false
     }
-  }, [])
+  }, [cancelQueuedStreamingFileUpdate])
 
   return {
     messages,
