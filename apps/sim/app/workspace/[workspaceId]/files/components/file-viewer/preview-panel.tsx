@@ -4,6 +4,7 @@ import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRe
 import { useRouter } from 'next/navigation'
 import rehypeSlug from 'rehype-slug'
 import remarkBreaks from 'remark-breaks'
+import remarkGfm from 'remark-gfm'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { Checkbox } from '@/components/emcn'
@@ -74,7 +75,7 @@ export const PreviewPanel = memo(function PreviewPanel({
   return null
 })
 
-const REMARK_PLUGINS = [remarkBreaks]
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks]
 const REHYPE_PLUGINS = [rehypeSlug]
 
 /**
@@ -404,12 +405,80 @@ const MarkdownPreview = memo(function MarkdownPreview({
   )
 })
 
+const HTML_PREVIEW_BASE_URL = 'about:srcdoc'
+
+const HTML_PREVIEW_CSP = [
+  "default-src 'none'",
+  "script-src 'unsafe-inline'",
+  "style-src 'unsafe-inline'",
+  'img-src data: blob:',
+  'font-src data:',
+  'media-src data: blob:',
+  "connect-src 'none'",
+  "form-action 'none'",
+  "frame-src 'none'",
+  "child-src 'none'",
+  "object-src 'none'",
+].join('; ')
+
+const HTML_PREVIEW_BOOTSTRAP = `<script>
+(() => {
+  const allowHref = (href) => href.startsWith('#') || /^\\s*javascript:/i.test(href)
+
+  document.addEventListener(
+    'click',
+    (event) => {
+      if (!(event.target instanceof Element)) return
+      const anchor = event.target.closest('a[href]')
+      if (!(anchor instanceof HTMLAnchorElement)) return
+      const href = anchor.getAttribute('href') || ''
+      if (allowHref(href)) return
+      event.preventDefault()
+    },
+    true
+  )
+
+  document.addEventListener(
+    'submit',
+    (event) => {
+      event.preventDefault()
+    },
+    true
+  )
+
+})()
+</script>`
+
+function buildHtmlPreviewDocument(content: string): string {
+  const headInjection = [
+    '<meta charset="utf-8">',
+    `<base href="${HTML_PREVIEW_BASE_URL}">`,
+    `<meta http-equiv="Content-Security-Policy" content="${HTML_PREVIEW_CSP}">`,
+    HTML_PREVIEW_BOOTSTRAP,
+  ].join('')
+
+  if (/<head[\s>]/i.test(content)) {
+    return content.replace(/<head(\s[^>]*)?>/i, (match) => `${match}${headInjection}`)
+  }
+
+  if (/<html[\s>]/i.test(content)) {
+    return content.replace(/<html(\s[^>]*)?>/i, (match) => `${match}<head>${headInjection}</head>`)
+  }
+
+  return `<!DOCTYPE html><html><head>${headInjection}</head><body>${content}</body></html>`
+}
+
 const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) {
+  // Run inline HTML/JS in an isolated iframe while blocking any navigation
+  // that would replace the preview with another document.
+  const wrappedContent = useMemo(() => buildHtmlPreviewDocument(content), [content])
+
   return (
     <div className='h-full overflow-hidden'>
       <iframe
-        srcDoc={content}
-        sandbox='allow-same-origin'
+        srcDoc={wrappedContent}
+        sandbox='allow-scripts'
+        referrerPolicy='no-referrer'
         title='HTML Preview'
         className='h-full w-full border-0 bg-white'
       />

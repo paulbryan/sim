@@ -1025,6 +1025,7 @@ const DocxPreview = memo(function DocxPreview({
   file: WorkspaceFileRecord
   workspaceId: string
 }) {
+  const viewportRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const {
     data: fileData,
@@ -1032,6 +1033,40 @@ const DocxPreview = memo(function DocxPreview({
     error: fetchError,
   } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
   const [renderError, setRenderError] = useState<string | null>(null)
+  const [docxScale, setDocxScale] = useState(1)
+  const [scaledSize, setScaledSize] = useState<{ width: number; height: number } | null>(null)
+
+  const updateDocxScale = useCallback(() => {
+    const viewport = viewportRef.current
+    const container = containerRef.current
+    if (!viewport || !container) return
+
+    const intrinsicWidth = container.scrollWidth
+    const intrinsicHeight = container.scrollHeight
+    if (intrinsicWidth === 0 || intrinsicHeight === 0) return
+
+    const viewportStyle = window.getComputedStyle(viewport)
+    const paddingX =
+      Number.parseFloat(viewportStyle.paddingLeft) + Number.parseFloat(viewportStyle.paddingRight)
+    const availableWidth = Math.max(viewport.clientWidth - paddingX, 0)
+    const nextScale = availableWidth > 0 ? Math.min(1, availableWidth / intrinsicWidth) : 1
+
+    setDocxScale((prev) => (Math.abs(prev - nextScale) < 0.001 ? prev : nextScale))
+    setScaledSize((prev) => {
+      const next = {
+        width: intrinsicWidth * nextScale,
+        height: intrinsicHeight * nextScale,
+      }
+      if (
+        prev &&
+        Math.abs(prev.width - next.width) < 1 &&
+        Math.abs(prev.height - next.height) < 1
+      ) {
+        return prev
+      }
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     if (!containerRef.current || !fileData) return
@@ -1042,12 +1077,18 @@ const DocxPreview = memo(function DocxPreview({
       try {
         const { renderAsync } = await import('docx-preview')
         if (cancelled || !containerRef.current) return
+        setRenderError(null)
+        setDocxScale(1)
+        setScaledSize(null)
         containerRef.current.innerHTML = ''
         await renderAsync(fileData, containerRef.current, undefined, {
           inWrapper: true,
           ignoreWidth: false,
           ignoreHeight: false,
         })
+        if (!cancelled) {
+          requestAnimationFrame(updateDocxScale)
+        }
       } catch (err) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : 'Failed to render document'
@@ -1061,13 +1102,57 @@ const DocxPreview = memo(function DocxPreview({
     return () => {
       cancelled = true
     }
-  }, [fileData])
+  }, [fileData, updateDocxScale])
+
+  useEffect(() => {
+    const viewport = viewportRef.current
+    const container = containerRef.current
+    if (!viewport || !container) return
+
+    updateDocxScale()
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateDocxScale()
+    })
+
+    resizeObserver.observe(viewport)
+    resizeObserver.observe(container)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [fileData, updateDocxScale])
 
   const error = resolvePreviewError(fetchError, renderError)
   if (error) return <PreviewError label='document' error={error} />
   if (isLoading) return DOCUMENT_SKELETON
 
-  return <div ref={containerRef} className='h-full w-full overflow-auto bg-white' />
+  return (
+    <div ref={viewportRef} className='h-full overflow-auto bg-[var(--surface-1)] p-4 sm:p-6'>
+      <div className='flex min-h-full justify-center'>
+        <div
+          className='shrink-0'
+          style={
+            scaledSize
+              ? {
+                  width: scaledSize.width,
+                  minHeight: scaledSize.height,
+                }
+              : undefined
+          }
+        >
+          <div
+            ref={containerRef}
+            className='origin-top'
+            style={{
+              transform: `scale(${docxScale})`,
+              transformOrigin: 'top center',
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  )
 })
 
 const pptxSlideCache = new Map<string, string[]>()

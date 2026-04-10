@@ -2507,6 +2507,13 @@ export function useChat(
             return
           }
 
+          // A live SSE `complete` event is already terminal. Finalize immediately so follow-up
+          // sends do not get spuriously queued behind an already-finished response.
+          if (streamResult.sawComplete) {
+            finalize()
+            return
+          }
+
           await resumeOrFinalize({
             streamId: streamIdRef.current || userMessageId,
             assistantId,
