@@ -9,7 +9,11 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/core/config/env'
-import { applyTargetedLayout, getTargetedLayoutImpact } from '@/lib/workflows/autolayout'
+import {
+  applyTargetedLayout,
+  getTargetedLayoutImpact,
+  transferBlockHeights,
+} from '@/lib/workflows/autolayout'
 import {
   DEFAULT_HORIZONTAL_SPACING,
   DEFAULT_VERTICAL_SPACING,
@@ -235,17 +239,19 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Persist the workflow state to the database
     const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
 
-    const { layoutBlockIds, shiftSourceBlockIds } = getTargetedLayoutImpact({
+    const { layoutBlockIds, resizedBlockIds, shiftSourceBlockIds } = getTargetedLayoutImpact({
       before: workflowState,
       after: finalWorkflowState,
     })
 
     let layoutedBlocks = finalWorkflowState.blocks
 
-    if (layoutBlockIds.length > 0 || shiftSourceBlockIds.length > 0) {
+    if (layoutBlockIds.length > 0 || resizedBlockIds.length > 0 || shiftSourceBlockIds.length > 0) {
       try {
+        transferBlockHeights(workflowState.blocks, finalWorkflowState.blocks)
         layoutedBlocks = applyTargetedLayout(finalWorkflowState.blocks, finalWorkflowState.edges, {
           changedBlockIds: layoutBlockIds,
+          resizedBlockIds,
           shiftSourceBlockIds,
           horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
           verticalSpacing: DEFAULT_VERTICAL_SPACING,
