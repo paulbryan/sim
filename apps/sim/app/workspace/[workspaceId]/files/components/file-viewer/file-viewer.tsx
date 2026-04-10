@@ -1,9 +1,24 @@
 'use client'
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Editor from 'react-simple-code-editor'
+import 'prismjs/components/prism-bash'
+import 'prismjs/components/prism-css'
+import 'prismjs/components/prism-markup'
+import 'prismjs/components/prism-sql'
+import 'prismjs/components/prism-typescript'
+import 'prismjs/components/prism-yaml'
 import { createLogger } from '@sim/logger'
 import { ZoomIn, ZoomOut } from 'lucide-react'
-import { Skeleton } from '@/components/emcn'
+import {
+  CODE_LINE_HEIGHT_PX,
+  Code as CodeEditor,
+  calculateGutterWidth,
+  getCodeEditorProps,
+  highlight,
+  languages,
+  Skeleton,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
@@ -89,6 +104,59 @@ type FileCategory =
   | 'xlsx-previewable'
   | 'unsupported'
 
+type CodeEditorLanguage =
+  | 'javascript'
+  | 'json'
+  | 'python'
+  | 'typescript'
+  | 'bash'
+  | 'css'
+  | 'markup'
+  | 'sql'
+  | 'yaml'
+
+const CODE_EDITOR_LANGUAGE_BY_EXTENSION: Partial<Record<string, CodeEditorLanguage>> = {
+  js: 'javascript',
+  jsx: 'javascript',
+  ts: 'typescript',
+  tsx: 'typescript',
+  py: 'python',
+  json: 'json',
+  sh: 'bash',
+  bash: 'bash',
+  zsh: 'bash',
+  fish: 'bash',
+  css: 'css',
+  scss: 'css',
+  less: 'css',
+  html: 'markup',
+  htm: 'markup',
+  xml: 'markup',
+  svg: 'markup',
+  sql: 'sql',
+  yaml: 'yaml',
+  yml: 'yaml',
+}
+
+const CODE_EDITOR_LANGUAGE_BY_MIME: Partial<Record<string, CodeEditorLanguage>> = {
+  'text/javascript': 'javascript',
+  'application/javascript': 'javascript',
+  'text/typescript': 'typescript',
+  'application/typescript': 'typescript',
+  'text/x-python': 'python',
+  'application/json': 'json',
+  'text/x-shellscript': 'bash',
+  'text/css': 'css',
+  'text/html': 'markup',
+  'text/xml': 'markup',
+  'application/xml': 'markup',
+  'image/svg+xml': 'markup',
+  'text/x-sql': 'sql',
+  'application/x-yaml': 'yaml',
+}
+
+const CODE_EDITOR_LINE_HEIGHT_PX = CODE_LINE_HEIGHT_PX
+
 function resolveFileCategory(mimeType: string | null, filename: string): FileCategory {
   if (mimeType && TEXT_EDITABLE_MIME_TYPES.has(mimeType)) return 'text-editable'
   if (mimeType && IFRAME_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'iframe-previewable'
@@ -131,6 +199,21 @@ interface FileViewerProps {
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
   streamingMode?: 'append' | 'replace'
+  useCodeRendererForCodeFiles?: boolean
+}
+
+function isCodeFile(file: { type: string; name: string }): boolean {
+  const ext = getFileExtension(file.name)
+  return SUPPORTED_CODE_EXTENSIONS.includes(ext as (typeof SUPPORTED_CODE_EXTENSIONS)[number])
+}
+
+function resolveCodeEditorLanguage(file: { type: string; name: string }): CodeEditorLanguage {
+  const ext = getFileExtension(file.name)
+  return (
+    CODE_EDITOR_LANGUAGE_BY_EXTENSION[ext] ??
+    CODE_EDITOR_LANGUAGE_BY_MIME[file.type] ??
+    (ext === 'json' ? 'json' : 'javascript')
+  )
 }
 
 export function FileViewer({
@@ -145,6 +228,7 @@ export function FileViewer({
   saveRef,
   streamingContent,
   streamingMode,
+  useCodeRendererForCodeFiles = false,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
 
@@ -153,7 +237,7 @@ export function FileViewer({
       <TextEditor
         file={file}
         workspaceId={workspaceId}
-        canEdit={streamingContent !== undefined ? false : canEdit}
+        canEdit={canEdit}
         previewMode={previewMode ?? (showPreview ? 'preview' : 'editor')}
         autoFocus={autoFocus}
         onDirtyChange={onDirtyChange}
@@ -161,6 +245,7 @@ export function FileViewer({
         saveRef={saveRef}
         streamingContent={streamingContent}
         streamingMode={streamingMode}
+        useCodeRendererForCodeFiles={useCodeRendererForCodeFiles}
       />
     )
   }
@@ -199,6 +284,7 @@ interface TextEditorProps {
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
   streamingMode?: 'append' | 'replace'
+  useCodeRendererForCodeFiles?: boolean
 }
 
 function TextEditor({
@@ -212,14 +298,19 @@ function TextEditor({
   saveRef,
   streamingContent,
   streamingMode = 'append',
+  useCodeRendererForCodeFiles = false,
 }: TextEditorProps) {
   const initializedRef = useRef(false)
   const contentRef = useRef('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const codeEditorRef = useRef<HTMLDivElement>(null)
+  const codeScrollRef = useRef<HTMLDivElement>(null)
 
   const [splitPct, setSplitPct] = useState(SPLIT_DEFAULT_PCT)
   const [isResizing, setIsResizing] = useState(false)
+  const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
+  const [activeLineNumber, setActiveLineNumber] = useState(1)
 
   const {
     data: fetchedContent,
@@ -242,13 +333,22 @@ function TextEditor({
   const [content, setContent] = useState('')
   const [savedContent, setSavedContent] = useState('')
   const savedContentRef = useRef('')
+  const [isStreamInteractionLocked, setIsStreamInteractionLocked] = useState(false)
   const wasStreamingRef = useRef(false)
   const pendingStreamReconcileRef = useRef(false)
   const lastStreamedContentRef = useRef<string | null>(null)
+  const shouldUseCodeRenderer = useCodeRendererForCodeFiles && isCodeFile(file)
+  const codeLanguage = useMemo(() => resolveCodeEditorLanguage(file), [file])
 
   useEffect(() => {
+    const lastStreamed = lastStreamedContentRef.current
+    const hasPendingReconcile = wasStreamingRef.current && pendingStreamReconcileRef.current
+    const hasFetchedAdvanced =
+      fetchedContent !== undefined && fetchedContent !== savedContentRef.current
+    const fetchedMatchesLastStream =
+      fetchedContent !== undefined && lastStreamed !== null && fetchedContent === lastStreamed
+
     if (streamingContent !== undefined) {
-      wasStreamingRef.current = true
       const nextContent =
         streamingMode === 'replace' || fetchedContent === undefined
           ? streamingContent
@@ -256,6 +356,27 @@ function TextEditor({
               fetchedContent.endsWith(`\n${streamingContent}`)
             ? fetchedContent
             : `${fetchedContent}\n${streamingContent}`
+      const fetchedMatchesNextStream =
+        fetchedContent !== undefined && fetchedContent === nextContent
+
+      if (
+        hasPendingReconcile &&
+        (hasFetchedAdvanced || fetchedMatchesLastStream || fetchedMatchesNextStream)
+      ) {
+        pendingStreamReconcileRef.current = false
+        wasStreamingRef.current = false
+        lastStreamedContentRef.current = null
+        setIsStreamInteractionLocked(false)
+        setContent(fetchedContent)
+        contentRef.current = fetchedContent
+        setSavedContent(fetchedContent)
+        savedContentRef.current = fetchedContent
+        initializedRef.current = true
+        return
+      }
+
+      wasStreamingRef.current = true
+      setIsStreamInteractionLocked(true)
       if (nextContent === contentRef.current) {
         pendingStreamReconcileRef.current = true
         lastStreamedContentRef.current = nextContent
@@ -270,25 +391,22 @@ function TextEditor({
       return
     }
 
-    if (wasStreamingRef.current && pendingStreamReconcileRef.current) {
-      const lastStreamed = lastStreamedContentRef.current
-      const hasFetchedAdvanced =
-        fetchedContent !== undefined && fetchedContent !== savedContentRef.current
-      const fetchedMatchesLastStream =
-        fetchedContent !== undefined && lastStreamed !== null && fetchedContent === lastStreamed
-
+    if (hasPendingReconcile) {
       if (hasFetchedAdvanced || fetchedMatchesLastStream) {
         pendingStreamReconcileRef.current = false
         wasStreamingRef.current = false
         lastStreamedContentRef.current = null
-        if (lastStreamed !== null && contentRef.current === lastStreamed) {
-          setContent(fetchedContent)
-          contentRef.current = fetchedContent
-        }
+        setIsStreamInteractionLocked(false)
+        setContent(fetchedContent)
+        contentRef.current = fetchedContent
         setSavedContent(fetchedContent)
         savedContentRef.current = fetchedContent
         return
       }
+    }
+
+    if (streamingContent === undefined) {
+      setIsStreamInteractionLocked(false)
     }
 
     if (fetchedContent === undefined) return
@@ -301,7 +419,14 @@ function TextEditor({
       initializedRef.current = true
 
       if (autoFocus) {
-        requestAnimationFrame(() => textareaRef.current?.focus())
+        requestAnimationFrame(() => {
+          const editorTextarea = codeEditorRef.current?.querySelector('textarea')
+          if (editorTextarea instanceof HTMLTextAreaElement) {
+            editorTextarea.focus()
+            return
+          }
+          textareaRef.current?.focus()
+        })
       }
       return
     }
@@ -338,7 +463,7 @@ function TextEditor({
     content,
     savedContent,
     onSave,
-    enabled: canEdit && initializedRef.current,
+    enabled: canEdit && initializedRef.current && streamingContent === undefined,
   })
 
   useEffect(() => {
@@ -393,16 +518,188 @@ function TextEditor({
     [handleContentChange]
   )
 
-  const isStreaming = streamingContent !== undefined
+  const isStreaming = isStreamInteractionLocked
+  const isEditorReadOnly = isStreamInteractionLocked || !canEdit
   const revealedContent = useStreamingText(content, false)
+  const renderedContent = isStreaming ? revealedContent : content
+  const gutterWidthPx = useMemo(() => {
+    const lineCount = renderedContent.split('\n').length
+    return calculateGutterWidth(lineCount)
+  }, [renderedContent])
+  const sharedCodeEditorProps = useMemo(
+    () =>
+      getCodeEditorProps({
+        disabled: !canEdit,
+      }),
+    [canEdit]
+  )
+  const highlightCode = useMemo(() => {
+    return (value: string) => {
+      const grammar = languages[codeLanguage] || languages.javascript
+      return highlight(value, grammar, codeLanguage)
+    }
+  }, [codeLanguage])
+  const handleCodeContentChange = useCallback(
+    (value: string) => {
+      if (isEditorReadOnly) return
+      handleContentChange(value)
+    },
+    [handleContentChange, isEditorReadOnly]
+  )
 
   const textareaStuckRef = useRef(true)
+
+  useEffect(() => {
+    if (!shouldUseCodeRenderer || !codeEditorRef.current) return
+
+    const setCodeEditorReadOnly = () => {
+      const textarea = codeEditorRef.current?.querySelector('textarea')
+      if (!(textarea instanceof HTMLTextAreaElement)) return
+      textarea.readOnly = isEditorReadOnly
+      textarea.spellcheck = false
+    }
+
+    setCodeEditorReadOnly()
+
+    const timeoutId = setTimeout(setCodeEditorReadOnly, 0)
+    const observer = new MutationObserver(setCodeEditorReadOnly)
+    observer.observe(codeEditorRef.current, {
+      childList: true,
+      subtree: true,
+    })
+
+    return () => {
+      clearTimeout(timeoutId)
+      observer.disconnect()
+    }
+  }, [isEditorReadOnly, shouldUseCodeRenderer])
+
+  useEffect(() => {
+    if (!shouldUseCodeRenderer) return
+    const textarea = codeEditorRef.current?.querySelector('textarea')
+    if (!(textarea instanceof HTMLTextAreaElement)) return
+
+    const updateActiveLineNumber = () => {
+      const pos = textarea.selectionStart
+      const textBeforeCursor = renderedContent.substring(0, pos)
+      setActiveLineNumber(textBeforeCursor.split('\n').length)
+    }
+
+    updateActiveLineNumber()
+    textarea.addEventListener('click', updateActiveLineNumber)
+    textarea.addEventListener('keyup', updateActiveLineNumber)
+    textarea.addEventListener('focus', updateActiveLineNumber)
+
+    return () => {
+      textarea.removeEventListener('click', updateActiveLineNumber)
+      textarea.removeEventListener('keyup', updateActiveLineNumber)
+      textarea.removeEventListener('focus', updateActiveLineNumber)
+    }
+  }, [renderedContent, shouldUseCodeRenderer])
+
+  useEffect(() => {
+    if (!shouldUseCodeRenderer || !codeEditorRef.current) return
+
+    const calculateVisualLines = () => {
+      const preElement = codeEditorRef.current?.querySelector('pre')
+      if (!(preElement instanceof HTMLElement)) return
+
+      const lines = renderedContent.split('\n')
+      const newVisualLineHeights: number[] = []
+
+      const tempContainer = document.createElement('div')
+      tempContainer.style.cssText = `
+        position: absolute;
+        visibility: hidden;
+        height: auto;
+        width: ${preElement.clientWidth}px;
+        font-family: ${window.getComputedStyle(preElement).fontFamily};
+        font-size: ${window.getComputedStyle(preElement).fontSize};
+        line-height: ${CODE_EDITOR_LINE_HEIGHT_PX}px;
+        padding: 8px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        box-sizing: border-box;
+      `
+      document.body.appendChild(tempContainer)
+
+      lines.forEach((line) => {
+        const lineDiv = document.createElement('div')
+        lineDiv.textContent = line || ' '
+        tempContainer.appendChild(lineDiv)
+        const actualHeight = lineDiv.getBoundingClientRect().height
+        const lineUnits = Math.max(1, Math.ceil(actualHeight / CODE_EDITOR_LINE_HEIGHT_PX))
+        newVisualLineHeights.push(lineUnits)
+        tempContainer.removeChild(lineDiv)
+      })
+
+      document.body.removeChild(tempContainer)
+      setVisualLineHeights(newVisualLineHeights)
+    }
+
+    const timeoutId = setTimeout(calculateVisualLines, 50)
+    const resizeObserver = new ResizeObserver(calculateVisualLines)
+    resizeObserver.observe(codeEditorRef.current)
+
+    return () => {
+      clearTimeout(timeoutId)
+      resizeObserver.disconnect()
+    }
+  }, [renderedContent, shouldUseCodeRenderer])
+
+  const renderCodeLineNumbers = useCallback((): ReactElement[] => {
+    const numbers: ReactElement[] = []
+    let lineNumber = 1
+
+    visualLineHeights.forEach((height) => {
+      const isActive = lineNumber === activeLineNumber
+      numbers.push(
+        <div
+          key={`${lineNumber}-0`}
+          className={cn(
+            'text-right text-xs tabular-nums leading-[21px]',
+            isActive
+              ? 'text-[var(--text-primary)] dark:text-[var(--code-foreground)]'
+              : 'text-[var(--text-muted)] dark:text-[var(--code-line-number)]'
+          )}
+        >
+          {lineNumber}
+        </div>
+      )
+
+      for (let i = 1; i < height; i++) {
+        numbers.push(
+          <div
+            key={`${lineNumber}-${i}`}
+            className='invisible text-right text-xs tabular-nums leading-[21px]'
+          >
+            {lineNumber}
+          </div>
+        )
+      }
+
+      lineNumber++
+    })
+
+    if (numbers.length === 0) {
+      numbers.push(
+        <div
+          key='1-0'
+          className='text-right text-[var(--text-muted)] text-xs tabular-nums leading-[21px] dark:text-[var(--code-line-number)]'
+        >
+          1
+        </div>
+      )
+    }
+
+    return numbers
+  }, [activeLineNumber, visualLineHeights])
 
   useEffect(() => {
     if (!isStreaming) return
     textareaStuckRef.current = true
 
-    const el = textareaRef.current
+    const el = (shouldUseCodeRenderer ? codeScrollRef.current : textareaRef.current) ?? null
     if (!el) return
 
     const onWheel = (e: WheelEvent) => {
@@ -421,14 +718,14 @@ function TextEditor({
       el.removeEventListener('wheel', onWheel)
       el.removeEventListener('scroll', onScroll)
     }
-  }, [isStreaming])
+  }, [isStreaming, shouldUseCodeRenderer])
 
   useEffect(() => {
     if (!isStreaming || !textareaStuckRef.current) return
-    const el = textareaRef.current
+    const el = (shouldUseCodeRenderer ? codeScrollRef.current : textareaRef.current) ?? null
     if (!el) return
     el.scrollTop = el.scrollHeight
-  }, [isStreaming, revealedContent])
+  }, [isStreaming, revealedContent, shouldUseCodeRenderer])
 
   if (streamingContent === undefined) {
     if (isLoading) return DOCUMENT_SKELETON
@@ -450,21 +747,49 @@ function TextEditor({
 
   return (
     <div ref={containerRef} className='relative flex flex-1 overflow-hidden'>
-      {showEditor && (
-        <textarea
-          ref={textareaRef}
-          value={isStreaming ? revealedContent : content}
-          onChange={(e) => handleContentChange(e.target.value)}
-          readOnly={!canEdit}
-          spellCheck={false}
-          style={showPreviewPane ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
-          className={cn(
-            'h-full resize-none border-0 bg-transparent p-[24px] font-mono text-[14px] text-[var(--text-body)] outline-none placeholder:text-[var(--text-subtle)]',
-            !showPreviewPane && 'w-full',
-            isResizing && 'pointer-events-none'
-          )}
-        />
-      )}
+      {showEditor &&
+        (shouldUseCodeRenderer ? (
+          <div
+            style={showPreviewPane ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
+            className={cn(
+              'min-w-0',
+              !showPreviewPane && 'w-full',
+              isResizing && 'pointer-events-none'
+            )}
+          >
+            <div ref={codeScrollRef} className='h-full overflow-auto'>
+              <CodeEditor.Container className='min-h-full min-w-full overflow-visible rounded-none border-0 bg-transparent'>
+                <CodeEditor.Gutter width={gutterWidthPx}>
+                  {renderCodeLineNumbers()}
+                </CodeEditor.Gutter>
+                <CodeEditor.Content paddingLeft={`${gutterWidthPx}px`} editorRef={codeEditorRef}>
+                  <Editor
+                    value={renderedContent}
+                    onValueChange={handleCodeContentChange}
+                    highlight={highlightCode}
+                    padding={sharedCodeEditorProps.padding}
+                    className={cn(sharedCodeEditorProps.className, 'min-h-full')}
+                    textareaClassName={cn(sharedCodeEditorProps.textareaClassName, 'min-h-full')}
+                  />
+                </CodeEditor.Content>
+              </CodeEditor.Container>
+            </div>
+          </div>
+        ) : (
+          <textarea
+            ref={textareaRef}
+            value={renderedContent}
+            onChange={(e) => handleContentChange(e.target.value)}
+            readOnly={isEditorReadOnly}
+            spellCheck={false}
+            style={showPreviewPane ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
+            className={cn(
+              'h-full resize-none border-0 bg-transparent p-[24px] font-mono text-[14px] text-[var(--text-body)] outline-none placeholder:text-[var(--text-subtle)]',
+              !showPreviewPane && 'w-full',
+              isResizing && 'pointer-events-none'
+            )}
+          />
+        ))}
       {showPreviewPane && (
         <>
           {showEditor && (
@@ -486,7 +811,7 @@ function TextEditor({
             className={cn('min-w-0 flex-1 overflow-hidden', isResizing && 'pointer-events-none')}
           >
             <PreviewPanel
-              content={isStreaming ? revealedContent : content}
+              content={renderedContent}
               mimeType={file.type}
               filename={file.name}
               isStreaming={isStreaming}

@@ -251,6 +251,7 @@ export const ResourceContent = memo(function ResourceContent({
             previewMode={previewMode ?? 'preview'}
             streamingContent={streamingExtractedContent}
             streamingMode={streamingFileMode}
+            useCodeRendererForCodeFiles
           />
         ) : (
           <div className='flex h-full items-center justify-center'>
@@ -602,6 +603,7 @@ function EmbeddedFile({
         streamingMode={streamingMode}
         previewMode={previewMode}
         streamingContent={streamingContent}
+        useCodeRendererForCodeFiles
       />
     </div>
   )
