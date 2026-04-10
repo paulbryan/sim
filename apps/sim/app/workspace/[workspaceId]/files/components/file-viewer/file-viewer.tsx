@@ -200,6 +200,7 @@ interface FileViewerProps {
   streamingMode?: 'append' | 'replace'
   disableStreamingAutoScroll?: boolean
   useCodeRendererForCodeFiles?: boolean
+  previewContextKey?: string
 }
 
 function isCodeFile(file: { type: string; name: string }): boolean {
@@ -236,6 +237,7 @@ export function FileViewer({
   streamingMode,
   disableStreamingAutoScroll = false,
   useCodeRendererForCodeFiles = false,
+  previewContextKey,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
 
@@ -254,12 +256,15 @@ export function FileViewer({
         streamingMode={streamingMode}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         useCodeRendererForCodeFiles={useCodeRendererForCodeFiles}
+        previewContextKey={previewContextKey}
       />
     )
   }
 
   if (category === 'iframe-previewable') {
-    return <IframePreview file={file} workspaceId={workspaceId} />
+    return (
+      <IframePreview file={file} workspaceId={workspaceId} streamingContent={streamingContent} />
+    )
   }
 
   if (category === 'image-previewable') {
@@ -267,7 +272,7 @@ export function FileViewer({
   }
 
   if (category === 'docx-previewable') {
-    return <DocxPreview file={file} workspaceId={workspaceId} />
+    return <DocxPreview file={file} workspaceId={workspaceId} streamingContent={streamingContent} />
   }
 
   if (category === 'pptx-previewable') {
@@ -294,6 +299,7 @@ interface TextEditorProps {
   streamingMode?: 'append' | 'replace'
   disableStreamingAutoScroll: boolean
   useCodeRendererForCodeFiles?: boolean
+  previewContextKey?: string
 }
 
 function TextEditor({
@@ -309,6 +315,7 @@ function TextEditor({
   streamingMode = 'append',
   disableStreamingAutoScroll,
   useCodeRendererForCodeFiles = false,
+  previewContextKey,
 }: TextEditorProps) {
   const initializedRef = useRef(false)
   const contentRef = useRef('')
@@ -740,6 +747,12 @@ function TextEditor({
     el.scrollTop = el.scrollHeight
   }, [disableStreamingAutoScroll, isStreaming, renderedContent, shouldUseCodeRenderer])
 
+  const previewType = resolvePreviewType(file.type, file.name)
+  const isIframeRendered = previewType === 'html' || previewType === 'svg'
+  const effectiveMode = isStreaming && isIframeRendered ? 'editor' : previewMode
+  const showEditor = effectiveMode !== 'preview'
+  const showPreviewPane = effectiveMode !== 'editor'
+
   if (streamingContent === undefined) {
     if (isLoading) return DOCUMENT_SKELETON
 
@@ -751,12 +764,6 @@ function TextEditor({
       )
     }
   }
-
-  const previewType = resolvePreviewType(file.type, file.name)
-  const isIframeRendered = previewType === 'html' || previewType === 'svg'
-  const effectiveMode = isStreaming && isIframeRendered ? 'editor' : previewMode
-  const showEditor = effectiveMode !== 'preview'
-  const showPreviewPane = effectiveMode !== 'editor'
 
   return (
     <div ref={containerRef} className='relative flex flex-1 overflow-hidden'>
@@ -824,6 +831,7 @@ function TextEditor({
             className={cn('min-w-0 flex-1 overflow-hidden', isResizing && 'pointer-events-none')}
           >
             <PreviewPanel
+              key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
               content={renderedContent}
               mimeType={file.type}
               filename={file.name}
@@ -840,22 +848,127 @@ function TextEditor({
 const IframePreview = memo(function IframePreview({
   file,
   workspaceId,
+  streamingContent,
 }: {
   file: WorkspaceFileRecord
   workspaceId: string
+  streamingContent?: string
 }) {
-  const { data: fileData, isLoading } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+  const {
+    data: fileData,
+    isLoading,
+    error: fetchError,
+  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  const blobUrlRef = useRef<string | null>(null)
+  const [rendering, setRendering] = useState(false)
+  const [renderError, setRenderError] = useState<string | null>(null)
+
+  const replaceBlobUrl = useCallback((nextUrl: string | null) => {
+    const previousUrl = blobUrlRef.current
+    blobUrlRef.current = nextUrl
+    setBlobUrl(nextUrl)
+    if (previousUrl && previousUrl !== nextUrl) {
+      URL.revokeObjectURL(previousUrl)
+    }
+  }, [])
 
   useEffect(() => {
-    if (!fileData) return
-    const blob = new Blob([fileData], { type: 'application/pdf' })
-    const url = URL.createObjectURL(blob)
-    setBlobUrl(url)
-    return () => URL.revokeObjectURL(url)
-  }, [fileData])
+    replaceBlobUrl(null)
+    setRenderError(null)
+    setRendering(false)
+  }, [file.id, file.key, replaceBlobUrl])
 
-  if (isLoading || !blobUrl) {
+  useEffect(() => {
+    return () => {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current)
+        blobUrlRef.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (streamingContent !== undefined || !fileData) return
+    setRenderError(null)
+    replaceBlobUrl(URL.createObjectURL(new Blob([fileData], { type: 'application/pdf' })))
+  }, [fileData, streamingContent, replaceBlobUrl])
+
+  useEffect(() => {
+    if (streamingContent === undefined) return
+
+    let cancelled = false
+    const controller = new AbortController()
+
+    const debounceTimer = setTimeout(async () => {
+      if (cancelled) return
+
+      try {
+        setRendering(true)
+        setRenderError(null)
+
+        const response = await fetch(`/api/workspaces/${workspaceId}/pdf/preview`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: streamingContent }),
+          signal: controller.signal,
+        })
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ error: 'Preview failed' }))
+          throw new Error(err.error || 'Preview failed')
+        }
+
+        const arrayBuffer = await response.arrayBuffer()
+        if (cancelled) return
+
+        const nextBlobUrl = URL.createObjectURL(
+          new Blob([arrayBuffer], { type: 'application/pdf' })
+        )
+        if (cancelled) {
+          URL.revokeObjectURL(nextBlobUrl)
+          return
+        }
+
+        replaceBlobUrl(nextBlobUrl)
+      } catch (err) {
+        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
+          const msg = err instanceof Error ? err.message : 'Failed to render PDF'
+          if (blobUrlRef.current || shouldSuppressStreamingDocumentError(msg)) {
+            logger.info('Suppressing transient PDF streaming preview error', { error: msg })
+          } else {
+            logger.error('PDF render failed', { error: msg })
+            setRenderError(msg)
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          setRendering(false)
+        }
+      }
+    }, 500)
+
+    return () => {
+      cancelled = true
+      clearTimeout(debounceTimer)
+      controller.abort()
+    }
+  }, [streamingContent, workspaceId, replaceBlobUrl])
+
+  const error =
+    blobUrl !== null
+      ? null
+      : streamingContent !== undefined
+        ? renderError
+        : resolvePreviewError(fetchError, renderError)
+
+  if (error) {
+    return <PreviewError label='PDF' error={error} />
+  }
+
+  if (
+    (streamingContent !== undefined && !blobUrl) ||
+    (streamingContent === undefined && (isLoading || rendering) && !blobUrl)
+  ) {
     return (
       <div className='flex h-full items-center justify-center'>
         <Skeleton className='h-[200px] w-[80%]' />
@@ -866,7 +979,7 @@ const IframePreview = memo(function IframePreview({
   return (
     <div className='flex flex-1 overflow-hidden'>
       <iframe
-        src={blobUrl}
+        src={blobUrl ?? undefined}
         className='h-full w-full border-0'
         title={file.name}
         onError={() => {
@@ -1000,6 +1113,20 @@ function resolvePreviewError(fetchError: Error | null, renderError: string | nul
   return renderError
 }
 
+function shouldSuppressStreamingDocumentError(message: string): boolean {
+  const lower = message.toLowerCase()
+  return (
+    lower.includes('preview failed') ||
+    lower.includes('aborterror') ||
+    lower.includes('unexpected end') ||
+    lower.includes('unexpected eof') ||
+    lower.includes('invalid or unexpected token') ||
+    lower.includes('end of central directory') ||
+    lower.includes('corrupted zip') ||
+    lower.includes('end of data reached')
+  )
+}
+
 function PreviewError({ label, error }: { label: string; error: string }) {
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
@@ -1021,79 +1148,63 @@ const DOCUMENT_SKELETON = (
 const DocxPreview = memo(function DocxPreview({
   file,
   workspaceId,
+  streamingContent,
 }: {
   file: WorkspaceFileRecord
   workspaceId: string
+  streamingContent?: string
 }) {
-  const viewportRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const lastSuccessfulHtmlRef = useRef('')
   const {
     data: fileData,
     isLoading,
     error: fetchError,
   } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
   const [renderError, setRenderError] = useState<string | null>(null)
-  const [docxScale, setDocxScale] = useState(1)
-  const [scaledSize, setScaledSize] = useState<{ width: number; height: number } | null>(null)
-
-  const updateDocxScale = useCallback(() => {
-    const viewport = viewportRef.current
-    const container = containerRef.current
-    if (!viewport || !container) return
-
-    const intrinsicWidth = container.scrollWidth
-    const intrinsicHeight = container.scrollHeight
-    if (intrinsicWidth === 0 || intrinsicHeight === 0) return
-
-    const viewportStyle = window.getComputedStyle(viewport)
-    const paddingX =
-      Number.parseFloat(viewportStyle.paddingLeft) + Number.parseFloat(viewportStyle.paddingRight)
-    const availableWidth = Math.max(viewport.clientWidth - paddingX, 0)
-    const nextScale = availableWidth > 0 ? Math.min(1, availableWidth / intrinsicWidth) : 1
-
-    setDocxScale((prev) => (Math.abs(prev - nextScale) < 0.001 ? prev : nextScale))
-    setScaledSize((prev) => {
-      const next = {
-        width: intrinsicWidth * nextScale,
-        height: intrinsicHeight * nextScale,
-      }
-      if (
-        prev &&
-        Math.abs(prev.width - next.width) < 1 &&
-        Math.abs(prev.height - next.height) < 1
-      ) {
-        return prev
-      }
-      return next
-    })
-  }, [])
+  const [rendering, setRendering] = useState(false)
+  const [hasRenderedPreview, setHasRenderedPreview] = useState(false)
 
   useEffect(() => {
-    if (!containerRef.current || !fileData) return
+    lastSuccessfulHtmlRef.current = ''
+    setRenderError(null)
+    setRendering(false)
+    setHasRenderedPreview(false)
+    if (containerRef.current) {
+      containerRef.current.innerHTML = ''
+    }
+  }, [file.id, file.key])
+
+  useEffect(() => {
+    if (!containerRef.current || !fileData || streamingContent !== undefined) return
 
     let cancelled = false
 
     async function render() {
       try {
+        setRendering(true)
         const { renderAsync } = await import('docx-preview')
         if (cancelled || !containerRef.current) return
         setRenderError(null)
-        setDocxScale(1)
-        setScaledSize(null)
         containerRef.current.innerHTML = ''
         await renderAsync(fileData, containerRef.current, undefined, {
           inWrapper: true,
           ignoreWidth: false,
           ignoreHeight: false,
         })
-        if (!cancelled) {
-          requestAnimationFrame(updateDocxScale)
+        if (!cancelled && containerRef.current) {
+          lastSuccessfulHtmlRef.current = containerRef.current.innerHTML
+          setHasRenderedPreview(true)
         }
       } catch (err) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : 'Failed to render document'
           logger.error('DOCX render failed', { error: msg })
           setRenderError(msg)
+        }
+      } finally {
+        if (!cancelled) {
+          setRendering(false)
         }
       }
     }
@@ -1102,55 +1213,98 @@ const DocxPreview = memo(function DocxPreview({
     return () => {
       cancelled = true
     }
-  }, [fileData, updateDocxScale])
+  }, [fileData, streamingContent])
 
   useEffect(() => {
-    const viewport = viewportRef.current
-    const container = containerRef.current
-    if (!viewport || !container) return
+    if (streamingContent === undefined || !containerRef.current) return
 
-    updateDocxScale()
+    let cancelled = false
+    const controller = new AbortController()
 
-    const resizeObserver = new ResizeObserver(() => {
-      updateDocxScale()
-    })
+    const debounceTimer = setTimeout(async () => {
+      const container = containerRef.current
+      if (!container || cancelled) return
 
-    resizeObserver.observe(viewport)
-    resizeObserver.observe(container)
+      const previousHtml = lastSuccessfulHtmlRef.current
+
+      try {
+        setRendering(true)
+        setRenderError(null)
+
+        const response = await fetch(`/api/workspaces/${workspaceId}/docx/preview`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: streamingContent }),
+          signal: controller.signal,
+        })
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ error: 'Preview failed' }))
+          throw new Error(err.error || 'Preview failed')
+        }
+
+        const arrayBuffer = await response.arrayBuffer()
+        if (cancelled || !containerRef.current) return
+
+        const { renderAsync } = await import('docx-preview')
+        if (cancelled || !containerRef.current) return
+
+        containerRef.current.innerHTML = ''
+        await renderAsync(new Uint8Array(arrayBuffer), containerRef.current, undefined, {
+          inWrapper: true,
+          ignoreWidth: false,
+          ignoreHeight: false,
+        })
+
+        if (!cancelled && containerRef.current) {
+          lastSuccessfulHtmlRef.current = containerRef.current.innerHTML
+          setHasRenderedPreview(true)
+        }
+      } catch (err) {
+        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
+          if (containerRef.current && previousHtml) {
+            containerRef.current.innerHTML = previousHtml
+            setHasRenderedPreview(true)
+          }
+          const msg = err instanceof Error ? err.message : 'Failed to render document'
+          if (previousHtml || shouldSuppressStreamingDocumentError(msg)) {
+            logger.info('Suppressing transient DOCX streaming preview error', { error: msg })
+          } else {
+            logger.error('DOCX render failed', { error: msg })
+            setRenderError(msg)
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          setRendering(false)
+        }
+      }
+    }, 500)
 
     return () => {
-      resizeObserver.disconnect()
+      cancelled = true
+      clearTimeout(debounceTimer)
+      controller.abort()
     }
-  }, [fileData, updateDocxScale])
+  }, [streamingContent, workspaceId])
 
-  const error = resolvePreviewError(fetchError, renderError)
+  const error =
+    hasRenderedPreview && streamingContent !== undefined
+      ? null
+      : streamingContent !== undefined
+        ? renderError
+        : resolvePreviewError(fetchError, renderError)
   if (error) return <PreviewError label='document' error={error} />
-  if (isLoading) return DOCUMENT_SKELETON
+  const showSkeleton =
+    !hasRenderedPreview &&
+    ((streamingContent !== undefined && rendering) || (streamingContent === undefined && isLoading))
 
   return (
-    <div ref={viewportRef} className='h-full overflow-auto bg-[var(--surface-1)] p-4 sm:p-6'>
-      <div className='flex min-h-full justify-center'>
-        <div
-          className='shrink-0'
-          style={
-            scaledSize
-              ? {
-                  width: scaledSize.width,
-                  minHeight: scaledSize.height,
-                }
-              : undefined
-          }
-        >
-          <div
-            ref={containerRef}
-            className='origin-top'
-            style={{
-              transform: `scale(${docxScale})`,
-              transformOrigin: 'top center',
-            }}
-          />
-        </div>
-      </div>
+    <div className='relative h-full w-full overflow-auto bg-white'>
+      {showSkeleton && <div className='absolute inset-0 z-10 bg-white'>{DOCUMENT_SKELETON}</div>}
+      <div
+        ref={containerRef}
+        className={cn('h-full w-full overflow-auto bg-white', showSkeleton && 'opacity-0')}
+      />
     </div>
   )
 })
@@ -1269,10 +1423,10 @@ function PptxPreview({
 
   const shouldSuppressStreamingPptxError = (message: string): boolean => {
     return (
+      shouldSuppressStreamingDocumentError(message) ||
       message.includes('SyntaxError: Invalid or unexpected token') ||
       message.includes('PPTX generation cancelled') ||
-      message.includes('Preview failed') ||
-      message.includes('AbortError')
+      message.includes('SyntaxError: Unexpected end of input')
     )
   }
 

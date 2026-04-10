@@ -68,6 +68,7 @@ interface ResourceContentProps {
   previewMode?: PreviewMode
   previewSession?: FilePreviewSession | null
   genericResourceData?: GenericResourceData
+  previewContextKey?: string
 }
 
 /**
@@ -83,6 +84,7 @@ export const ResourceContent = memo(function ResourceContent({
   previewMode,
   previewSession,
   genericResourceData,
+  previewContextKey,
 }: ResourceContentProps) {
   const streamFileName = previewSession?.fileName || 'file.md'
   const syntheticFile = useMemo(() => {
@@ -124,6 +126,7 @@ export const ResourceContent = memo(function ResourceContent({
             streamingContent={streamingPreviewText}
             streamingMode={streamingFileMode}
             disableStreamingAutoScroll={disableStreamingAutoScroll}
+            previewContextKey={previewContextKey}
             useCodeRendererForCodeFiles
           />
         ) : (
@@ -151,6 +154,7 @@ export const ResourceContent = memo(function ResourceContent({
           }
           streamingMode={streamingFileMode}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
+          previewContextKey={previewContextKey}
         />
       )
 
@@ -441,6 +445,7 @@ interface EmbeddedFileProps {
   streamingContent?: string
   streamingMode?: 'append' | 'replace'
   disableStreamingAutoScroll?: boolean
+  previewContextKey?: string
 }
 
 function EmbeddedFile({
@@ -450,6 +455,7 @@ function EmbeddedFile({
   streamingContent,
   streamingMode,
   disableStreamingAutoScroll = false,
+  previewContextKey,
 }: EmbeddedFileProps) {
   const { canEdit } = useUserPermissionsContext()
   const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
@@ -482,6 +488,7 @@ function EmbeddedFile({
         previewMode={previewMode}
         streamingContent={streamingContent}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
+        previewContextKey={previewContextKey}
         useCodeRendererForCodeFiles
       />
     </div>

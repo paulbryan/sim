@@ -129,6 +129,7 @@ export const MothershipView = memo(
                 previewMode={isActivePreviewable ? previewMode : undefined}
                 previewSession={previewForActive}
                 genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
+                previewContextKey={chatId}
               />
             ) : (
               <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>

@@ -49,6 +49,46 @@ const PROSE_CLASSES = cn(
   'prose-table:my-0'
 )
 
+function startsInlineWord(value: string): boolean {
+  return /^[A-Za-z0-9_(]/.test(value)
+}
+
+function endsInlineWord(value: string): boolean {
+  return /[A-Za-z0-9_)]$/.test(value)
+}
+
+function nextInlineSegmentLabel(segment?: ContentSegment): string {
+  if (!segment) return ''
+  if (segment.type === 'text' || segment.type === 'thinking') return segment.content
+  if (segment.type === 'workspace_resource') return segment.data.title || segment.data.id
+  return ''
+}
+
+function appendInlineReferenceMarkdown(
+  currentMarkdown: string,
+  referenceMarkdown: string,
+  nextSegment?: ContentSegment
+): string {
+  let nextMarkdown = currentMarkdown
+  if (currentMarkdown && endsInlineWord(currentMarkdown) && !/\s$/.test(currentMarkdown)) {
+    nextMarkdown += ' '
+  }
+
+  nextMarkdown += referenceMarkdown
+
+  const followingText = nextInlineSegmentLabel(nextSegment)
+  if (
+    followingText &&
+    startsInlineWord(followingText) &&
+    !/^\s/.test(followingText) &&
+    !/\s$/.test(nextMarkdown)
+  ) {
+    nextMarkdown += ' '
+  }
+
+  return nextMarkdown
+}
+
 type TdProps = ComponentPropsWithoutRef<'td'>
 type ThProps = ComponentPropsWithoutRef<'th'>
 
@@ -262,9 +302,14 @@ export function ChatContent({
 
     for (let i = 0; i < parsed.segments.length; i++) {
       const s = parsed.segments[i]
+      const nextSegment = parsed.segments[i + 1]
       if (s.type === 'workspace_resource') {
         const label = s.data.title || s.data.id
-        pendingMarkdown += `[${label}](#wsres-${s.data.type}-${s.data.id})`
+        pendingMarkdown = appendInlineReferenceMarkdown(
+          pendingMarkdown,
+          `[${label}](#wsres-${s.data.type}-${s.data.id})`,
+          nextSegment
+        )
       } else if (s.type === 'text' || s.type === 'thinking') {
         pendingMarkdown += s.content
       } else {

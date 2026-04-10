@@ -1,6 +1,15 @@
 'use client'
 
-import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
+import {
+  createContext,
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useRouter } from 'next/navigation'
 import rehypeSlug from 'rehype-slug'
 import remarkBreaks from 'remark-breaks'
@@ -344,7 +353,8 @@ const MarkdownPreview = memo(function MarkdownPreview({
   onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
 }) {
   const { push: navigate } = useRouter()
-  const { ref: scrollRef } = useAutoScroll(isStreaming)
+  const { ref: autoScrollRef } = useAutoScroll(isStreaming)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const contentRef = useRef(content)
   contentRef.current = content
@@ -352,6 +362,13 @@ const MarkdownPreview = memo(function MarkdownPreview({
   const ctxValue = useMemo(
     () => (onCheckboxToggle ? { contentRef, onToggle: onCheckboxToggle } : null),
     [onCheckboxToggle]
+  )
+  const setScrollRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      scrollContainerRef.current = node
+      autoScrollRef(node)
+    },
+    [autoScrollRef]
   )
 
   const hasScrolledToHash = useRef(false)
@@ -374,7 +391,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
     return (
       <NavigateCtx.Provider value={navigate}>
         <MarkdownCheckboxCtx.Provider value={ctxValue}>
-          <div ref={scrollRef} className='h-full overflow-auto p-6'>
+          <div ref={setScrollRef} className='h-full overflow-auto p-6'>
             <Streamdown
               mode='static'
               remarkPlugins={REMARK_PLUGINS}
@@ -391,7 +408,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
 
   return (
     <NavigateCtx.Provider value={navigate}>
-      <div ref={scrollRef} className='h-full overflow-auto p-6'>
+      <div ref={setScrollRef} className='h-full overflow-auto p-6'>
         <Streamdown
           mode='static'
           remarkPlugins={REMARK_PLUGINS}
@@ -472,16 +489,72 @@ const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) 
   // Run inline HTML/JS in an isolated iframe while blocking any navigation
   // that would replace the preview with another document.
   const wrappedContent = useMemo(() => buildHtmlPreviewDocument(content), [content])
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [isRenderable, setIsRenderable] = useState(false)
+  const [resumeNonce, setResumeNonce] = useState(0)
+  const pageWasHiddenRef = useRef(false)
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const updateRenderability = (width: number, height: number) => {
+      setIsRenderable(width > 0 && height > 0)
+    }
+
+    const initialRect = container.getBoundingClientRect()
+    updateRenderability(initialRect.width, initialRect.height)
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (!entry) return
+      updateRenderability(entry.contentRect.width, entry.contentRect.height)
+    })
+    observer.observe(container)
+
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        pageWasHiddenRef.current = true
+        return
+      }
+
+      if (document.visibilityState === 'visible' && pageWasHiddenRef.current) {
+        pageWasHiddenRef.current = false
+        setResumeNonce((nonce) => nonce + 1)
+      }
+    }
+
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        setResumeNonce((nonce) => nonce + 1)
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('pageshow', handlePageShow)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('pageshow', handlePageShow)
+    }
+  }, [])
 
   return (
-    <div className='h-full overflow-hidden'>
-      <iframe
-        srcDoc={wrappedContent}
-        sandbox='allow-scripts'
-        referrerPolicy='no-referrer'
-        title='HTML Preview'
-        className='h-full w-full border-0 bg-white'
-      />
+    <div ref={containerRef} className='h-full overflow-hidden'>
+      {isRenderable && (
+        <iframe
+          key={resumeNonce}
+          srcDoc={wrappedContent}
+          sandbox='allow-scripts'
+          referrerPolicy='no-referrer'
+          title='HTML Preview'
+          className='h-full w-full border-0 bg-white'
+        />
+      )}
     </div>
   )
 })

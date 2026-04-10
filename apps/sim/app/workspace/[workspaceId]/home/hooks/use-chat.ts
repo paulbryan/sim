@@ -892,6 +892,7 @@ export function useChat(
   const appliedChatHistoryKeyRef = useRef<string | undefined>(undefined)
   const pendingUserMsgRef = useRef<{ id: string; content: string } | null>(null)
   const streamIdRef = useRef<string | undefined>(undefined)
+  const locallyTerminalStreamIdRef = useRef<string | undefined>(undefined)
   const lastCursorRef = useRef('0')
   const sendingRef = useRef(false)
   const streamGenRef = useRef(0)
@@ -1016,6 +1017,7 @@ export function useChat(
     }
     chatIdRef.current = initialChatId
     lastCursorRef.current = '0'
+    locallyTerminalStreamIdRef.current = undefined
     setResolvedChatId(initialChatId)
     appliedChatHistoryKeyRef.current = undefined
     setMessages([])
@@ -1034,6 +1036,7 @@ export function useChat(
     streamGenRef.current++
     chatIdRef.current = undefined
     lastCursorRef.current = '0'
+    locallyTerminalStreamIdRef.current = undefined
     setResolvedChatId(undefined)
     appliedChatHistoryKeyRef.current = undefined
     abortControllerRef.current = null
@@ -1057,6 +1060,22 @@ export function useChat(
     const activeStreamId = chatHistory.activeStreamId
     appliedChatHistoryKeyRef.current = hydrationKey
     const mappedMessages = chatHistory.messages.map(toDisplayMessage)
+    const snapshotEvents = Array.isArray(chatHistory.streamSnapshot?.events)
+      ? chatHistory.streamSnapshot.events
+      : []
+    const snapshotHasCompleteEvent = snapshotEvents.some(
+      (entry) => entry?.event?.type === MothershipStreamV1EventType.complete
+    )
+    const shouldReconnectActiveStream =
+      Boolean(activeStreamId) &&
+      !sendingRef.current &&
+      activeStreamId !== locallyTerminalStreamIdRef.current &&
+      !isTerminalStreamStatus(chatHistory.streamSnapshot?.status) &&
+      !snapshotHasCompleteEvent
+
+    if (!activeStreamId && locallyTerminalStreamIdRef.current) {
+      locallyTerminalStreamIdRef.current = undefined
+    }
     const shouldPreserveActiveStreamingMessage =
       sendingRef.current && Boolean(activeStreamId) && activeStreamId === streamIdRef.current
 
@@ -1113,7 +1132,7 @@ export function useChat(
       seedPreviewSessions(snapshotPreviewSessions)
     }
 
-    if (activeStreamId && !sendingRef.current) {
+    if (shouldReconnectActiveStream && activeStreamId) {
       const gen = ++streamGenRef.current
       const abortController = new AbortController()
       abortControllerRef.current = abortController
@@ -2319,6 +2338,7 @@ export function useChat(
   const finalize = useCallback(
     (options?: { error?: boolean }) => {
       reconcileTerminalPreviewSessions()
+      locallyTerminalStreamIdRef.current = streamIdRef.current
       sendingRef.current = false
       setIsSending(false)
       setIsReconnecting(false)
@@ -2371,6 +2391,7 @@ export function useChat(
       setError(null)
       setIsSending(true)
       sendingRef.current = true
+      locallyTerminalStreamIdRef.current = undefined
 
       const userMessageId = generateId()
       const assistantId = generateId()
@@ -2554,6 +2575,7 @@ export function useChat(
         ?.activeStreamId ||
       undefined
 
+    locallyTerminalStreamIdRef.current = sid
     streamGenRef.current++
     streamReaderRef.current?.cancel().catch(() => {})
     streamReaderRef.current = null
@@ -2643,7 +2665,13 @@ export function useChat(
 
       reportManualRunToolStop(workflowId, toolCallId).catch(() => {})
     }
-  }, [invalidateChatQueries, persistPartialResponse, executionStream, resetEphemeralPreviewState])
+  }, [
+    invalidateChatQueries,
+    persistPartialResponse,
+    executionStream,
+    queryClient,
+    resetEphemeralPreviewState,
+  ])
 
   const removeFromQueue = useCallback((id: string) => {
     messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
