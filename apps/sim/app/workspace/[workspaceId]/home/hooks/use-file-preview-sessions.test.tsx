@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import {
+  buildCompletedPreviewSessions,
   INITIAL_FILE_PREVIEW_SESSIONS_STATE,
   reduceFilePreviewSessions,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-file-preview-sessions'
@@ -30,6 +31,40 @@ function createSession(
 }
 
 describe('reduceFilePreviewSessions', () => {
+  it('builds complete sessions for terminal stream reconciliation', () => {
+    const completedAt = '2026-04-10T00:00:10.000Z'
+    const nextSessions = buildCompletedPreviewSessions(
+      {
+        'preview-1': createSession({
+          id: 'preview-1',
+          toolCallId: 'preview-1',
+          status: 'pending',
+          previewText: 'draft',
+        }),
+        'preview-2': createSession({
+          id: 'preview-2',
+          toolCallId: 'preview-2',
+          status: 'streaming',
+          previewText: 'partial',
+        }),
+        'preview-3': createSession({
+          id: 'preview-3',
+          toolCallId: 'preview-3',
+          status: 'complete',
+          previewText: 'done',
+          completedAt: '2026-04-10T00:00:03.000Z',
+        }),
+      },
+      completedAt
+    )
+
+    expect(nextSessions).toHaveLength(2)
+    expect(nextSessions.map((session) => session.id)).toEqual(['preview-1', 'preview-2'])
+    expect(nextSessions.every((session) => session.status === 'complete')).toBe(true)
+    expect(nextSessions.every((session) => session.updatedAt === completedAt)).toBe(true)
+    expect(nextSessions.every((session) => session.completedAt === completedAt)).toBe(true)
+  })
+
   it('hydrates the latest active preview session', () => {
     const state = reduceFilePreviewSessions(INITIAL_FILE_PREVIEW_SESSIONS_STATE, {
       type: 'hydrate',

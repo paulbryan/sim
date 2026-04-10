@@ -48,6 +48,20 @@ export function pickActiveSessionId(
   return latestActive?.id ?? null
 }
 
+export function buildCompletedPreviewSessions(
+  sessions: Record<string, FilePreviewSession>,
+  completedAt: string
+): FilePreviewSession[] {
+  return Object.values(sessions)
+    .filter((session) => session.status !== 'complete')
+    .map((session) => ({
+      ...session,
+      status: 'complete' as const,
+      updatedAt: completedAt,
+      completedAt,
+    }))
+}
+
 export function reduceFilePreviewSessions(
   state: FilePreviewSessionsState,
   action: FilePreviewSessionsAction

@@ -77,6 +77,7 @@ import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
+  buildCompletedPreviewSessions,
   type FilePreviewSessionsState,
   INITIAL_FILE_PREVIEW_SESSIONS_STATE,
   reduceFilePreviewSessions,
@@ -765,6 +766,18 @@ export function useChat(
     },
     [completePreviewSession, syncPreviewSessionRefs]
   )
+
+  const reconcileTerminalPreviewSessions = useCallback(() => {
+    const completedAt = new Date().toISOString()
+    const completedSessions = buildCompletedPreviewSessions(
+      previewSessionsStateRef.current.sessions,
+      completedAt
+    )
+
+    for (const session of completedSessions) {
+      applyCompletedPreviewSession(session)
+    }
+  }, [applyCompletedPreviewSession])
 
   const removePreviewSessionImmediate = useCallback(
     (sessionId: string) => {
@@ -2305,6 +2318,7 @@ export function useChat(
 
   const finalize = useCallback(
     (options?: { error?: boolean }) => {
+      reconcileTerminalPreviewSessions()
       sendingRef.current = false
       setIsSending(false)
       setIsReconnecting(false)
@@ -2333,7 +2347,7 @@ export function useChat(
         })
       }
     },
-    [invalidateChatQueries]
+    [invalidateChatQueries, reconcileTerminalPreviewSessions]
   )
   finalizeRef.current = finalize
 
