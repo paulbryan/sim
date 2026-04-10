@@ -143,7 +143,9 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
       const newTimestamp =
         processedCount === 0 && failedCount > 0
           ? config.lastCheckedTimestamp
-          : latestUpdated || now.toISOString()
+          : latestUpdated
+            ? new Date(new Date(latestUpdated).getTime() + 1).toISOString()
+            : now.toISOString()
       await updateWebhookProviderConfig(webhookId, { lastCheckedTimestamp: newTimestamp }, logger)
 
       if (failedCount > 0 && processedCount === 0) {

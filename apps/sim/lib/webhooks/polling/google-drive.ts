@@ -255,23 +255,11 @@ async function fetchChanges(
       newStartPageToken = data.newStartPageToken as string
     }
 
-    // Only advance the resume cursor when we'll actually use all changes from this page.
-    // If allChanges exceeds maxFiles, we'll slice off the extras — so we must NOT
-    // advance past this page, otherwise the sliced changes are lost permanently.
     const hasMore = !!data.nextPageToken
     const overLimit = allChanges.length >= maxFiles
 
     if (!hasMore || overLimit || pages >= MAX_PAGES) {
-      // If we stopped mid-stream and haven't consumed all changes from this page,
-      // keep currentPageToken so the next poll re-fetches this page.
-      // If we consumed everything on this page but there are more pages,
-      // advance to nextPageToken so we don't re-process this page.
       if (hasMore && !overLimit) {
-        lastNextPageToken = data.nextPageToken as string
-      } else if (hasMore && overLimit && allChanges.length > maxFiles) {
-        // We got more changes than maxFiles from this page — don't advance,
-        // re-fetch this page next time (idempotency deduplicates already-processed ones)
-      } else if (hasMore) {
         lastNextPageToken = data.nextPageToken as string
       }
       break
@@ -281,7 +269,10 @@ async function fetchChanges(
     currentPageToken = data.nextPageToken as string
   }
 
-  const resumeToken = newStartPageToken ?? lastNextPageToken ?? config.pageToken!
+  const slicingOccurs = allChanges.length > maxFiles
+  const resumeToken = slicingOccurs
+    ? (lastNextPageToken ?? config.pageToken!)
+    : (newStartPageToken ?? lastNextPageToken ?? config.pageToken!)
 
   return { changes: allChanges.slice(0, maxFiles), newStartPageToken: resumeToken }
 }
