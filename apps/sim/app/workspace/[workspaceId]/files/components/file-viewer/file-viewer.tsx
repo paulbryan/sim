@@ -198,6 +198,7 @@ interface FileViewerProps {
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
   streamingMode?: 'append' | 'replace'
+  disableStreamingAutoScroll?: boolean
   useCodeRendererForCodeFiles?: boolean
 }
 
@@ -233,6 +234,7 @@ export function FileViewer({
   saveRef,
   streamingContent,
   streamingMode,
+  disableStreamingAutoScroll = false,
   useCodeRendererForCodeFiles = false,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
@@ -250,6 +252,7 @@ export function FileViewer({
         saveRef={saveRef}
         streamingContent={streamingContent}
         streamingMode={streamingMode}
+        disableStreamingAutoScroll={disableStreamingAutoScroll}
         useCodeRendererForCodeFiles={useCodeRendererForCodeFiles}
       />
     )
@@ -289,6 +292,7 @@ interface TextEditorProps {
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
   streamingMode?: 'append' | 'replace'
+  disableStreamingAutoScroll: boolean
   useCodeRendererForCodeFiles?: boolean
 }
 
@@ -303,6 +307,7 @@ function TextEditor({
   saveRef,
   streamingContent,
   streamingMode = 'append',
+  disableStreamingAutoScroll,
   useCodeRendererForCodeFiles = false,
 }: TextEditorProps) {
   const initializedRef = useRef(false)
@@ -701,6 +706,10 @@ function TextEditor({
 
   useEffect(() => {
     if (!isStreaming) return
+    if (disableStreamingAutoScroll) {
+      textareaStuckRef.current = false
+      return
+    }
     textareaStuckRef.current = true
 
     const el = (shouldUseCodeRenderer ? codeScrollRef.current : textareaRef.current) ?? null
@@ -722,14 +731,14 @@ function TextEditor({
       el.removeEventListener('wheel', onWheel)
       el.removeEventListener('scroll', onScroll)
     }
-  }, [isStreaming, shouldUseCodeRenderer])
+  }, [disableStreamingAutoScroll, isStreaming, shouldUseCodeRenderer])
 
   useEffect(() => {
-    if (!isStreaming || !textareaStuckRef.current) return
+    if (!isStreaming || !textareaStuckRef.current || disableStreamingAutoScroll) return
     const el = (shouldUseCodeRenderer ? codeScrollRef.current : textareaRef.current) ?? null
     if (!el) return
     el.scrollTop = el.scrollHeight
-  }, [isStreaming, renderedContent, shouldUseCodeRenderer])
+  }, [disableStreamingAutoScroll, isStreaming, renderedContent, shouldUseCodeRenderer])
 
   if (streamingContent === undefined) {
     if (isLoading) return DOCUMENT_SKELETON
