@@ -242,7 +242,10 @@ export function ChatContent({
   const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')
 
   if (hasSpecialContent) {
-    type BlockSegment = Exclude<ContentSegment, { type: 'text' } | { type: 'thinking' } | { type: 'workspace_resource' }>
+    type BlockSegment = Exclude<
+      ContentSegment,
+      { type: 'text' } | { type: 'thinking' } | { type: 'workspace_resource' }
+    >
     type RenderGroup =
       | { kind: 'inline'; markdown: string }
       | { kind: 'block'; segment: BlockSegment; index: number }
