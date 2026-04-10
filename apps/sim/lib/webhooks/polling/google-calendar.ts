@@ -101,13 +101,12 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
 
       const config = webhookData.providerConfig as unknown as GoogleCalendarWebhookConfig
       const calendarId = config.calendarId || config.manualCalendarId || 'primary'
-      const now = new Date()
 
       // First poll: seed timestamp, emit nothing
       if (!config.lastCheckedTimestamp) {
         await updateWebhookProviderConfig(
           webhookId,
-          { lastCheckedTimestamp: now.toISOString() },
+          { lastCheckedTimestamp: new Date().toISOString() },
           logger
         )
         await markWebhookSuccess(webhookId, logger)
@@ -119,11 +118,10 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
       const events = await fetchChangedEvents(accessToken, calendarId, config, requestId, logger)
 
       if (!events.length) {
-        await updateWebhookProviderConfig(
-          webhookId,
-          { lastCheckedTimestamp: now.toISOString() },
-          logger
-        )
+        // Do not advance the timestamp when no events are found — only server-side timestamps
+        // from actual event responses are used to advance the cursor. Advancing to the client
+        // clock risks skipping events whose server-side updated timestamp falls in any clock
+        // skew gap between the client and Google's servers.
         await markWebhookSuccess(webhookId, logger)
         logger.info(`[${requestId}] No changed events for webhook ${webhookId}`)
         return 'success'
@@ -146,7 +144,7 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
           ? config.lastCheckedTimestamp
           : latestUpdated
             ? new Date(new Date(latestUpdated).getTime() + 1).toISOString()
-            : now.toISOString()
+            : config.lastCheckedTimestamp
       await updateWebhookProviderConfig(webhookId, { lastCheckedTimestamp: newTimestamp }, logger)
 
       if (failedCount > 0 && processedCount === 0) {
