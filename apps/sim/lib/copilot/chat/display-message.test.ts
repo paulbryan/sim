@@ -60,4 +60,32 @@ describe('display-message', () => {
       },
     ])
   })
+
+  it('hides load_agent_skill blocks from display output', () => {
+    const display = toDisplayMessage({
+      id: 'msg-2',
+      role: 'assistant',
+      content: '',
+      timestamp: '2024-01-01T00:00:00.000Z',
+      contentBlocks: [
+        {
+          type: 'tool',
+          phase: 'call',
+          toolCall: {
+            id: 'tool-hidden',
+            name: 'load_agent_skill',
+            state: 'success',
+            display: { title: 'Loading skill' },
+          },
+        },
+        {
+          type: 'text',
+          channel: 'assistant',
+          content: 'visible text',
+        },
+      ],
+    })
+
+    expect(display.contentBlocks).toEqual([{ type: 'text', content: 'visible text' }])
+  })
 })

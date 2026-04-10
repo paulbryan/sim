@@ -25,10 +25,13 @@ export class TraceCollector {
     attributes?: Record<string, unknown>,
     parent?: RequestTraceV1Span
   ): RequestTraceV1Span {
+    const startMs = Date.now()
     const span: RequestTraceV1Span = {
       name,
       kind,
-      startMs: Date.now(),
+      startMs,
+      endMs: startMs,
+      durationMs: 0,
       status: RequestTraceV1SpanStatus.ok,
       source: RequestTraceV1SpanSource.sim,
       ...(parent

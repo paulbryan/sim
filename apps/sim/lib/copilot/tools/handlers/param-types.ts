@@ -103,6 +103,12 @@ export interface SetGlobalWorkflowVariablesParams {
   operations?: VariableOperation[]
 }
 
+export interface SetBlockEnabledParams {
+  workflowId?: string
+  blockId: string
+  enabled: boolean
+}
+
 // === Deployment Params ===
 
 export interface DeployApiParams {

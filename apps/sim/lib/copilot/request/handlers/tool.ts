@@ -22,6 +22,7 @@ import type {
   ToolCallState,
 } from '@/lib/copilot/request/types'
 import { getToolEntry, isSimExecuted } from '@/lib/copilot/tool-executor'
+import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import type { ToolScope } from './types'
 import {
@@ -235,6 +236,7 @@ function registerSubagentToolCall(
   if (!context.subAgentToolCalls[parentToolCallId]) {
     context.subAgentToolCalls[parentToolCallId] = []
   }
+  const hideFromUi = isToolHiddenInUi(toolName)
   let toolCall = context.toolCalls.get(toolCallId)
   if (toolCall) {
     if (!toolCall.name && toolName) toolCall.name = toolName
@@ -249,11 +251,13 @@ function registerSubagentToolCall(
     }
     context.toolCalls.set(toolCallId, toolCall)
     const parentToolCall = context.toolCalls.get(parentToolCallId)
-    addContentBlock(context, {
-      type: 'tool_call',
-      toolCall,
-      calledBy: parentToolCall?.name,
-    })
+    if (!hideFromUi) {
+      addContentBlock(context, {
+        type: 'tool_call',
+        toolCall,
+        calledBy: parentToolCall?.name,
+      })
+    }
   }
 
   const subagentToolCalls = context.subAgentToolCalls[parentToolCallId]
@@ -273,9 +277,11 @@ function registerMainToolCall(
   args: Record<string, unknown> | undefined,
   existing: ToolCallState | undefined
 ): void {
+  const hideFromUi = isToolHiddenInUi(toolName)
   if (existing) {
     if (args && !existing.params) existing.params = args
     if (
+      !hideFromUi &&
       !context.contentBlocks.some((b) => b.type === 'tool_call' && b.toolCall?.id === toolCallId)
     ) {
       addContentBlock(context, { type: 'tool_call', toolCall: existing })
@@ -289,7 +295,9 @@ function registerMainToolCall(
       startTime: Date.now(),
     }
     context.toolCalls.set(toolCallId, created)
-    addContentBlock(context, { type: 'tool_call', toolCall: created })
+    if (!hideFromUi) {
+      addContentBlock(context, { type: 'tool_call', toolCall: created })
+    }
   }
 }
 

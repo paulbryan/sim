@@ -42,6 +42,10 @@ export interface ToolSchema {
   oauth?: { required: boolean; provider: string }
 }
 
+interface BuildIntegrationToolSchemasOptions {
+  schemaSurface?: 'default' | 'copilot'
+}
+
 /**
  * Build deferred integration tool schemas from the Sim tool registry.
  * Shared by the interactive chat payload builder and the non-interactive
@@ -49,7 +53,8 @@ export interface ToolSchema {
  */
 export async function buildIntegrationToolSchemas(
   userId: string,
-  messageId?: string
+  messageId?: string,
+  options: BuildIntegrationToolSchemasOptions = { schemaSurface: 'copilot' }
 ): Promise<ToolSchema[]> {
   const reqLogger = logger.withMetadata({ messageId })
   const integrationTools: ToolSchema[] = []
@@ -70,7 +75,9 @@ export async function buildIntegrationToolSchemas(
 
     for (const [toolId, toolConfig] of Object.entries(latestTools)) {
       try {
-        const userSchema = createUserToolSchema(toolConfig)
+        const userSchema = createUserToolSchema(toolConfig, {
+          surface: options.schemaSurface ?? 'copilot',
+        })
         const strippedName = stripVersionSuffix(toolId)
         const catalogEntry = getToolEntry(strippedName)
         integrationTools.push({
@@ -192,7 +199,9 @@ export async function buildCopilotRequestPayload(
   const payloadLogger = logger.withMetadata({ messageId: userMessageId })
 
   if (effectiveMode === 'build') {
-    integrationTools = await buildIntegrationToolSchemas(userId, userMessageId)
+    integrationTools = await buildIntegrationToolSchemas(userId, userMessageId, {
+      schemaSurface: 'copilot',
+    })
 
     // Discover MCP tools from workspace servers and include as deferred tools
     if (workflowId) {

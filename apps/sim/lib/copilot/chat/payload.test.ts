@@ -3,7 +3,8 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetHighestPrioritySubscription } = vi.hoisted(() => ({
+const { mockCreateUserToolSchema, mockGetHighestPrioritySubscription } = vi.hoisted(() => ({
+  mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
   mockGetHighestPrioritySubscription: vi.fn(),
 }))
 
@@ -56,7 +57,7 @@ vi.mock('@/tools/utils', () => ({
 }))
 
 vi.mock('@/tools/params', () => ({
-  createUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
+  createUserToolSchema: mockCreateUserToolSchema,
 }))
 
 import { buildIntegrationToolSchemas } from './payload'
@@ -64,6 +65,7 @@ import { buildIntegrationToolSchemas } from './payload'
 describe('buildIntegrationToolSchemas', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
   })
 
   it('appends the email footer prompt for free users', async () => {
@@ -107,5 +109,20 @@ describe('buildIntegrationToolSchemas', () => {
 
     expect(gmailTool?.executeLocally).toBe(false)
     expect(runTool?.executeLocally).toBe(true)
+  })
+
+  it('uses copilot-facing file schemas for integration tools', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
+
+    await buildIntegrationToolSchemas('user-copilot')
+
+    expect(mockCreateUserToolSchema).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'gmail_send' }),
+      { surface: 'copilot' }
+    )
+    expect(mockCreateUserToolSchema).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'brandfetch_search' }),
+      { surface: 'copilot' }
+    )
   })
 })

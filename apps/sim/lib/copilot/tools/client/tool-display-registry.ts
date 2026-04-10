@@ -1,7 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   BookOpen,
-  Bug,
   Check,
   CheckCircle,
   Database,
@@ -2126,26 +2125,6 @@ const META_superagent: ToolMetadata = {
   },
 }
 
-const META_debug: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Debugging', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Debugging', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Debugging', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Debugged', icon: Bug },
-    [ClientToolCallState.error]: { text: 'Failed to debug', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped debugging', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted debugging', icon: XCircle },
-  },
-  uiConfig: {
-    subagent: {
-      streamingLabel: 'Debugging',
-      completedLabel: 'Debugged',
-      shouldCollapse: true,
-      outputArtifacts: [],
-    },
-  },
-}
-
 const META_table: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Managing tables', icon: Loader2 },
@@ -2345,7 +2324,6 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   create_workflow: META_create_workflow,
   agent: META_agent,
   custom_tool: META_custom_tool,
-  debug: META_debug,
   deploy: META_deploy,
   deploy_api: META_deploy_api,
   deploy_chat: META_deploy_chat,

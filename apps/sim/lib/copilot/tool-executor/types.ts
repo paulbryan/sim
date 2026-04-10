@@ -7,6 +7,9 @@ export interface ToolExecutionContext {
   chatId?: string
   executionId?: string
   runId?: string
+  copilotToolExecution?: boolean
+  requestMode?: string
+  currentAgentId?: string
   abortSignal?: AbortSignal
   userTimezone?: string
   userPermission?: string

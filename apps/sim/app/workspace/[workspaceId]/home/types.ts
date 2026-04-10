@@ -2,7 +2,6 @@ import {
   Agent,
   Auth,
   CreateWorkflow,
-  Debug,
   Deploy,
   EditContent,
   EditWorkflow,
@@ -188,7 +187,6 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   table: 'Table Agent',
   custom_tool: 'Custom Tool Agent',
   superagent: 'Superagent',
-  debug: 'Debug Agent',
   run: 'Run Agent',
   agent: 'Tools Agent',
   job: 'Job Agent',
@@ -315,7 +313,6 @@ export const TOOL_UI_METADATA: Record<string, ToolUIMetadata> = {
     phase: 'subagent',
   },
   [Research.id]: { title: 'Research Agent', phaseLabel: 'Research', phase: 'subagent' },
-  [Debug.id]: { title: 'Debug Agent', phaseLabel: 'Debug', phase: 'subagent' },
   [OpenResource.id]: {
     title: 'Opening resource',
     phaseLabel: 'Resource',

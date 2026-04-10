@@ -62,6 +62,7 @@ import {
   isResourceToolName,
 } from '@/lib/copilot/resources/extraction'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
+import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import {
   cancelRunToolExecution,
   executeRunToolOnClient,
@@ -1575,7 +1576,7 @@ export function useChat(
                     ? payload.name
                     : 'unknown'
               const isPartial = payload.partial === true
-              if (name === ToolSearchToolRegex.id) {
+              if (name === ToolSearchToolRegex.id || isToolHiddenInUi(name)) {
                 break
               }
               const ui = getToolUI(payload)

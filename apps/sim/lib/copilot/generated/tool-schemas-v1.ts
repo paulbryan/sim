@@ -266,25 +266,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  debug: {
-    parameters: {
-      properties: {
-        context: {
-          description:
-            'Pre-gathered context: workflow state JSON, block schemas, error logs. The debug agent will skip re-reading anything included here.',
-          type: 'string',
-        },
-        request: {
-          description:
-            'What to debug. Include error messages, block IDs, and any context about the failure.',
-          type: 'string',
-        },
-      },
-      required: ['request'],
-      type: 'object',
-    },
-    resultSchema: undefined,
-  },
   delete_file: {
     parameters: {
       type: 'object',
@@ -2075,6 +2056,28 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['queries'],
+    },
+    resultSchema: undefined,
+  },
+  set_block_enabled: {
+    parameters: {
+      type: 'object',
+      properties: {
+        blockId: {
+          type: 'string',
+          description: 'The block ID whose enabled state should be changed.',
+        },
+        enabled: {
+          type: 'boolean',
+          description: 'Set to true to enable the block, or false to disable it.',
+        },
+        workflowId: {
+          type: 'string',
+          description:
+            'Optional workflow ID to edit. If not provided, uses the current workflow in context.',
+        },
+      },
+      required: ['blockId', 'enabled'],
     },
     resultSchema: undefined,
   },

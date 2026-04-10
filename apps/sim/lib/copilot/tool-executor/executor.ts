@@ -113,6 +113,9 @@ function buildAppToolParams(
     chatId: context.chatId,
     executionId: context.executionId,
     runId: context.runId,
+    copilotToolExecution: context.copilotToolExecution,
+    requestMode: context.requestMode,
+    currentAgentId: context.currentAgentId,
     enforceCredentialAccess: true,
   }
 

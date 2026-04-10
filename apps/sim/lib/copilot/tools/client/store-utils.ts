@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
+import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import {
   ClientToolCallState,
   type ClientToolDisplay,
@@ -36,8 +37,6 @@ const logger = createLogger('CopilotStoreUtils')
 /** Respond tools are internal handoff tools shown with a friendly generic label. */
 const HIDDEN_TOOL_SUFFIX = '_respond'
 const INTERNAL_RESPOND_TOOL = 'respond'
-const HIDDEN_TOOL_NAMES = new Set(['tool_search_tool_regex'])
-
 /** UI metadata sent by the copilot on SSE tool_call events. */
 export interface ServerToolUI {
   title?: string
@@ -85,7 +84,7 @@ export function resolveToolDisplay(
   serverUI?: ServerToolUI
 ): ClientToolDisplay | undefined {
   if (!toolName) return undefined
-  if (HIDDEN_TOOL_NAMES.has(toolName)) return undefined
+  if (isToolHiddenInUi(toolName)) return undefined
 
   const specialDisplay = specialToolDisplay(toolName, state, params)
   if (specialDisplay) return specialDisplay

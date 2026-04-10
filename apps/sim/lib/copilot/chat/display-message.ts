@@ -4,6 +4,7 @@ import {
   MothershipStreamV1SpanLifecycleEvent,
   MothershipStreamV1ToolOutcome,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import {
   type ChatContextKind,
   type ChatMessage,
@@ -29,6 +30,7 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
 function toToolCallInfo(block: PersistedContentBlock): ToolCallInfo | undefined {
   const tc = block.toolCall
   if (!tc) return undefined
+  if (isToolHiddenInUi(tc.name)) return undefined
   const status: ToolCallStatus = STATE_TO_STATUS[tc.state] ?? ToolCallStatus.error
   return {
     id: tc.id,
@@ -42,7 +44,7 @@ function toToolCallInfo(block: PersistedContentBlock): ToolCallInfo | undefined 
   }
 }
 
-function toDisplayBlock(block: PersistedContentBlock): ContentBlock {
+function toDisplayBlock(block: PersistedContentBlock): ContentBlock | undefined {
   switch (block.type) {
     case MothershipStreamV1EventType.text:
       if (block.lane === 'subagent') {
@@ -53,6 +55,7 @@ function toDisplayBlock(block: PersistedContentBlock): ContentBlock {
       }
       return { type: ContentBlockType.text, content: block.content }
     case MothershipStreamV1EventType.tool:
+      if (!toToolCallInfo(block)) return undefined
       return { type: ContentBlockType.tool_call, toolCall: toToolCallInfo(block) }
     case MothershipStreamV1EventType.span:
       if (block.lifecycle === MothershipStreamV1SpanLifecycleEvent.end) {
@@ -110,7 +113,9 @@ export function toDisplayMessage(msg: PersistedMessage): ChatMessage {
   }
 
   if (msg.contentBlocks && msg.contentBlocks.length > 0) {
-    display.contentBlocks = msg.contentBlocks.map(toDisplayBlock)
+    display.contentBlocks = msg.contentBlocks
+      .map(toDisplayBlock)
+      .filter((block): block is ContentBlock => !!block)
   }
 
   const attachments = toDisplayAttachment(msg.fileAttachments)

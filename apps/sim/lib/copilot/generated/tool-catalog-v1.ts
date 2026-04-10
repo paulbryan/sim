@@ -18,7 +18,6 @@ export interface ToolCatalogEntry {
     | 'create_job'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
-    | 'debug'
     | 'delete_file'
     | 'delete_folder'
     | 'delete_workflow'
@@ -82,6 +81,7 @@ export interface ToolCatalogEntry {
     | 'search_library_docs'
     | 'search_online'
     | 'search_patterns'
+    | 'set_block_enabled'
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
     | 'superagent'
@@ -107,7 +107,6 @@ export interface ToolCatalogEntry {
     | 'create_job'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
-    | 'debug'
     | 'delete_file'
     | 'delete_folder'
     | 'delete_workflow'
@@ -171,6 +170,7 @@ export interface ToolCatalogEntry {
     | 'search_library_docs'
     | 'search_online'
     | 'search_patterns'
+    | 'set_block_enabled'
     | 'set_environment_variables'
     | 'set_global_workflow_variables'
     | 'superagent'
@@ -189,7 +189,6 @@ export interface ToolCatalogEntry {
   subagentId?:
     | 'agent'
     | 'auth'
-    | 'debug'
     | 'deploy'
     | 'file'
     | 'job'
@@ -446,31 +445,6 @@ export const CreateWorkspaceMcpServer: ToolCatalogEntry = {
   },
   requiresConfirmation: true,
   requiredPermission: 'admin',
-}
-
-export const Debug: ToolCatalogEntry = {
-  id: 'debug',
-  name: 'debug',
-  executor: 'subagent',
-  mode: 'async',
-  parameters: {
-    properties: {
-      context: {
-        description:
-          'Pre-gathered context: workflow state JSON, block schemas, error logs. The debug agent will skip re-reading anything included here.',
-        type: 'string',
-      },
-      request: {
-        description:
-          'What to debug. Include error messages, block IDs, and any context about the failure.',
-        type: 'string',
-      },
-    },
-    required: ['request'],
-    type: 'object',
-  },
-  subagentId: 'debug',
-  internal: true,
 }
 
 export const DeleteFile: ToolCatalogEntry = {
@@ -2309,6 +2283,33 @@ export const SearchPatterns: ToolCatalogEntry = {
   },
 }
 
+export const SetBlockEnabled: ToolCatalogEntry = {
+  id: 'set_block_enabled',
+  name: 'set_block_enabled',
+  executor: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      blockId: {
+        type: 'string',
+        description: 'The block ID whose enabled state should be changed.',
+      },
+      enabled: {
+        type: 'boolean',
+        description: 'Set to true to enable the block, or false to disable it.',
+      },
+      workflowId: {
+        type: 'string',
+        description:
+          'Optional workflow ID to edit. If not provided, uses the current workflow in context.',
+      },
+    },
+    required: ['blockId', 'enabled'],
+  },
+  requiredPermission: 'write',
+}
+
 export const SetEnvironmentVariables: ToolCatalogEntry = {
   id: 'set_environment_variables',
   name: 'set_environment_variables',
@@ -3055,7 +3056,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [CreateJob.id]: CreateJob,
   [CreateWorkflow.id]: CreateWorkflow,
   [CreateWorkspaceMcpServer.id]: CreateWorkspaceMcpServer,
-  [Debug.id]: Debug,
   [DeleteFile.id]: DeleteFile,
   [DeleteFolder.id]: DeleteFolder,
   [DeleteWorkflow.id]: DeleteWorkflow,
@@ -3119,6 +3119,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SearchLibraryDocs.id]: SearchLibraryDocs,
   [SearchOnline.id]: SearchOnline,
   [SearchPatterns.id]: SearchPatterns,
+  [SetBlockEnabled.id]: SetBlockEnabled,
   [SetEnvironmentVariables.id]: SetEnvironmentVariables,
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
   [Superagent.id]: Superagent,

@@ -1,3 +1,6 @@
+import { db } from '@sim/db'
+import { user } from '@sim/db/schema'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
@@ -12,6 +15,19 @@ function getMothershipUrl(environment: string): string | null {
   return ENV_URLS[environment] ?? null
 }
 
+async function isAdminRequestAuthorized() {
+  const session = await getSession()
+  if (!session?.user?.id) return false
+
+  const [currentUser] = await db
+    .select({ role: user.role })
+    .from(user)
+    .where(eq(user.id, session.user.id))
+    .limit(1)
+
+  return currentUser?.role === 'admin'
+}
+
 /**
  * Proxy to the mothership admin API.
  *
@@ -23,8 +39,7 @@ function getMothershipUrl(environment: string): string | null {
  * (e.g. requestId for GET /traces) are forwarded.
  */
 export async function POST(req: NextRequest) {
-  const session = await getSession()
-  if (!session?.user || session.user.role !== 'admin') {
+  if (!(await isAdminRequestAuthorized())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -75,8 +90,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getSession()
-  if (!session?.user || session.user.role !== 'admin') {
+  if (!(await isAdminRequestAuthorized())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

@@ -15,7 +15,7 @@ export type RequestTraceV1SpanSource = 'sim' | 'go'
  * This interface was referenced by `RequestTraceV1SimReport`'s JSON-Schema
  * via the `definition` "RequestTraceV1SpanStatus".
  */
-export type RequestTraceV1SpanStatus = 'ok' | 'error' | 'cancelled'
+export type RequestTraceV1SpanStatus = 'ok' | 'error' | 'cancelled' | 'pending'
 
 /**
  * Trace report sent from Sim to Go after a request completes.
@@ -49,8 +49,8 @@ export interface RequestTraceV1CostSummary {
  */
 export interface RequestTraceV1Span {
   attributes?: MothershipStreamV1AdditionalPropertiesMap
-  durationMs?: number
-  endMs?: number
+  durationMs: number
+  endMs: number
   kind?: string
   name: string
   parentName?: string
@@ -129,4 +129,5 @@ export const RequestTraceV1SpanStatus = {
   ok: 'ok',
   error: 'error',
   cancelled: 'cancelled',
+  pending: 'pending',
 } as const

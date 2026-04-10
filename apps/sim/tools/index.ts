@@ -11,11 +11,13 @@ import {
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { isUserFile } from '@/lib/core/utils/user-file'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import { parseMcpToolId } from '@/lib/mcp/utils'
+import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
-import type { ExecutionContext } from '@/executor/types'
+import type { ExecutionContext, UserFile } from '@/executor/types'
 import type { ErrorInfo } from '@/tools/error-extractors'
 import { extractErrorMessage } from '@/tools/error-extractors'
 import type {
@@ -39,6 +41,7 @@ interface ToolExecutionScope {
   callChain?: string[]
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean
+  copilotToolExecution?: boolean
 }
 
 function resolveToolScope(
@@ -57,6 +60,108 @@ function resolveToolScope(
       | undefined,
     enforceCredentialAccess: (executionContext?.enforceCredentialAccess ??
       ctx?.enforceCredentialAccess) as boolean | undefined,
+    copilotToolExecution: (executionContext?.copilotToolExecution ?? ctx?.copilotToolExecution) as
+      | boolean
+      | undefined,
+  }
+}
+
+function toUserFileFromWorkspaceRecord(record: {
+  id: string
+  name: string
+  path: string
+  url?: string
+  size: number
+  type: string
+  key: string
+}): UserFile {
+  return {
+    id: record.id,
+    name: record.name,
+    url: record.url ?? record.path,
+    size: record.size,
+    type: record.type,
+    key: record.key,
+    context: 'workspace',
+  }
+}
+
+async function resolveCopilotFileReference(
+  value: unknown,
+  workspaceId: string,
+  paramId: string
+): Promise<UserFile | unknown> {
+  if (isUserFile(value)) {
+    return value
+  }
+
+  const referenceId =
+    typeof value === 'string'
+      ? value
+      : value &&
+          typeof value === 'object' &&
+          typeof (value as Record<string, unknown>).id === 'string'
+        ? ((value as Record<string, unknown>).id as string)
+        : null
+
+  if (!referenceId) {
+    return value
+  }
+
+  const fileRecord = await resolveWorkspaceFileReference(workspaceId, referenceId)
+  if (!fileRecord) {
+    throw new Error(
+      `Could not resolve workspace file reference "${referenceId}" for parameter "${paramId}"`
+    )
+  }
+
+  const resolvedFile = toUserFileFromWorkspaceRecord(fileRecord)
+  if (!value || typeof value !== 'object') {
+    return resolvedFile
+  }
+
+  const candidate = value as Record<string, unknown>
+  return {
+    ...resolvedFile,
+    context: typeof candidate.context === 'string' ? candidate.context : resolvedFile.context,
+    base64: typeof candidate.base64 === 'string' ? candidate.base64 : undefined,
+  }
+}
+
+async function normalizeCopilotFileParams(
+  tool: ToolConfig,
+  params: Record<string, unknown>,
+  scope: ToolExecutionScope
+): Promise<void> {
+  if (!scope.copilotToolExecution) {
+    return
+  }
+
+  for (const [paramId, paramDef] of Object.entries(tool.params || {})) {
+    const paramType = paramDef?.type
+    const currentValue = params[paramId]
+    if (currentValue === undefined || currentValue === null) {
+      continue
+    }
+
+    if (paramType === 'file') {
+      if (!scope.workspaceId) {
+        throw new Error(`Missing workspaceId while resolving file parameter "${paramId}"`)
+      }
+      params[paramId] = await resolveCopilotFileReference(currentValue, scope.workspaceId, paramId)
+      continue
+    }
+
+    if (paramType === 'file[]') {
+      if (!scope.workspaceId) {
+        throw new Error(`Missing workspaceId while resolving file parameter "${paramId}"`)
+      }
+
+      const values = Array.isArray(currentValue) ? currentValue : [currentValue]
+      params[paramId] = await Promise.all(
+        values.map((item) => resolveCopilotFileReference(item, scope.workspaceId!, paramId))
+      )
+    }
   }
 }
 
@@ -682,6 +787,8 @@ export async function executeTool(
     if (!tool) {
       throw new Error(`Tool not found: ${toolId}`)
     }
+
+    await normalizeCopilotFileParams(tool, contextParams, scope)
 
     // Inject hosted API key if tool supports it and user didn't provide one
     const hostedKeyInfo = await injectHostedKeyIfNeeded(

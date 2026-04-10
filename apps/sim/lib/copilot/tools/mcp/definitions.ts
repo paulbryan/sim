@@ -398,22 +398,6 @@ Supports full and partial execution:
     annotations: { destructiveHint: false, openWorldHint: true },
   },
   {
-    name: 'sim_debug',
-    agentId: 'debug',
-    description:
-      'Diagnose errors or unexpected workflow behavior. Provide the error message and workflowId. Returns root cause analysis and fix suggestions.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        error: { type: 'string', description: 'The error message or description of the issue.' },
-        workflowId: { type: 'string', description: 'REQUIRED. The workflow ID to debug.' },
-        context: { type: 'object' },
-      },
-      required: ['error', 'workflowId'],
-    },
-    annotations: { readOnlyHint: true },
-  },
-  {
     name: 'sim_auth',
     agentId: 'auth',
     description:

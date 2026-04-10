@@ -315,7 +315,7 @@ function OverviewTab({
                       {r.error ? (
                         <Badge variant='red'>Error</Badge>
                       ) : r.aborted ? (
-                        <Badge variant='yellow'>Abort</Badge>
+                        <Badge variant='amber'>Abort</Badge>
                       ) : (
                         <Badge variant='green'>OK</Badge>
                       )}
@@ -694,7 +694,7 @@ function TraceDetail({ trace }: { trace: TraceData }) {
               trace.outcome === 'success'
                 ? 'green'
                 : trace.outcome === 'cancelled'
-                  ? 'yellow'
+                  ? 'amber'
                   : 'red'
             }
           >

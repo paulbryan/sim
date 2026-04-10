@@ -4,6 +4,7 @@ import { mcpService } from '@/lib/mcp/service'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { getEffectiveBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
+import { getBlockReferenceTags } from '@/lib/workflows/blocks/block-reference-tags'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import {
   loadDeployedWorkflowState,
@@ -335,27 +336,29 @@ export async function executeGetBlockUpstreamReferences(
 
         const blockName = block.name || block.type
         let accessContext: 'inside' | 'outside' | undefined
-        let outputPaths: string[]
 
+        let formattedOutputs: string[]
         if (block.type === 'loop' || block.type === 'parallel') {
           const isInside =
             (block.type === 'loop' && containingLoopIds.has(accessibleBlockId)) ||
             (block.type === 'parallel' && containingParallelIds.has(accessibleBlockId))
           accessContext = isInside ? 'inside' : 'outside'
-          outputPaths = isInside
+          const outputPaths = isInside
             ? getSubflowInsidePaths(block.type, accessibleBlockId, loops, parallels)
             : ['results']
+          formattedOutputs = formatOutputsWithPrefix(outputPaths, blockName)
         } else {
-          const blockConfig = getBlock(block.type)
-          const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
-          const triggerMode = Boolean(block.triggerMode && isTriggerCapable)
-          outputPaths = getEffectiveBlockOutputPaths(block.type, block.subBlocks, {
-            triggerMode,
-            preferToolOutputs: !triggerMode,
+          formattedOutputs = getBlockReferenceTags({
+            block: {
+              id: accessibleBlockId,
+              type: block.type,
+              name: block.name,
+              triggerMode: block.triggerMode,
+              subBlocks: block.subBlocks,
+            },
+            currentBlockId: blockId,
           })
         }
-
-        const formattedOutputs = formatOutputsWithPrefix(outputPaths, blockName)
         const entry: AccessibleBlockEntry = {
           blockId: accessibleBlockId,
           blockName,

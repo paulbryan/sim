@@ -45,6 +45,7 @@ import {
   RunFromBlock,
   RunWorkflow,
   RunWorkflowUntilBlock,
+  SetBlockEnabled,
   SetGlobalWorkflowVariables,
   UpdateJobHistory,
   UpdateWorkspaceMcpServer,
@@ -96,6 +97,7 @@ import {
   executeRunFromBlock,
   executeRunWorkflow,
   executeRunWorkflowUntilBlock,
+  executeSetBlockEnabled,
   executeSetGlobalWorkflowVariables,
 } from '../tools/handlers/workflow/mutations'
 import {
@@ -147,6 +149,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [RunWorkflowUntilBlock.id]: h(executeRunWorkflowUntilBlock),
     [RunFromBlock.id]: h(executeRunFromBlock),
     [RunBlock.id]: h(executeRunBlock),
+    [SetBlockEnabled.id]: h(executeSetBlockEnabled),
     [GenerateApiKey.id]: h(executeGenerateApiKey),
     [SetGlobalWorkflowVariables.id]: h(executeSetGlobalWorkflowVariables),
 

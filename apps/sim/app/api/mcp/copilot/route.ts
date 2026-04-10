@@ -143,8 +143,8 @@ When the user refers to a workflow by name or description ("the email one", "my 
 ### Key Rules
 
 - You can test workflows immediately after building — deployment is only needed for external access (API, chat, MCP).
-- All copilot tools (build, plan, edit, deploy, test, debug) require workflowId.
-- If the user reports errors → use \`sim_debug\` first, don't guess.
+- All workflow-scoped copilot tools require \`workflowId\`.
+- If the user reports errors, route through \`sim_workflow\` and ask it to reproduce, inspect logs, and fix the issue end to end.
 - Variable syntax: \`<blockname.field>\` for block outputs, \`{{ENV_VAR}}\` for env vars.
 `
 

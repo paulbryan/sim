@@ -384,6 +384,7 @@ async function buildExecutionContext(
   const { userId, workflowId, workspaceId, chatId, executionId, runId, abortSignal } = params
   const userTimezone =
     typeof requestPayload?.userTimezone === 'string' ? requestPayload.userTimezone : undefined
+  const requestMode = typeof requestPayload?.mode === 'string' ? requestPayload.mode : undefined
 
   let execContext: ExecutionContext
   if (workflowId) {
@@ -400,6 +401,8 @@ async function buildExecutionContext(
   }
 
   if (userTimezone) execContext.userTimezone = userTimezone
+  execContext.copilotToolExecution = true
+  if (requestMode) execContext.requestMode = requestMode
   execContext.executionId = executionId
   execContext.runId = runId
   execContext.abortSignal = abortSignal

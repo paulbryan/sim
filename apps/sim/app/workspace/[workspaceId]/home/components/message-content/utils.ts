@@ -2,7 +2,6 @@ import type { ComponentType, SVGProps } from 'react'
 import {
   Asterisk,
   Blimp,
-  Bug,
   Calendar,
   Database,
   Eye,
@@ -55,7 +54,6 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   agent: AgentIcon,
   custom_tool: Wrench,
   research: Search,
-  debug: Bug,
   context_compaction: Asterisk,
   open_resource: Eye,
   file: File,

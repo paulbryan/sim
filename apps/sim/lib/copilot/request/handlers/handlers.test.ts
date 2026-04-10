@@ -127,6 +127,33 @@ describe('sse-handlers tool lifecycle', () => {
     expect(updated?.result?.output).toEqual({ ok: true })
   })
 
+  it('does not add hidden tool calls to content blocks', async () => {
+    executeTool.mockResolvedValueOnce({ success: true, output: { skill: 'ok' } })
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-hidden',
+          toolName: 'load_agent_skill',
+          arguments: { skill_name: 'markdown-writing' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(executeTool).toHaveBeenCalledTimes(1)
+    expect(context.contentBlocks).toEqual([])
+    expect(context.toolCalls.get('tool-hidden')?.name).toBe('load_agent_skill')
+  })
+
   it('updates stored params when a subagent generating event is followed by the final tool call', async () => {
     executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
     context.subAgentParentToolCallId = 'parent-1'

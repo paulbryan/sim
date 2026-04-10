@@ -1,7 +1,10 @@
+import { db, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
 import { createWorkspaceApiKey } from '@/lib/api-key/auth'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateId } from '@/lib/core/utils/uuid'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
@@ -10,7 +13,10 @@ import {
   getLatestExecutionState,
 } from '@/lib/workflows/executor/execution-state'
 import { performDeleteFolder, performDeleteWorkflow } from '@/lib/workflows/orchestration'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadWorkflowFromNormalizedTables,
+  saveWorkflowToNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import {
   checkForCircularReference,
@@ -22,6 +28,7 @@ import {
   updateWorkflowRecord,
 } from '@/lib/workflows/utils'
 import { hasExecutionResult } from '@/executor/utils/errors'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } from '../access'
 
 function stripBinaryFields(value: unknown): unknown {
@@ -71,6 +78,72 @@ function buildExecutionError(error: unknown): ToolCallResult {
   return { success: false, error: message }
 }
 
+function isBlockProtected(blockId: string, blocksById: Record<string, BlockState>): boolean {
+  const block = blocksById[blockId]
+  if (!block) return false
+  if (block.locked) return true
+
+  const visited = new Set<string>()
+  let parentId = block.data?.parentId
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId)
+    if (blocksById[parentId]?.locked) return true
+    parentId = blocksById[parentId]?.data?.parentId
+  }
+
+  return false
+}
+
+function hasDisabledAncestor(blockId: string, blocksById: Record<string, BlockState>): boolean {
+  const visited = new Set<string>()
+  let parentId = blocksById[blockId]?.data?.parentId
+
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId)
+    const parent = blocksById[parentId]
+    if (!parent) return false
+    if (parent.enabled === false) return true
+    parentId = parent.data?.parentId
+  }
+
+  return false
+}
+
+function findDescendants(containerId: string, blocksById: Record<string, BlockState>): string[] {
+  const descendants: string[] = []
+  const stack = [containerId]
+  const visited = new Set<string>()
+
+  while (stack.length > 0) {
+    const current = stack.pop()!
+    if (visited.has(current)) continue
+    visited.add(current)
+
+    for (const [blockId, block] of Object.entries(blocksById)) {
+      if (block.data?.parentId === current) {
+        descendants.push(blockId)
+        stack.push(blockId)
+      }
+    }
+  }
+
+  return descendants
+}
+
+function notifyWorkflowUpdated(workflowId: string): void {
+  const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
+  fetch(`${socketUrl}/api/workflow-updated`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.INTERNAL_API_SECRET,
+    },
+    body: JSON.stringify({ workflowId }),
+  }).catch((error) => {
+    logger.warn('Failed to notify socket server of workflow update', { workflowId, error })
+  })
+}
+
 import type {
   CreateFolderParams,
   CreateWorkflowParams,
@@ -85,6 +158,7 @@ import type {
   RunFromBlockParams,
   RunWorkflowParams,
   RunWorkflowUntilBlockParams,
+  SetBlockEnabledParams,
   SetGlobalWorkflowVariablesParams,
   UpdateWorkflowParams,
   VariableOperation,
@@ -660,6 +734,137 @@ export async function executeUpdateWorkflow(
     return {
       success: true,
       output: { workflowId, ...updates },
+    }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeSetBlockEnabled(
+  params: SetBlockEnabledParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId || context.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+    if (!params.blockId) {
+      return { success: false, error: 'blockId is required' }
+    }
+    if (typeof params.enabled !== 'boolean') {
+      return { success: false, error: 'enabled must be a boolean' }
+    }
+
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(
+      workflowId,
+      context.userId,
+      'write'
+    )
+    assertWorkflowMutationNotAborted(context)
+
+    const normalized = await loadWorkflowFromNormalizedTables(workflowId)
+    if (!normalized) {
+      return { success: false, error: `Workflow ${workflowId} has no normalized state` }
+    }
+
+    const currentState: WorkflowState = {
+      blocks: normalized.blocks as Record<string, BlockState>,
+      edges: normalized.edges || [],
+      loops: normalized.loops || {},
+      parallels: normalized.parallels || {},
+      lastSaved: Date.now(),
+    }
+
+    const currentBlocks = currentState.blocks
+    const targetBlock = currentBlocks[params.blockId]
+    if (!targetBlock) {
+      return {
+        success: false,
+        error: `Block ${params.blockId} not found in workflow ${workflowId}`,
+      }
+    }
+    if (isBlockProtected(params.blockId, currentBlocks)) {
+      return {
+        success: false,
+        error: `Block ${params.blockId} is locked or inside a locked container and cannot be updated`,
+      }
+    }
+    if (targetBlock.enabled === params.enabled) {
+      return {
+        success: true,
+        output: {
+          workflowId,
+          workflowName: workflowRecord.name,
+          blockId: params.blockId,
+          enabled: params.enabled,
+          affectedBlockIds: [params.blockId],
+          workflowState: currentState,
+          copilotSanitizedWorkflowState: sanitizeForCopilot(currentState),
+          message: `Block ${params.blockId} is already ${params.enabled ? 'enabled' : 'disabled'}`,
+        },
+      }
+    }
+    if (params.enabled && hasDisabledAncestor(params.blockId, currentBlocks)) {
+      return {
+        success: false,
+        error: `Cannot enable block ${params.blockId} while one of its parent containers is disabled. Enable the parent first.`,
+      }
+    }
+
+    const affectedBlockIds = new Set<string>([params.blockId])
+    if (targetBlock.type === 'loop' || targetBlock.type === 'parallel') {
+      for (const descendantId of findDescendants(params.blockId, currentBlocks)) {
+        if (!isBlockProtected(descendantId, currentBlocks)) {
+          affectedBlockIds.add(descendantId)
+        }
+      }
+    }
+
+    const nextBlocks: Record<string, BlockState> = { ...currentBlocks }
+    for (const blockId of affectedBlockIds) {
+      nextBlocks[blockId] = {
+        ...nextBlocks[blockId],
+        enabled: params.enabled,
+      }
+    }
+
+    const nextState: WorkflowState = {
+      ...currentState,
+      blocks: nextBlocks,
+      lastSaved: Date.now(),
+    }
+
+    assertWorkflowMutationNotAborted(context)
+    const saveResult = await saveWorkflowToNormalizedTables(workflowId, nextState)
+    if (!saveResult.success) {
+      return {
+        success: false,
+        error: saveResult.error || `Failed to persist enabled state for block ${params.blockId}`,
+      }
+    }
+
+    await db
+      .update(workflowTable)
+      .set({
+        lastSynced: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(workflowTable.id, workflowId))
+
+    notifyWorkflowUpdated(workflowId)
+
+    return {
+      success: true,
+      output: {
+        workflowId,
+        workflowName: workflowRecord.name,
+        blockId: params.blockId,
+        enabled: params.enabled,
+        affectedBlockIds: Array.from(affectedBlockIds),
+        workflowState: nextState,
+        copilotSanitizedWorkflowState: sanitizeForCopilot(nextState),
+      },
     }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
