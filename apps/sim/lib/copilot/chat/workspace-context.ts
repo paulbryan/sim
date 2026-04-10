@@ -6,6 +6,7 @@ import {
   userTableDefinitions,
   userTableRows,
   workflow,
+  workflowFolder,
   workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -237,6 +238,7 @@ export async function generateWorkspaceContext(
     const [
       members,
       workflows,
+      folderRows,
       kbs,
       tables,
       files,
@@ -255,9 +257,19 @@ export async function generateWorkspaceContext(
           description: workflow.description,
           isDeployed: workflow.isDeployed,
           lastRunAt: workflow.lastRunAt,
+          folderId: workflow.folderId,
         })
         .from(workflow)
         .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt))),
+
+      db
+        .select({
+          id: workflowFolder.id,
+          name: workflowFolder.name,
+          parentId: workflowFolder.parentId,
+        })
+        .from(workflowFolder)
+        .where(and(eq(workflowFolder.workspaceId, workspaceId), isNull(workflowFolder.archivedAt))),
 
       db
         .select({
@@ -359,10 +371,26 @@ export async function generateWorkspaceContext(
       connectorTypesByKb.set(row.knowledgeBaseId, types)
     }
 
+    const folderPathMap = new Map<string, string>()
+    const folderById = new Map(folderRows.map((f) => [f.id, f]))
+    function resolveFolderPath(id: string): string {
+      const cached = folderPathMap.get(id)
+      if (cached !== undefined) return cached
+      const folder = folderById.get(id)
+      if (!folder) return id
+      const parentPath = folder.parentId ? resolveFolderPath(folder.parentId) : ''
+      const path = parentPath ? `${parentPath}/${folder.name}` : folder.name
+      folderPathMap.set(id, path)
+      return path
+    }
+
     return buildWorkspaceMd({
       workspace: wsRow,
       members,
-      workflows,
+      workflows: workflows.map((wf) => ({
+        ...wf,
+        folderPath: wf.folderId ? resolveFolderPath(wf.folderId) : null,
+      })),
       knowledgeBases: kbs.map((kb) => ({
         ...kb,
         connectorTypes: connectorTypesByKb.get(kb.id),
