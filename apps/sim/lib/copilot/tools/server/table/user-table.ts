@@ -335,28 +335,33 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
         }
 
         case 'delete': {
-          if (!args.tableId) {
-            return { success: false, message: 'Table ID is required' }
+          const tableIds: string[] = args.tableIds ?? (args.tableId ? [args.tableId] : [])
+          if (tableIds.length === 0) {
+            return { success: false, message: 'tableId or tableIds is required' }
           }
           if (!workspaceId) {
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const table = await getTableById(args.tableId)
-          if (!table) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-          if (table.workspaceId !== workspaceId) {
-            return { success: false, message: 'Table not found' }
-          }
+          const deleted: string[] = []
+          const failed: string[] = []
 
-          const requestId = generateId().slice(0, 8)
-          assertNotAborted()
-          await deleteTable(args.tableId, requestId)
+          for (const tableId of tableIds) {
+            const table = await getTableById(tableId)
+            if (!table || table.workspaceId !== workspaceId) {
+              failed.push(tableId)
+              continue
+            }
+
+            const requestId = generateId().slice(0, 8)
+            assertNotAborted()
+            await deleteTable(tableId, requestId)
+            deleted.push(tableId)
+          }
 
           return {
-            success: true,
-            message: `Deleted table ${args.tableId}`,
+            success: deleted.length > 0,
+            message: `Deleted ${deleted.length} table(s)${failed.length > 0 ? `, ${failed.length} not found` : ''}`,
           }
         }
 

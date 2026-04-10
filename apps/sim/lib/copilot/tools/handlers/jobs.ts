@@ -184,6 +184,7 @@ interface ManageJobParams {
   operation: 'create' | 'list' | 'get' | 'update' | 'delete'
   args?: {
     jobId?: string
+    jobIds?: string[]
     title?: string
     prompt?: string
     cron?: string
@@ -423,43 +424,46 @@ export async function executeManageJob(
     }
 
     case 'delete': {
-      if (!args?.jobId) {
-        return { success: false, error: 'jobId is required for delete operation' }
+      const jobIds = args?.jobIds ?? (args?.jobId ? [args.jobId] : [])
+      if (jobIds.length === 0) {
+        return { success: false, error: 'jobId or jobIds is required for delete operation' }
       }
 
       try {
-        const [existing] = await db
-          .select({ id: workflowSchedule.id })
-          .from(workflowSchedule)
-          .where(
-            and(eq(workflowSchedule.id, args.jobId), ACTIVE_JOB_CONDITION(context.workspaceId))
-          )
-          .limit(1)
+        const deleted: string[] = []
+        const notFound: string[] = []
 
-        if (!existing) {
-          return { success: false, error: `Job not found: ${args.jobId}` }
+        for (const jobId of jobIds) {
+          const [existing] = await db
+            .select({ id: workflowSchedule.id })
+            .from(workflowSchedule)
+            .where(and(eq(workflowSchedule.id, jobId), ACTIVE_JOB_CONDITION(context.workspaceId)))
+            .limit(1)
+
+          if (!existing) {
+            notFound.push(jobId)
+            continue
+          }
+
+          await db.delete(workflowSchedule).where(eq(workflowSchedule.id, jobId))
+          deleted.push(jobId)
+
+          logger.info('Job deleted', { jobId })
+
+          recordAudit({
+            workspaceId: context.workspaceId || null,
+            actorId: context.userId,
+            action: AuditAction.SCHEDULE_UPDATED,
+            resourceType: AuditResourceType.SCHEDULE,
+            resourceId: jobId,
+            description: `Deleted job`,
+            metadata: { operation: 'delete' },
+          })
         }
 
-        await db.delete(workflowSchedule).where(eq(workflowSchedule.id, args.jobId))
-
-        logger.info('Job deleted', { jobId: args.jobId })
-
-        recordAudit({
-          workspaceId: context.workspaceId || null,
-          actorId: context.userId,
-          action: AuditAction.SCHEDULE_UPDATED,
-          resourceType: AuditResourceType.SCHEDULE,
-          resourceId: args.jobId,
-          description: `Deleted job`,
-          metadata: { operation: 'delete' },
-        })
-
         return {
-          success: true,
-          output: {
-            jobId: args.jobId,
-            message: 'Job deleted successfully',
-          },
+          success: deleted.length > 0,
+          output: { deleted, notFound },
         }
       } catch (err) {
         logger.error('Failed to delete job', {

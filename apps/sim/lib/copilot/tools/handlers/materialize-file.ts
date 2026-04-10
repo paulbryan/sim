@@ -186,9 +186,12 @@ export async function executeMaterializeFile(
   params: Record<string, unknown>,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
-  const fileName = params.fileName as string | undefined
-  if (!fileName) {
-    return { success: false, error: "Missing required parameter 'fileName'" }
+  const fileNames: string[] =
+    (params.fileNames as string[] | undefined) ??
+    ([params.fileName as string | undefined].filter(Boolean) as string[])
+
+  if (fileNames.length === 0) {
+    return { success: false, error: "Missing required parameter 'fileNames'" }
   }
 
   if (!context.chatId) {
@@ -200,22 +203,37 @@ export async function executeMaterializeFile(
   }
 
   const operation = (params.operation as string | undefined) || 'save'
+  const succeeded: string[] = []
+  const failed: Array<{ fileName: string; error: string }> = []
 
-  try {
-    if (operation === 'import') {
-      return await executeImport(fileName, context.chatId, context.workspaceId, context.userId)
+  for (const fileName of fileNames) {
+    try {
+      if (operation === 'import') {
+        await executeImport(fileName, context.chatId, context.workspaceId, context.userId)
+      } else {
+        await executeSave(fileName, context.chatId)
+      }
+      succeeded.push(fileName)
+    } catch (err) {
+      logger.error('materialize_file failed', {
+        fileName,
+        operation,
+        chatId: context.chatId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      failed.push({
+        fileName,
+        error: err instanceof Error ? err.message : 'Failed to materialize file',
+      })
     }
-    return await executeSave(fileName, context.chatId)
-  } catch (err) {
-    logger.error('materialize_file failed', {
-      fileName,
-      operation,
-      chatId: context.chatId,
-      error: err instanceof Error ? err.message : String(err),
-    })
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : 'Failed to materialize file',
-    }
+  }
+
+  return {
+    success: succeeded.length > 0,
+    output: { succeeded, failed },
+    error:
+      failed.length > 0
+        ? `Failed to materialize: ${failed.map((f) => f.fileName).join(', ')}`
+        : undefined,
   }
 }

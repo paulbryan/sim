@@ -7,30 +7,69 @@ export function executeManageCredential(
   rawParams: Record<string, unknown>,
   _context: ExecutionContext
 ): Promise<ToolCallResult> {
-  const params = rawParams as { operation: string; credentialId: string; displayName?: string }
-  const { operation, credentialId, displayName } = params
-  if (!credentialId) return Promise.resolve({ success: false, error: 'credentialId is required' })
+  const params = rawParams as {
+    operation: string
+    credentialId?: string
+    credentialIds?: string[]
+    displayName?: string
+  }
+  const { operation, displayName } = params
   return (async () => {
     try {
-      const [row] = await db
-        .select({ id: credential.id, type: credential.type, displayName: credential.displayName })
-        .from(credential)
-        .where(eq(credential.id, credentialId))
-        .limit(1)
-      if (!row) return { success: false, error: 'Credential not found' }
-      if (row.type !== 'oauth')
-        return { success: false, error: 'Only OAuth credentials can be managed with this tool.' }
       switch (operation) {
-        case 'rename':
+        case 'rename': {
+          const credentialId = params.credentialId
+          if (!credentialId) return { success: false, error: 'credentialId is required for rename' }
           if (!displayName) return { success: false, error: 'displayName is required for rename' }
+          const [row] = await db
+            .select({
+              id: credential.id,
+              type: credential.type,
+              displayName: credential.displayName,
+            })
+            .from(credential)
+            .where(eq(credential.id, credentialId))
+            .limit(1)
+          if (!row) return { success: false, error: 'Credential not found' }
+          if (row.type !== 'oauth')
+            return {
+              success: false,
+              error: 'Only OAuth credentials can be managed with this tool.',
+            }
           await db
             .update(credential)
             .set({ displayName, updatedAt: new Date() })
             .where(eq(credential.id, credentialId))
           return { success: true, output: { credentialId, displayName } }
-        case 'delete':
-          await db.delete(credential).where(eq(credential.id, credentialId))
-          return { success: true, output: { credentialId, deleted: true } }
+        }
+        case 'delete': {
+          const ids: string[] =
+            params.credentialIds ?? (params.credentialId ? [params.credentialId] : [])
+          if (ids.length === 0)
+            return { success: false, error: 'credentialId or credentialIds is required for delete' }
+
+          const deleted: string[] = []
+          const failed: string[] = []
+
+          for (const id of ids) {
+            const [row] = await db
+              .select({ id: credential.id, type: credential.type })
+              .from(credential)
+              .where(eq(credential.id, id))
+              .limit(1)
+            if (!row || row.type !== 'oauth') {
+              failed.push(id)
+              continue
+            }
+            await db.delete(credential).where(eq(credential.id, id))
+            deleted.push(id)
+          }
+
+          return {
+            success: deleted.length > 0,
+            output: { deleted, failed },
+          }
+        }
         default:
           return {
             success: false,

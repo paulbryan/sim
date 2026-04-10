@@ -70,6 +70,7 @@ export interface ToolCatalogEntry {
     | 'rename_workflow'
     | 'research'
     | 'respond'
+    | 'restore_resource'
     | 'revert_to_version'
     | 'run'
     | 'run_block'
@@ -158,6 +159,7 @@ export interface ToolCatalogEntry {
     | 'rename_workflow'
     | 'research'
     | 'respond'
+    | 'restore_resource'
     | 'revert_to_version'
     | 'run'
     | 'run_block'
@@ -479,9 +481,13 @@ export const DeleteFile: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
-      fileId: { type: 'string', description: 'Canonical workspace file ID of the file to delete.' },
+      fileIds: {
+        type: 'array',
+        description: 'Canonical workspace file IDs of the files to delete.',
+        items: { type: 'string' },
+      },
     },
-    required: ['fileId'],
+    required: ['fileIds'],
   },
   resultSchema: {
     type: 'object',
@@ -501,8 +507,14 @@ export const DeleteFolder: ToolCatalogEntry = {
   mode: 'async',
   parameters: {
     type: 'object',
-    properties: { folderId: { type: 'string', description: 'The folder ID to delete.' } },
-    required: ['folderId'],
+    properties: {
+      folderIds: {
+        type: 'array',
+        description: 'The folder IDs to delete.',
+        items: { type: 'string' },
+      },
+    },
+    required: ['folderIds'],
   },
   requiresConfirmation: true,
   requiredPermission: 'write',
@@ -515,8 +527,14 @@ export const DeleteWorkflow: ToolCatalogEntry = {
   mode: 'async',
   parameters: {
     type: 'object',
-    properties: { workflowId: { type: 'string', description: 'The workflow ID to delete.' } },
-    required: ['workflowId'],
+    properties: {
+      workflowIds: {
+        type: 'array',
+        description: 'The workflow IDs to delete.',
+        items: { type: 'string' },
+      },
+    },
+    required: ['workflowIds'],
   },
   requiresConfirmation: true,
   requiredPermission: 'write',
@@ -1176,7 +1194,7 @@ export const Glob: ToolCatalogEntry = {
           'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "workflow configs" or "knowledge bases", not a full sentence like "Finding workflow configs".',
       },
     },
-    required: ['pattern'],
+    required: ['pattern', 'toolTitle'],
   },
 }
 
@@ -1221,7 +1239,7 @@ export const Grep: ToolCatalogEntry = {
           'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "Slack integrations" or "deployed workflows", not a full sentence like "Searching for Slack integrations".',
       },
     },
-    required: ['pattern'],
+    required: ['pattern', 'toolTitle'],
   },
 }
 
@@ -1322,22 +1340,21 @@ export const KnowledgeBase: ToolCatalogEntry = {
             description:
               'Tag definition IDs to opt out of (optional for add_connector). See tagDefinitions in the connector schema.',
           },
-          documentId: {
-            type: 'string',
-            description: 'Document ID (required for delete_document, update_document)',
+          documentId: { type: 'string', description: 'Document ID (required for update_document)' },
+          documentIds: {
+            type: 'array',
+            description: 'Document IDs (for batch delete_document)',
+            items: { type: 'string' },
           },
           enabled: {
             type: 'boolean',
             description: 'Enable/disable a document (optional for update_document)',
           },
-          fileId: {
-            type: 'string',
+          fileIds: {
+            type: 'array',
             description:
-              'Canonical workspace file ID to add as a document (preferred for add_file). Discover via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json").',
-          },
-          filePath: {
-            type: 'string',
-            description: 'Legacy workspace file reference for add_file. Prefer fileId.',
+              'Canonical workspace file IDs to add as documents (for add_file). Discover via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json").',
+            items: { type: 'string' },
           },
           filename: {
             type: 'string',
@@ -1347,6 +1364,11 @@ export const KnowledgeBase: ToolCatalogEntry = {
             type: 'string',
             description:
               'Knowledge base ID (required for get, query, add_file, list_tags, create_tag, get_tag_usage)',
+          },
+          knowledgeBaseIds: {
+            type: 'array',
+            description: 'Knowledge base IDs (for batch delete)',
+            items: { type: 'string' },
           },
           name: {
             type: 'string',
@@ -1470,9 +1492,11 @@ export const ManageCredential: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
-      credentialId: {
-        type: 'string',
-        description: 'The credential ID (from environment/credentials.json)',
+      credentialId: { type: 'string', description: 'The credential ID (required for rename)' },
+      credentialIds: {
+        type: 'array',
+        description: 'Array of credential IDs (for batch delete)',
+        items: { type: 'string' },
       },
       displayName: { type: 'string', description: 'New display name (required for rename)' },
       operation: {
@@ -1481,7 +1505,7 @@ export const ManageCredential: ToolCatalogEntry = {
         enum: ['rename', 'delete'],
       },
     },
-    required: ['operation', 'credentialId'],
+    required: ['operation'],
   },
   requiresConfirmation: true,
   requiredPermission: 'admin',
@@ -1542,7 +1566,12 @@ export const ManageCustomTool: ToolCatalogEntry = {
       toolId: {
         type: 'string',
         description:
-          "The ID of the custom tool (required for edit/delete). Must be the exact toolId from the get_workflow_data custom tool response - do not guess or construct it. DO NOT PROVIDE THE TOOL ID IF THE OPERATION IS 'ADD'.",
+          "The ID of the custom tool (required for edit). Must be the exact toolId from the get_workflow_data custom tool response - do not guess or construct it. DO NOT PROVIDE THE TOOL ID IF THE OPERATION IS 'ADD'.",
+      },
+      toolIds: {
+        type: 'array',
+        description: 'Array of custom tool IDs (for batch delete)',
+        items: { type: 'string' },
       },
     },
     required: ['operation'],
@@ -1564,7 +1593,12 @@ export const ManageJob: ToolCatalogEntry = {
           'Operation-specific arguments. For create: {title, prompt, cron?, time?, timezone?, lifecycle?, successCondition?, maxRuns?}. For get/delete: {jobId}. For update: {jobId, title?, prompt?, cron?, timezone?, status?, lifecycle?, successCondition?, maxRuns?}. For list: no args needed.',
         properties: {
           cron: { type: 'string', description: 'Cron expression for recurring jobs' },
-          jobId: { type: 'string', description: 'Job ID (required for get, update, delete)' },
+          jobId: { type: 'string', description: 'Job ID (required for get, update)' },
+          jobIds: {
+            type: 'array',
+            description: 'Array of job IDs (for batch delete)',
+            items: { type: 'string' },
+          },
           lifecycle: {
             type: 'string',
             description:
@@ -1702,9 +1736,11 @@ export const MaterializeFile: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
-      fileName: {
-        type: 'string',
-        description: 'The name of the uploaded file to materialize (e.g. "report.pdf")',
+      fileNames: {
+        type: 'array',
+        description:
+          'The names of the uploaded files to materialize (e.g. ["report.pdf", "data.csv"])',
+        items: { type: 'string' },
       },
       knowledgeBaseId: {
         type: 'string',
@@ -1724,7 +1760,7 @@ export const MaterializeFile: ToolCatalogEntry = {
           'Custom name for the table (only used with operation "table"). Defaults to the file name without extension.',
       },
     },
-    required: ['fileName'],
+    required: ['fileNames'],
   },
   requiredPermission: 'write',
 }
@@ -1761,9 +1797,13 @@ export const MoveWorkflow: ToolCatalogEntry = {
         type: 'string',
         description: 'Target folder ID. Omit or pass empty string to move to workspace root.',
       },
-      workflowId: { type: 'string', description: 'The workflow ID to move.' },
+      workflowIds: {
+        type: 'array',
+        description: 'The workflow IDs to move.',
+        items: { type: 'string' },
+      },
     },
-    required: ['workflowId'],
+    required: ['workflowIds'],
   },
   requiredPermission: 'write',
 }
@@ -1813,14 +1853,24 @@ export const OpenResource: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
-      id: { type: 'string', description: 'The resource ID to open.' },
-      type: {
-        type: 'string',
-        description: 'The resource type to open.',
-        enum: ['workflow', 'table', 'knowledgebase', 'file'],
+      resources: {
+        type: 'array',
+        description: 'Array of resources to open. Each item must have type and id.',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'The resource ID.' },
+            type: {
+              type: 'string',
+              description: 'The resource type.',
+              enum: ['workflow', 'table', 'knowledgebase', 'file'],
+            },
+          },
+          required: ['type', 'id'],
+        },
       },
     },
-    required: ['type', 'id'],
+    required: ['resources'],
   },
 }
 
@@ -1946,6 +1996,27 @@ export const Respond: ToolCatalogEntry = {
   },
   internal: true,
   hidden: true,
+}
+
+export const RestoreResource: ToolCatalogEntry = {
+  id: 'restore_resource',
+  name: 'restore_resource',
+  executor: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', description: 'The canonical resource ID to restore.' },
+      type: {
+        type: 'string',
+        description: 'The resource type to restore.',
+        enum: ['workflow', 'table', 'file', 'knowledgebase', 'folder'],
+      },
+    },
+    required: ['type', 'id'],
+  },
+  requiresConfirmation: true,
+  requiredPermission: 'admin',
 }
 
 export const RevertToVersion: ToolCatalogEntry = {
@@ -2208,7 +2279,7 @@ export const SearchOnline: ToolCatalogEntry = {
           'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "pricing changes" or "Slack webhook docs", not a full sentence like "Searching online for pricing changes".',
       },
     },
-    required: ['query'],
+    required: ['query', 'toolTitle'],
   },
 }
 
@@ -2534,7 +2605,13 @@ export const UserTable: ToolCatalogEntry = {
           },
           tableId: {
             type: 'string',
-            description: "Table ID (required for most operations except 'create')",
+            description:
+              "Table ID (required for most operations except 'create' and batch 'delete')",
+          },
+          tableIds: {
+            type: 'array',
+            description: 'Array of table IDs (for batch delete)',
+            items: { type: 'string' },
           },
           unique: {
             type: 'boolean',
@@ -3030,6 +3107,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [RenameWorkflow.id]: RenameWorkflow,
   [Research.id]: Research,
   [Respond.id]: Respond,
+  [RestoreResource.id]: RestoreResource,
   [RevertToVersion.id]: RevertToVersion,
   [Run.id]: Run,
   [RunBlock.id]: RunBlock,

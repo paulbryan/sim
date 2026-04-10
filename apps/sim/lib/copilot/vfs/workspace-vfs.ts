@@ -10,12 +10,13 @@ import {
   mcpServers as mcpServersTable,
   workflowDeploymentVersion,
   workflowExecutionLogs,
+  workflowFolder,
   workflowMcpServer,
   workflowMcpTool,
   workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq, isNull, ne } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, ne } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import { buildWorkspaceMd, type WorkspaceMdData } from '@/lib/copilot/chat/workspace-context'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
@@ -390,6 +391,8 @@ export class WorkspaceVFS {
       })
     )
 
+    await this.materializeRecentlyDeleted(workspaceId, userId)
+
     for (const [path, content] of getStaticComponentFiles()) {
       this.files.set(path, content)
     }
@@ -401,16 +404,32 @@ export class WorkspaceVFS {
     })
   }
 
+  private activeFiles(): Map<string, string> {
+    const filtered = new Map<string, string>()
+    for (const [key, value] of this.files) {
+      if (!key.startsWith('recently-deleted/')) {
+        filtered.set(key, value)
+      }
+    }
+    return filtered
+  }
+
+  private filesForPath(path?: string): Map<string, string> {
+    if (path?.startsWith('recently-deleted')) return this.files
+    return this.activeFiles()
+  }
+
   grep(
     pattern: string,
     path?: string,
     options?: GrepOptions
   ): GrepMatch[] | string[] | ops.GrepCountEntry[] {
-    return ops.grep(this.files, pattern, path, options)
+    return ops.grep(this.filesForPath(path), pattern, path, options)
   }
 
   glob(pattern: string): string[] {
-    return ops.glob(this.files, pattern)
+    const target = pattern.startsWith('recently-deleted') ? this.files : this.activeFiles()
+    return ops.glob(target, pattern)
   }
 
   read(path: string, offset?: number, limit?: number): ReadResult | null {
@@ -418,7 +437,7 @@ export class WorkspaceVFS {
   }
 
   list(path: string): DirEntry[] {
-    return ops.list(this.files, path)
+    return ops.list(this.filesForPath(path), path)
   }
 
   suggestSimilar(missingPath: string, max?: number): string[] {
@@ -431,14 +450,18 @@ export class WorkspaceVFS {
    * Returns null if the path doesn't match `files/{name}` / `files/by-id/{id}` or the file isn't found.
    */
   async readFileContent(path: string): Promise<FileReadResult | null> {
-    const match = path.match(/^files\/(.+?)(?:\/content)?$/)
+    const deletedMatch = path.match(/^recently-deleted\/files\/(.+?)(?:\/content)?$/)
+    const activeMatch = path.match(/^files\/(.+?)(?:\/content)?$/)
+    const match = deletedMatch || activeMatch
     if (!match) return null
     const fileName = match[1]
 
     if (fileName.endsWith('/meta.json') || path.endsWith('/meta.json')) return null
 
+    const scope = deletedMatch ? 'archived' : 'active'
+
     try {
-      const files = await listWorkspaceFiles(this._workspaceId)
+      const files = await listWorkspaceFiles(this._workspaceId, { scope })
       const record = findWorkspaceFileRecord(files, fileName)
       if (!record) return null
       return readFileRecord(record)
@@ -1206,6 +1229,103 @@ export class WorkspaceVFS {
         error: err instanceof Error ? err.message : String(err),
       })
       return []
+    }
+  }
+
+  private async materializeRecentlyDeleted(workspaceId: string, userId: string): Promise<void> {
+    try {
+      const [archivedWorkflows, archivedFolders, archivedTables, archivedFiles, archivedKBs] =
+        await Promise.all([
+          listWorkflows(workspaceId, { scope: 'archived' }),
+          db
+            .select({
+              id: workflowFolder.id,
+              name: workflowFolder.name,
+              archivedAt: workflowFolder.archivedAt,
+            })
+            .from(workflowFolder)
+            .where(
+              and(eq(workflowFolder.workspaceId, workspaceId), isNotNull(workflowFolder.archivedAt))
+            ),
+          listTables(workspaceId, { scope: 'archived' }),
+          listWorkspaceFiles(workspaceId, { scope: 'archived' }),
+          getKnowledgeBases(userId, workspaceId, 'archived'),
+        ])
+
+      for (const wf of archivedWorkflows) {
+        const safeName = sanitizeName(wf.name)
+        this.files.set(
+          `recently-deleted/workflows/${safeName}/meta.json`,
+          serializeWorkflowMeta(wf)
+        )
+      }
+
+      for (const folder of archivedFolders) {
+        const safeName = sanitizeName(folder.name)
+        this.files.set(
+          `recently-deleted/folders/${safeName}/meta.json`,
+          JSON.stringify(
+            { id: folder.id, name: folder.name, archivedAt: folder.archivedAt },
+            null,
+            2
+          )
+        )
+      }
+
+      for (const table of archivedTables) {
+        const safeName = sanitizeName(table.name)
+        this.files.set(
+          `recently-deleted/tables/${safeName}/meta.json`,
+          serializeTableMeta({
+            id: table.id,
+            name: table.name,
+            description: table.description,
+            schema: table.schema,
+            rowCount: table.rowCount,
+            maxRows: table.maxRows,
+            createdAt: table.createdAt,
+            updatedAt: table.updatedAt,
+          })
+        )
+      }
+
+      for (const file of archivedFiles) {
+        const safeName = sanitizeName(file.name)
+        this.files.set(
+          `recently-deleted/files/${safeName}/meta.json`,
+          serializeFileMeta({
+            id: file.id,
+            name: file.name,
+            contentType: file.type,
+            size: file.size,
+            uploadedAt: file.uploadedAt,
+          })
+        )
+      }
+
+      for (const kb of archivedKBs) {
+        const safeName = sanitizeName(kb.name)
+        this.files.set(
+          `recently-deleted/knowledgebases/${safeName}/meta.json`,
+          serializeKBMeta({
+            id: kb.id,
+            name: kb.name,
+            description: kb.description,
+            embeddingModel: kb.embeddingModel,
+            embeddingDimension: kb.embeddingDimension,
+            tokenCount: kb.tokenCount,
+            createdAt: kb.createdAt,
+            updatedAt: kb.updatedAt,
+            documentCount: kb.docCount,
+            connectorTypes: kb.connectorTypes,
+          })
+        )
+      }
+    } catch (err) {
+      logger.warn('Failed to materialize recently deleted resources', {
+        workspaceId,
+        error: err instanceof Error ? err.message : String(err),
+      })
     }
   }
 

@@ -289,12 +289,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        fileId: {
-          type: 'string',
-          description: 'Canonical workspace file ID of the file to delete.',
+        fileIds: {
+          type: 'array',
+          description: 'Canonical workspace file IDs of the files to delete.',
+          items: {
+            type: 'string',
+          },
         },
       },
-      required: ['fileId'],
+      required: ['fileIds'],
     },
     resultSchema: {
       type: 'object',
@@ -315,12 +318,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        folderId: {
-          type: 'string',
-          description: 'The folder ID to delete.',
+        folderIds: {
+          type: 'array',
+          description: 'The folder IDs to delete.',
+          items: {
+            type: 'string',
+          },
         },
       },
-      required: ['folderId'],
+      required: ['folderIds'],
     },
     resultSchema: undefined,
   },
@@ -328,12 +334,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        workflowId: {
-          type: 'string',
-          description: 'The workflow ID to delete.',
+        workflowIds: {
+          type: 'array',
+          description: 'The workflow IDs to delete.',
+          items: {
+            type: 'string',
+          },
         },
       },
-      required: ['workflowId'],
+      required: ['workflowIds'],
     },
     resultSchema: undefined,
   },
@@ -966,7 +975,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "workflow configs" or "knowledge bases", not a full sentence like "Finding workflow configs".',
         },
       },
-      required: ['pattern'],
+      required: ['pattern', 'toolTitle'],
     },
     resultSchema: undefined,
   },
@@ -1013,7 +1022,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "Slack integrations" or "deployed workflows", not a full sentence like "Searching for Slack integrations".',
         },
       },
-      required: ['pattern'],
+      required: ['pattern', 'toolTitle'],
     },
     resultSchema: undefined,
   },
@@ -1108,20 +1117,26 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             documentId: {
               type: 'string',
-              description: 'Document ID (required for delete_document, update_document)',
+              description: 'Document ID (required for update_document)',
+            },
+            documentIds: {
+              type: 'array',
+              description: 'Document IDs (for batch delete_document)',
+              items: {
+                type: 'string',
+              },
             },
             enabled: {
               type: 'boolean',
               description: 'Enable/disable a document (optional for update_document)',
             },
-            fileId: {
-              type: 'string',
+            fileIds: {
+              type: 'array',
               description:
-                'Canonical workspace file ID to add as a document (preferred for add_file). Discover via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json").',
-            },
-            filePath: {
-              type: 'string',
-              description: 'Legacy workspace file reference for add_file. Prefer fileId.',
+                'Canonical workspace file IDs to add as documents (for add_file). Discover via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json").',
+              items: {
+                type: 'string',
+              },
             },
             filename: {
               type: 'string',
@@ -1131,6 +1146,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: 'string',
               description:
                 'Knowledge base ID (required for get, query, add_file, list_tags, create_tag, get_tag_usage)',
+            },
+            knowledgeBaseIds: {
+              type: 'array',
+              description: 'Knowledge base IDs (for batch delete)',
+              items: {
+                type: 'string',
+              },
             },
             name: {
               type: 'string',
@@ -1259,7 +1281,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       properties: {
         credentialId: {
           type: 'string',
-          description: 'The credential ID (from environment/credentials.json)',
+          description: 'The credential ID (required for rename)',
+        },
+        credentialIds: {
+          type: 'array',
+          description: 'Array of credential IDs (for batch delete)',
+          items: {
+            type: 'string',
+          },
         },
         displayName: {
           type: 'string',
@@ -1271,7 +1300,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           enum: ['rename', 'delete'],
         },
       },
-      required: ['operation', 'credentialId'],
+      required: ['operation'],
     },
     resultSchema: undefined,
   },
@@ -1340,7 +1369,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         toolId: {
           type: 'string',
           description:
-            "The ID of the custom tool (required for edit/delete). Must be the exact toolId from the get_workflow_data custom tool response - do not guess or construct it. DO NOT PROVIDE THE TOOL ID IF THE OPERATION IS 'ADD'.",
+            "The ID of the custom tool (required for edit). Must be the exact toolId from the get_workflow_data custom tool response - do not guess or construct it. DO NOT PROVIDE THE TOOL ID IF THE OPERATION IS 'ADD'.",
+        },
+        toolIds: {
+          type: 'array',
+          description: 'Array of custom tool IDs (for batch delete)',
+          items: {
+            type: 'string',
+          },
         },
       },
       required: ['operation'],
@@ -1362,7 +1398,14 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             jobId: {
               type: 'string',
-              description: 'Job ID (required for get, update, delete)',
+              description: 'Job ID (required for get, update)',
+            },
+            jobIds: {
+              type: 'array',
+              description: 'Array of job IDs (for batch delete)',
+              items: {
+                type: 'string',
+              },
             },
             lifecycle: {
               type: 'string',
@@ -1497,9 +1540,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        fileName: {
-          type: 'string',
-          description: 'The name of the uploaded file to materialize (e.g. "report.pdf")',
+        fileNames: {
+          type: 'array',
+          description:
+            'The names of the uploaded files to materialize (e.g. ["report.pdf", "data.csv"])',
+          items: {
+            type: 'string',
+          },
         },
         knowledgeBaseId: {
           type: 'string',
@@ -1519,7 +1566,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'Custom name for the table (only used with operation "table"). Defaults to the file name without extension.',
         },
       },
-      required: ['fileName'],
+      required: ['fileNames'],
     },
     resultSchema: undefined,
   },
@@ -1549,12 +1596,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           type: 'string',
           description: 'Target folder ID. Omit or pass empty string to move to workspace root.',
         },
-        workflowId: {
-          type: 'string',
-          description: 'The workflow ID to move.',
+        workflowIds: {
+          type: 'array',
+          description: 'The workflow IDs to move.',
+          items: {
+            type: 'string',
+          },
         },
       },
-      required: ['workflowId'],
+      required: ['workflowIds'],
     },
     resultSchema: undefined,
   },
@@ -1590,17 +1640,27 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {
-        id: {
-          type: 'string',
-          description: 'The resource ID to open.',
-        },
-        type: {
-          type: 'string',
-          description: 'The resource type to open.',
-          enum: ['workflow', 'table', 'knowledgebase', 'file'],
+        resources: {
+          type: 'array',
+          description: 'Array of resources to open. Each item must have type and id.',
+          items: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'string',
+                description: 'The resource ID.',
+              },
+              type: {
+                type: 'string',
+                description: 'The resource type.',
+                enum: ['workflow', 'table', 'knowledgebase', 'file'],
+              },
+            },
+            required: ['type', 'id'],
+          },
         },
       },
-      required: ['type', 'id'],
+      required: ['resources'],
     },
     resultSchema: undefined,
   },
@@ -1727,6 +1787,24 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
       },
       required: ['output', 'success'],
       type: 'object',
+    },
+    resultSchema: undefined,
+  },
+  restore_resource: {
+    parameters: {
+      type: 'object',
+      properties: {
+        id: {
+          type: 'string',
+          description: 'The canonical resource ID to restore.',
+        },
+        type: {
+          type: 'string',
+          description: 'The resource type to restore.',
+          enum: ['workflow', 'table', 'file', 'knowledgebase', 'folder'],
+        },
+      },
+      required: ['type', 'id'],
     },
     resultSchema: undefined,
   },
@@ -1974,7 +2052,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "pricing changes" or "Slack webhook docs", not a full sentence like "Searching online for pricing changes".',
         },
       },
-      required: ['query'],
+      required: ['query', 'toolTitle'],
     },
     resultSchema: undefined,
   },
@@ -2305,7 +2383,15 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             tableId: {
               type: 'string',
-              description: "Table ID (required for most operations except 'create')",
+              description:
+                "Table ID (required for most operations except 'create' and batch 'delete')",
+            },
+            tableIds: {
+              type: 'array',
+              description: 'Array of table IDs (for batch delete)',
+              items: {
+                type: 'string',
+              },
             },
             unique: {
               type: 'boolean',

@@ -39,6 +39,7 @@ import {
   Read as ReadTool,
   Redeploy,
   RenameWorkflow,
+  RestoreResource,
   RevertToVersion,
   RunBlock,
   RunFromBlock,
@@ -80,6 +81,7 @@ import { executeMaterializeFile } from '../tools/handlers/materialize-file'
 import { executeOAuthGetAuthLink, executeOAuthRequestAccess } from '../tools/handlers/oauth'
 import { executeGetPlatformActions } from '../tools/handlers/platform'
 import { executeOpenResource } from '../tools/handlers/resources'
+import { executeRestoreResource } from '../tools/handlers/restore-resource'
 import { executeVfsGlob, executeVfsGrep, executeVfsRead } from '../tools/handlers/vfs'
 import {
   executeCreateFolder,
@@ -176,6 +178,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [OauthGetAuthLink.id]: h(executeOAuthGetAuthLink),
     [OauthRequestAccess.id]: h(executeOAuthRequestAccess),
     [OpenResource.id]: h(executeOpenResource),
+    [RestoreResource.id]: h(executeRestoreResource),
     [GetPlatformActions.id]: h(executeGetPlatformActions),
     [MaterializeFile.id]: h(executeMaterializeFile),
     [FunctionExecute.id]: h(executeFunctionExecute),

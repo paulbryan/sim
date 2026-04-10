@@ -412,17 +412,27 @@ export async function executeMoveWorkflow(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const workflowId = params.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
+    const workflowIds = params.workflowIds
+    if (!workflowIds || workflowIds.length === 0) {
+      return { success: false, error: 'workflowIds is required' }
     }
 
-    await ensureWorkflowAccess(workflowId, context.userId, 'write')
     const folderId = params.folderId || null
-    assertWorkflowMutationNotAborted(context)
-    await updateWorkflowRecord(workflowId, { folderId })
+    const moved: string[] = []
+    const failed: string[] = []
 
-    return { success: true, output: { workflowId, folderId } }
+    for (const workflowId of workflowIds) {
+      try {
+        await ensureWorkflowAccess(workflowId, context.userId, 'write')
+        assertWorkflowMutationNotAborted(context)
+        await updateWorkflowRecord(workflowId, { folderId })
+        moved.push(workflowId)
+      } catch {
+        failed.push(workflowId)
+      }
+    }
+
+    return { success: moved.length > 0, output: { moved, failed, folderId } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -661,26 +671,37 @@ export async function executeDeleteWorkflow(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const workflowId = params.workflowId
-    if (!workflowId) {
-      return { success: false, error: 'workflowId is required' }
+    const workflowIds = params.workflowIds
+    if (!workflowIds || workflowIds.length === 0) {
+      return { success: false, error: 'workflowIds is required' }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'admin'
-    )
-    assertWorkflowMutationNotAborted(context)
+    const deleted: Array<{ workflowId: string; name: string }> = []
+    const failed: string[] = []
 
-    const result = await performDeleteWorkflow({ workflowId, userId: context.userId })
-    if (!result.success) {
-      return { success: false, error: result.error || 'Failed to delete workflow' }
+    for (const workflowId of workflowIds) {
+      try {
+        const { workflow: workflowRecord } = await ensureWorkflowAccess(
+          workflowId,
+          context.userId,
+          'admin'
+        )
+        assertWorkflowMutationNotAborted(context)
+
+        const result = await performDeleteWorkflow({ workflowId, userId: context.userId })
+        if (result.success) {
+          deleted.push({ workflowId, name: workflowRecord.name })
+        } else {
+          failed.push(workflowId)
+        }
+      } catch {
+        failed.push(workflowId)
+      }
     }
 
     return {
-      success: true,
-      output: { workflowId, name: workflowRecord.name, deleted: true },
+      success: deleted.length > 0,
+      output: { deleted, failed },
     }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
@@ -692,34 +713,42 @@ export async function executeDeleteFolder(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    const folderId = params.folderId
-    if (!folderId) {
-      return { success: false, error: 'folderId is required' }
+    const folderIds = params.folderIds
+    if (!folderIds || folderIds.length === 0) {
+      return { success: false, error: 'folderIds is required' }
     }
 
     const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
     await ensureWorkspaceAccess(workspaceId, context.userId, 'admin')
 
     const folders = await listFolders(workspaceId)
-    const folder = folders.find((f) => f.folderId === folderId)
-    if (!folder) {
-      return { success: false, error: 'Folder not found' }
+    const deleted: string[] = []
+    const failed: string[] = []
+
+    for (const folderId of folderIds) {
+      const folder = folders.find((f) => f.folderId === folderId)
+      if (!folder) {
+        failed.push(folderId)
+        continue
+      }
+
+      assertWorkflowMutationNotAborted(context)
+
+      const result = await performDeleteFolder({
+        folderId,
+        workspaceId,
+        userId: context.userId,
+        folderName: folder.folderName,
+      })
+
+      if (result.success) {
+        deleted.push(folderId)
+      } else {
+        failed.push(folderId)
+      }
     }
 
-    assertWorkflowMutationNotAborted(context)
-
-    const result = await performDeleteFolder({
-      folderId,
-      workspaceId,
-      userId: context.userId,
-      folderName: folder.folderName,
-    })
-
-    if (!result.success) {
-      return { success: false, error: result.error || 'Failed to delete folder' }
-    }
-
-    return { success: true, output: { folderId, deleted: true, ...result.deletedItems } }
+    return { success: deleted.length > 0, output: { deleted, failed } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }

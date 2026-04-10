@@ -13,7 +13,8 @@ import {
 const logger = createLogger('DeleteFileServerTool')
 
 interface DeleteFileArgs {
-  fileId: string
+  fileIds?: string[]
+  fileId?: string
   args?: Record<string, unknown>
 }
 
@@ -34,27 +35,41 @@ export const deleteFileServerTool: BaseServerTool<DeleteFileArgs, DeleteFileResu
     }
 
     const nested = params.args
-    const fileId = params.fileId || (nested?.fileId as string) || ''
+    const fileIds: string[] =
+      params.fileIds ??
+      (nested?.fileIds as string[] | undefined) ??
+      [params.fileId || (nested?.fileId as string) || ''].filter(Boolean)
 
-    if (!fileId) return { success: false, message: 'fileId is required' }
+    if (fileIds.length === 0) return { success: false, message: 'fileIds is required' }
 
-    const existingFile = await getWorkspaceFile(workspaceId, fileId)
-    if (!existingFile) {
-      return { success: false, message: `File with ID "${fileId}" not found` }
+    const deleted: string[] = []
+    const failed: string[] = []
+
+    for (const fileId of fileIds) {
+      const existingFile = await getWorkspaceFile(workspaceId, fileId)
+      if (!existingFile) {
+        failed.push(fileId)
+        continue
+      }
+
+      assertServerToolNotAborted(context)
+      await deleteWorkspaceFile(workspaceId, fileId)
+      deleted.push(existingFile.name)
+
+      logger.info('File deleted via delete_file', {
+        fileId,
+        name: existingFile.name,
+        userId: context.userId,
+      })
     }
 
-    assertServerToolNotAborted(context)
-    await deleteWorkspaceFile(workspaceId, fileId)
-
-    logger.info('File deleted via delete_file', {
-      fileId,
-      name: existingFile.name,
-      userId: context.userId,
-    })
+    const parts: string[] = []
+    if (deleted.length > 0) parts.push(`Deleted: ${deleted.join(', ')}`)
+    if (failed.length > 0) parts.push(`Not found: ${failed.join(', ')}`)
 
     return {
-      success: true,
-      message: `File "${existingFile.name}" deleted successfully`,
+      success: deleted.length > 0,
+      message: parts.join('. '),
     }
   },
 }

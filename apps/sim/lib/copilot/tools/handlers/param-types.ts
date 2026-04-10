@@ -172,11 +172,11 @@ export interface UpdateWorkflowParams {
 }
 
 export interface DeleteWorkflowParams {
-  workflowId: string
+  workflowIds: string[]
 }
 
 export interface MoveWorkflowParams {
-  workflowId: string
+  workflowIds: string[]
   folderId: string | null
 }
 
@@ -191,7 +191,7 @@ export interface RenameFolderParams {
 }
 
 export interface DeleteFolderParams {
-  folderId: string
+  folderIds: string[]
 }
 
 export interface UpdateWorkspaceMcpServerParams {
@@ -207,7 +207,13 @@ export interface DeleteWorkspaceMcpServerParams {
 
 export type OpenResourceType = MothershipResourceType
 
+export interface OpenResourceItem {
+  type?: OpenResourceType
+  id?: string
+}
+
 export interface OpenResourceParams {
+  resources?: OpenResourceItem[]
   type?: OpenResourceType
   id?: string
 }

@@ -23,6 +23,7 @@ interface ManageCustomToolSchema {
 interface ManageCustomToolParams {
   operation?: string
   toolId?: string
+  toolIds?: string[]
   schema?: ManageCustomToolSchema
   code?: string
   title?: string
@@ -159,26 +160,35 @@ export async function executeManageCustomTool(
     }
 
     if (operation === 'delete') {
-      if (!params.toolId) {
-        return { success: false, error: "'toolId' is required for operation 'delete'" }
+      const toolIds: string[] = params.toolIds ?? (params.toolId ? [params.toolId] : [])
+      if (toolIds.length === 0) {
+        return { success: false, error: "'toolId' or 'toolIds' is required for operation 'delete'" }
       }
 
-      const deleted = await deleteCustomTool({
-        toolId: params.toolId,
-        userId: context.userId,
-        workspaceId,
-      })
-      if (!deleted) {
-        return { success: false, error: `Custom tool not found: ${params.toolId}` }
+      const deleted: string[] = []
+      const notFound: string[] = []
+
+      for (const toolId of toolIds) {
+        const result = await deleteCustomTool({
+          toolId,
+          userId: context.userId,
+          workspaceId,
+        })
+        if (result) {
+          deleted.push(toolId)
+        } else {
+          notFound.push(toolId)
+        }
       }
 
       return {
-        success: true,
+        success: deleted.length > 0,
         output: {
-          success: true,
+          success: deleted.length > 0,
           operation,
-          toolId: params.toolId,
-          message: 'Deleted custom tool',
+          deleted,
+          notFound,
+          message: `Deleted ${deleted.length} custom tool(s)`,
         },
       }
     }
