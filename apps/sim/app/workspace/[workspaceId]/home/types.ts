@@ -269,7 +269,7 @@ export const TOOL_UI_METADATA: Record<string, ToolUIMetadata> = {
     phase: 'resource',
   },
   [WorkspaceFile.id]: {
-    title: 'Declaring file intent',
+    title: 'Editing file',
     phaseLabel: 'Resource',
     phase: 'resource',
   },
