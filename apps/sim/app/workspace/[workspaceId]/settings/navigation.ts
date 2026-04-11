@@ -1,6 +1,7 @@
 import {
   Card,
   Connections,
+  Database,
   HexSimple,
   Key,
   KeySquare,
@@ -40,6 +41,7 @@ export type SettingsSection =
   | 'workflow-mcp-servers'
   | 'inbox'
   | 'admin'
+  | 'data-retention'
   | 'recently-deleted'
 
 export type NavigationSection =
@@ -163,6 +165,14 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isSSOEnabled,
+  },
+  {
+    id: 'data-retention',
+    label: 'Data Retention',
+    icon: Database,
+    section: 'enterprise',
+    requiresEnterprise: true,
+    showWhenLocked: true,
   },
   {
     id: 'whitelabeling',

@@ -156,6 +156,13 @@ const AccessControl = dynamic(
 const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((m) => m.SSO), {
   loading: () => <SettingsSectionSkeleton />,
 })
+const DataRetentionSettings = dynamic(
+  () =>
+    import('@/ee/data-retention/components/data-retention-settings').then(
+      (m) => m.DataRetentionSettings
+    ),
+  { loading: () => <SettingsSectionSkeleton /> }
+)
 const WhitelabelingSettings = dynamic(
   () =>
     import('@/ee/whitelabeling/components/whitelabeling-settings').then(
@@ -205,6 +212,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {isBillingEnabled && effectiveSection === 'subscription' && <Subscription />}
       {isBillingEnabled && effectiveSection === 'team' && <TeamManagement />}
       {effectiveSection === 'sso' && <SSO />}
+      {effectiveSection === 'data-retention' && <DataRetentionSettings />}
       {effectiveSection === 'whitelabeling' && <WhitelabelingSettings />}
       {effectiveSection === 'byok' && <BYOK />}
       {effectiveSection === 'copilot' && <Copilot />}

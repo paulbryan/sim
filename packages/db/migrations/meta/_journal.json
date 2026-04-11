@@ -1317,6 +1317,13 @@
       "when": 1775666653692,
       "tag": "0188_short_luke_cage",
       "breakpoints": true
+    },
+    {
+      "idx": 189,
+      "version": "7",
+      "when": 1775850978673,
+      "tag": "0189_harsh_polaris",
+      "breakpoints": true
     }
   ]
 }

@@ -125,7 +125,11 @@ export function SettingsSidebar({
         return false
       }
 
-      if (item.requiresEnterprise && (!hasEnterprisePlan || !isOrgAdminOrOwner)) {
+      if (
+        item.requiresEnterprise &&
+        (!hasEnterprisePlan || !isOrgAdminOrOwner) &&
+        !item.showWhenLocked
+      ) {
         return false
       }
 

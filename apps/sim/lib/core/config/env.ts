@@ -185,6 +185,7 @@ export const env = createEnv({
 
     // Data Retention
     FREE_PLAN_LOG_RETENTION_DAYS:          z.string().optional(),                  // Log retention days for free plan users
+    PAID_PLAN_LOG_RETENTION_DAYS:          z.string().optional().default('30'),    // Log retention days for paid (pro/team) plan users
 
     // Admission & Burst Protection
     CONCURRENCY_CONTROL_ENABLED:           z.string().optional().default('false'),  // Set to 'true' to enable BullMQ-based concurrency control (default: inline execution)
