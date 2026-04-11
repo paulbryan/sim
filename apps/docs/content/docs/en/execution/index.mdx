@@ -65,15 +65,15 @@ Each workflow maintains a rich context during execution containing:
 
 ## Deployment Snapshots
 
-API, Chat, Schedule, and Webhook executions run against the workflow’s active deployment snapshot. Manual runs from the editor execute the current draft canvas state, letting you test changes before deploying. Publish a new deployment whenever you change the canvas so every trigger uses the updated version.
+API, Chat, Schedule, and Webhook executions run against the workflow's active deployment snapshot. Manual runs from the editor execute the current draft canvas state, letting you test changes before deploying. Publish a new deployment whenever you change the canvas so every trigger uses the updated version.
 
-<div className=’flex justify-center my-6’>
+<div className="flex justify-center my-6">
   <Image
-    src=’/static/execution/deployment-versions.png’
-    alt=’Deployment versions table’
+    src="/static/execution/deployment-versions.png"
+    alt="Deployment versions table"
     width={500}
     height={280}
-    className=’rounded-xl border border-border shadow-sm’
+    className="rounded-xl border border-border shadow-sm"
   />
 </div>
 
@@ -88,7 +88,7 @@ From the version table you can:
 - **Rename** a version to give it a meaningful label (e.g., "v2 — added error handling")
 - **Add a description** with notes about what changed in that deployment
 - **Promote to live** to roll back to an older version — this makes the selected version the active deployment without changing your draft canvas
-- **Load into editor** to restore a previous version’s workflow into the canvas for editing and redeploying
+- **Load into editor** to restore a previous version's workflow into the canvas for editing and redeploying
 - **Preview a version** by selecting a row, then toggle between viewing the live deployment and the selected version in the canvas
 
 {/* TODO: Screenshot of the version preview toggle (live vs selected) */}
