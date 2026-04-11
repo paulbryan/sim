@@ -3,11 +3,12 @@ import { NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
-import { abortActiveStream } from '@/lib/copilot/request/session/abort'
+import { abortActiveStream, waitForPendingChatStream } from '@/lib/copilot/request/session'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('CopilotChatAbortAPI')
 const GO_EXPLICIT_ABORT_TIMEOUT_MS = 3000
+const STREAM_ABORT_SETTLE_TIMEOUT_MS = 8000
 
 export async function POST(request: Request) {
   const { userId: authenticatedUserId, isAuthenticated } =
@@ -74,5 +75,16 @@ export async function POST(request: Request) {
   }
 
   const aborted = await abortActiveStream(streamId)
+  if (chatId) {
+    const settled = await waitForPendingChatStream(chatId, STREAM_ABORT_SETTLE_TIMEOUT_MS, streamId)
+    if (!settled) {
+      return NextResponse.json(
+        { error: 'Previous response is still shutting down', aborted, settled: false },
+        { status: 409 }
+      )
+    }
+    return NextResponse.json({ aborted, settled: true })
+  }
+
   return NextResponse.json({ aborted })
 }

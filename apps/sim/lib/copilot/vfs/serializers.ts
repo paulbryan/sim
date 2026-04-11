@@ -561,7 +561,7 @@ export function serializeDeployments(data: DeploymentData): string {
     result.api = {
       isDeployed: true,
       deployedAt: data.deployedAt?.toISOString(),
-      apiEndpoint: `/api/workflows/${data.workflowId}/run`,
+      apiEndpoint: `/api/workflows/${data.workflowId}/execute`,
       ...(data.api ? { version: data.api.version } : {}),
     }
   }

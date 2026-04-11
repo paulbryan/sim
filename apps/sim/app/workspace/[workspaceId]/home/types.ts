@@ -3,7 +3,6 @@ import {
   Auth,
   CreateWorkflow,
   Deploy,
-  EditContent,
   EditWorkflow,
   FunctionExecute,
   GetPageContents,
@@ -17,7 +16,6 @@ import {
   OpenResource,
   Read as ReadTool,
   Research,
-  Run,
   ScrapePage,
   SearchLibraryDocs,
   SearchOnline,
@@ -29,6 +27,9 @@ import {
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ChatContext } from '@/stores/panel'
+
+const EDIT_CONTENT_TOOL_ID = 'edit_content'
+const RUN_SUBAGENT_ID = 'run'
 
 export type {
   MothershipResource,
@@ -271,7 +272,7 @@ export const TOOL_UI_METADATA: Record<string, ToolUIMetadata> = {
     phaseLabel: 'Resource',
     phase: 'resource',
   },
-  [EditContent.id]: {
+  [EDIT_CONTENT_TOOL_ID]: {
     title: 'Applying file content',
     phaseLabel: 'Resource',
     phase: 'resource',
@@ -287,7 +288,7 @@ export const TOOL_UI_METADATA: Record<string, ToolUIMetadata> = {
     phase: 'resource',
   },
   [Workflow.id]: { title: 'Workflow Agent', phaseLabel: 'Workflow', phase: 'subagent' },
-  [Run.id]: { title: 'Run Agent', phaseLabel: 'Run', phase: 'subagent' },
+  [RUN_SUBAGENT_ID]: { title: 'Run Agent', phaseLabel: 'Run', phase: 'subagent' },
   [Deploy.id]: { title: 'Deploy Agent', phaseLabel: 'Deploy', phase: 'subagent' },
   [Auth.id]: {
     title: 'Auth Agent',

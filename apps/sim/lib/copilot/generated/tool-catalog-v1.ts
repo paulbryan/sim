@@ -71,7 +71,6 @@ export interface ToolCatalogEntry {
     | 'respond'
     | 'restore_resource'
     | 'revert_to_version'
-    | 'run'
     | 'run_block'
     | 'run_from_block'
     | 'run_workflow'
@@ -160,7 +159,6 @@ export interface ToolCatalogEntry {
     | 'respond'
     | 'restore_resource'
     | 'revert_to_version'
-    | 'run'
     | 'run_block'
     | 'run_from_block'
     | 'run_workflow'
@@ -194,7 +192,6 @@ export interface ToolCatalogEntry {
     | 'job'
     | 'knowledge'
     | 'research'
-    | 'run'
     | 'superagent'
     | 'table'
     | 'workflow'
@@ -570,6 +567,53 @@ export const DeployApi: ToolCatalogEntry = {
       },
     },
   },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      apiEndpoint: { type: 'string', description: 'Canonical workflow execution endpoint.' },
+      baseUrl: { type: 'string', description: 'Base URL used to construct deployment URLs.' },
+      deployedAt: {
+        type: 'string',
+        description: 'Deployment timestamp when the workflow is deployed.',
+      },
+      deploymentConfig: {
+        type: 'object',
+        description:
+          'Structured deployment configuration keyed by surface name. For API deploys this includes endpoint, auth, and sync/stream/async mode details.',
+      },
+      deploymentStatus: {
+        type: 'object',
+        description: 'Structured per-surface deployment status keyed by surface name, such as api.',
+      },
+      deploymentType: {
+        type: 'string',
+        description:
+          'Deployment surface this result describes. For deploy_api and redeploy this is always "api".',
+      },
+      examples: {
+        type: 'object',
+        description:
+          'Invocation examples keyed by surface name. For API deploys this includes curl examples for sync, stream, async, and polling.',
+      },
+      isDeployed: {
+        type: 'boolean',
+        description: 'Whether the workflow API is currently deployed after this tool call.',
+      },
+      version: {
+        type: 'number',
+        description: 'Deployment version for the current API deployment.',
+      },
+      workflowId: { type: 'string', description: 'Workflow ID that was deployed or undeployed.' },
+    },
+    required: [
+      'workflowId',
+      'isDeployed',
+      'deploymentType',
+      'deploymentStatus',
+      'deploymentConfig',
+      'examples',
+    ],
+  },
   requiresConfirmation: true,
   requiredPermission: 'admin',
 }
@@ -628,6 +672,80 @@ export const DeployChat: ToolCatalogEntry = {
       },
     },
   },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        description: 'Action performed by the tool, such as "deploy" or "undeploy".',
+      },
+      apiEndpoint: {
+        type: 'string',
+        description: 'Paired workflow execution endpoint used by the chat deployment.',
+      },
+      baseUrl: { type: 'string', description: 'Base URL used to construct deployment URLs.' },
+      chatUrl: {
+        type: 'string',
+        description: 'Shareable chat URL when the chat surface is deployed.',
+      },
+      deployedAt: {
+        type: 'string',
+        description: 'Deployment timestamp for the underlying workflow deployment.',
+      },
+      deploymentConfig: {
+        type: 'object',
+        description:
+          'Structured deployment configuration keyed by surface name. Includes chat settings and the paired API invocation configuration.',
+      },
+      deploymentStatus: {
+        type: 'object',
+        description:
+          'Structured per-surface deployment status keyed by surface name, including api and chat.',
+      },
+      deploymentType: {
+        type: 'string',
+        description:
+          'Deployment surface this result describes. For deploy_chat this is always "chat".',
+      },
+      examples: {
+        type: 'object',
+        description:
+          'Invocation examples keyed by surface name. Includes chat access details and API curl examples.',
+      },
+      identifier: { type: 'string', description: 'Chat identifier or slug.' },
+      isChatDeployed: {
+        type: 'boolean',
+        description: 'Whether the chat surface is deployed after this tool call.',
+      },
+      isDeployed: {
+        type: 'boolean',
+        description: 'Whether the paired API surface remains deployed after this tool call.',
+      },
+      success: {
+        type: 'boolean',
+        description: 'Whether the deploy_chat action completed successfully.',
+      },
+      version: {
+        type: 'number',
+        description: 'Deployment version for the underlying workflow deployment.',
+      },
+      workflowId: {
+        type: 'string',
+        description: 'Workflow ID associated with the chat deployment.',
+      },
+    },
+    required: [
+      'workflowId',
+      'success',
+      'action',
+      'isDeployed',
+      'isChatDeployed',
+      'deploymentType',
+      'deploymentStatus',
+      'deploymentConfig',
+      'examples',
+    ],
+  },
   requiresConfirmation: true,
   requiredPermission: 'admin',
 }
@@ -664,6 +782,62 @@ export const DeployMcp: ToolCatalogEntry = {
       workflowId: { type: 'string', description: 'Workflow ID (defaults to active workflow)' },
     },
     required: ['serverId'],
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        description: 'Action performed by the tool, such as "deploy" or "undeploy".',
+      },
+      apiEndpoint: {
+        type: 'string',
+        description: 'Underlying workflow API endpoint associated with the MCP tool.',
+      },
+      baseUrl: { type: 'string', description: 'Base URL used to construct deployment URLs.' },
+      deploymentConfig: {
+        type: 'object',
+        description:
+          'Structured deployment configuration keyed by surface name. Includes MCP server, tool, auth, and parameter schema details.',
+      },
+      deploymentStatus: {
+        type: 'object',
+        description:
+          'Structured per-surface deployment status keyed by surface name, including mcp and the underlying api surface when applicable.',
+      },
+      deploymentType: {
+        type: 'string',
+        description:
+          'Deployment surface this result describes. For deploy_mcp this is always "mcp".',
+      },
+      examples: {
+        type: 'object',
+        description:
+          'Setup examples keyed by surface name. Includes ready-to-paste config snippets for supported MCP clients.',
+      },
+      mcpServerUrl: { type: 'string', description: 'HTTP MCP server URL to configure in clients.' },
+      removed: {
+        type: 'boolean',
+        description: 'Whether the MCP deployment was removed during an undeploy action.',
+      },
+      serverId: { type: 'string', description: 'Workspace MCP server ID.' },
+      serverName: { type: 'string', description: 'Workspace MCP server name.' },
+      toolDescription: {
+        type: 'string',
+        description: 'MCP tool description exposed on the server.',
+      },
+      toolId: { type: 'string', description: 'MCP tool ID when deployed.' },
+      toolName: { type: 'string', description: 'MCP tool name exposed on the server.' },
+      updated: {
+        type: 'boolean',
+        description: 'Whether an existing MCP tool deployment was updated instead of created.',
+      },
+      workflowId: {
+        type: 'string',
+        description: 'Workflow ID associated with the MCP deployment.',
+      },
+    },
+    required: ['deploymentType', 'deploymentStatus'],
   },
   requiresConfirmation: true,
   requiredPermission: 'admin',
@@ -885,7 +1059,7 @@ export const GenerateImage: ToolCatalogEntry = {
       overwriteFileId: {
         type: 'string',
         description:
-          'If provided, overwrites the existing workspace file with this ID instead of creating a new file. Use this when the user asks to update or redo a previously generated image. The file ID is returned by previous generate_image or generate_visualization calls (fileId field), or can be found via read("files/by-id/{fileId}/meta.json").',
+          'If provided, overwrites the existing workspace file with this ID instead of creating a new file. Use this when the user asks to update, refine, or redo a previously generated image so the existing chat resource stays current instead of creating a duplicate like "image (1).png". The file ID is returned by previous generate_image or generate_visualization calls (fileId field), or can be found via read("files/by-id/{fileId}/meta.json").',
       },
       prompt: {
         type: 'string',
@@ -895,7 +1069,7 @@ export const GenerateImage: ToolCatalogEntry = {
       referenceFileIds: {
         type: 'array',
         description:
-          'File IDs of workspace images to include as context for the generation. All images are sent alongside the prompt. Use for: editing a single image (1 file), compositing multiple images together (2+ files), style transfer, face swapping, etc. Order matters — list the primary/base image first.',
+          'File IDs of workspace images to include as context for the generation. All images are sent alongside the prompt. Use for: editing a single image (1 file), compositing multiple images together (2+ files), style transfer, face swapping, etc. Order matters — list the primary/base image first. When revising an existing image in place, pair the primary file ID here with overwriteFileId set to that same ID.',
         items: { type: 'string' },
       },
     },
@@ -937,7 +1111,7 @@ export const GenerateVisualization: ToolCatalogEntry = {
       overwriteFileId: {
         type: 'string',
         description:
-          'If provided, overwrites the existing workspace file with this ID instead of creating a new file. Use this when the user asks to update or redo a previously generated chart. The file ID is returned by previous generate_visualization or generate_image calls (fileId field), or can be found via read("files/by-id/{fileId}/meta.json").',
+          'If provided, overwrites the existing workspace file with this ID instead of creating a new file. Use this when the user asks to update, refine, or redo a previously generated chart so the existing chat resource stays current instead of creating a duplicate like "chart (1).png". The file ID is returned by previous generate_visualization or generate_image calls (fileId field), or can be found via read("files/by-id/{fileId}/meta.json").',
       },
     },
     required: ['code'],
@@ -1886,6 +2060,53 @@ export const Redeploy: ToolCatalogEntry = {
       },
     },
   },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      apiEndpoint: { type: 'string', description: 'Canonical workflow execution endpoint.' },
+      baseUrl: { type: 'string', description: 'Base URL used to construct deployment URLs.' },
+      deployedAt: {
+        type: 'string',
+        description: 'Deployment timestamp when the workflow is deployed.',
+      },
+      deploymentConfig: {
+        type: 'object',
+        description:
+          'Structured deployment configuration keyed by surface name. For API deploys this includes endpoint, auth, and sync/stream/async mode details.',
+      },
+      deploymentStatus: {
+        type: 'object',
+        description: 'Structured per-surface deployment status keyed by surface name, such as api.',
+      },
+      deploymentType: {
+        type: 'string',
+        description:
+          'Deployment surface this result describes. For deploy_api and redeploy this is always "api".',
+      },
+      examples: {
+        type: 'object',
+        description:
+          'Invocation examples keyed by surface name. For API deploys this includes curl examples for sync, stream, async, and polling.',
+      },
+      isDeployed: {
+        type: 'boolean',
+        description: 'Whether the workflow API is currently deployed after this tool call.',
+      },
+      version: {
+        type: 'number',
+        description: 'Deployment version for the current API deployment.',
+      },
+      workflowId: { type: 'string', description: 'Workflow ID that was deployed or undeployed.' },
+    },
+    required: [
+      'workflowId',
+      'isDeployed',
+      'deploymentType',
+      'deploymentStatus',
+      'deploymentConfig',
+      'examples',
+    ],
+  },
   requiresConfirmation: true,
   requiredPermission: 'admin',
 }
@@ -2010,26 +2231,6 @@ export const RevertToVersion: ToolCatalogEntry = {
   requiredPermission: 'admin',
 }
 
-export const Run: ToolCatalogEntry = {
-  id: 'run',
-  name: 'run',
-  executor: 'subagent',
-  mode: 'async',
-  parameters: {
-    properties: {
-      context: {
-        description: 'Pre-gathered context: workflow state, block IDs, input requirements.',
-        type: 'string',
-      },
-      request: { description: 'What to run or what logs to check.', type: 'string' },
-    },
-    required: ['request'],
-    type: 'object',
-  },
-  subagentId: 'run',
-  internal: true,
-}
-
 export const RunBlock: ToolCatalogEntry = {
   id: 'run_block',
   name: 'run_block',
@@ -2108,6 +2309,11 @@ export const RunWorkflow: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      triggerBlockId: {
+        type: 'string',
+        description:
+          'Optional trigger block ID when the workflow has multiple entrypoints and you need to target a specific one.',
+      },
       useDeployedState: {
         type: 'boolean',
         description:
@@ -2140,6 +2346,11 @@ export const RunWorkflowUntilBlock: ToolCatalogEntry = {
       stopAfterBlockId: {
         type: 'string',
         description: 'The block ID to stop after. Execution halts once this block completes.',
+      },
+      triggerBlockId: {
+        type: 'string',
+        description:
+          'Optional trigger block ID when the workflow has multiple entrypoints and you need to target a specific one.',
       },
       useDeployedState: {
         type: 'boolean',
@@ -2676,17 +2887,7 @@ export const Workflow: ToolCatalogEntry = {
   name: 'workflow',
   executor: 'subagent',
   mode: 'async',
-  parameters: {
-    properties: {
-      request: {
-        description:
-          "A single sentence — the agent has full conversation context and VFS access. Do NOT look up IDs or pre-read data; the workflow agent does its own research. Example: 'move all the return letter workflows into a folder called Letters'.",
-        type: 'string',
-      },
-    },
-    required: ['request'],
-    type: 'object',
-  },
+  parameters: { type: 'object' },
   subagentId: 'workflow',
   internal: true,
 }
@@ -3109,7 +3310,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Respond.id]: Respond,
   [RestoreResource.id]: RestoreResource,
   [RevertToVersion.id]: RevertToVersion,
-  [Run.id]: Run,
   [RunBlock.id]: RunBlock,
   [RunFromBlock.id]: RunFromBlock,
   [RunWorkflow.id]: RunWorkflow,

@@ -6,7 +6,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
-import { releasePendingChatStream } from '@/lib/copilot/request/session'
 import { taskPubSub } from '@/lib/copilot/tasks'
 
 const logger = createLogger('MothershipChatStopAPI')
@@ -60,6 +59,8 @@ const StopSchema = z.object({
  * POST /api/mothership/chat/stop
  * Persists partial assistant content when the user stops a stream mid-response.
  * Clears conversationId so the server-side onComplete won't duplicate the message.
+ * The chat stream lock is intentionally left alone here; it is released only once
+ * the aborted server stream actually unwinds.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -80,7 +81,6 @@ export async function POST(req: NextRequest) {
       .limit(1)
 
     if (!row) {
-      await releasePendingChatStream(chatId, streamId)
       return NextResponse.json({ success: true })
     }
 
@@ -118,8 +118,6 @@ export async function POST(req: NextRequest) {
       .set(setClause)
       .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
       .returning({ workspaceId: copilotChats.workspaceId })
-
-    await releasePendingChatStream(chatId, streamId)
 
     if (updated?.workspaceId) {
       taskPubSub?.publishStatusChanged({

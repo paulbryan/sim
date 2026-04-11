@@ -18,6 +18,22 @@ const activeRunToolByWorkflowId = new Map<string, string>()
 const activeRunAbortByWorkflowId = new Map<string, AbortController>()
 const manuallyStoppedToolCallIds = new Set<string>()
 
+function resolveWorkflowInput(params: Record<string, unknown>): unknown {
+  if (Object.hasOwn(params, 'workflow_input')) {
+    return params.workflow_input
+  }
+  if (Object.hasOwn(params, 'input')) {
+    return params.input
+  }
+  return undefined
+}
+
+function resolveTriggerBlockId(params: Record<string, unknown>): string | undefined {
+  return typeof params.triggerBlockId === 'string' && params.triggerBlockId.length > 0
+    ? params.triggerBlockId
+    : undefined
+}
+
 /**
  * Execute a run tool on the client side using the streaming execute endpoint.
  * This gives full interactive feedback: block pulsing, console logs, stop button.
@@ -155,9 +171,9 @@ async function doExecuteRunTool(
   }
 
   // Extract params for all tool types
-  const workflowInput = (params.workflow_input || params.input || undefined) as
-    | Record<string, unknown>
-    | undefined
+  const workflowInput = resolveWorkflowInput(params)
+  const triggerBlockId = resolveTriggerBlockId(params)
+  const useDraftState = params.useDeployedState !== true
 
   const stopAfterBlockId = (() => {
     if (toolName === RunWorkflowUntilBlock.id) return params.stopAfterBlockId as string | undefined
@@ -218,6 +234,8 @@ async function doExecuteRunTool(
     executionId,
     workflowId: targetWorkflowId,
     hasInput: !!workflowInput,
+    triggerBlockId,
+    useDraftState,
     stopAfterBlockId,
     runFromBlock: runFromBlock ? { startBlockId: runFromBlock.startBlockId } : undefined,
   })
@@ -228,6 +246,8 @@ async function doExecuteRunTool(
       workflowInput,
       executionId,
       overrideTriggerType: 'copilot',
+      triggerBlockId,
+      useDraftState,
       stopAfterBlockId,
       runFromBlock,
       abortSignal: abortController.signal,

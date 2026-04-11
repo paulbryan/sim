@@ -1,7 +1,6 @@
 'use client'
 
 import {
-  File as FileTool,
   Read as ReadTool,
   ToolSearchToolRegex,
   WorkspaceFile,
@@ -12,6 +11,8 @@ import type { ContentBlock, MothershipResource, OptionItem, ToolCallData } from 
 import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '../../types'
 import type { AgentGroupItem } from './components'
 import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
+
+const FILE_SUBAGENT_ID = 'file'
 
 interface TextSegment {
   type: 'text'
@@ -48,7 +49,7 @@ const SUBAGENT_KEYS = new Set(Object.keys(SUBAGENT_LABELS))
  * group is absorbed so it doesn't render as a separate Mothership entry.
  */
 const SUBAGENT_DISPATCH_TOOLS: Record<string, string> = {
-  [FileTool.id]: WorkspaceFile.id,
+  [FILE_SUBAGENT_ID]: WorkspaceFile.id,
 }
 
 function isToolResultRead(params?: Record<string, unknown>): boolean {

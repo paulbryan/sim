@@ -186,8 +186,11 @@ export async function executeGetBlockOutputs(
       blockName: string
       blockType: string
       outputs: string[]
+      relativeOutputs?: string[]
       insideSubflowOutputs?: string[]
       outsideSubflowOutputs?: string[]
+      relativeInsideSubflowOutputs?: string[]
+      relativeOutsideSubflowOutputs?: string[]
       triggerMode?: boolean
     }> = []
 
@@ -203,8 +206,11 @@ export async function executeGetBlockOutputs(
           blockName,
           blockType: block.type,
           outputs: [],
-          insideSubflowOutputs: formatOutputsWithPrefix(insidePaths, blockName),
-          outsideSubflowOutputs: formatOutputsWithPrefix(['results'], blockName),
+          relativeOutputs: [],
+          insideSubflowOutputs: formatOutputsForDisplay(insidePaths, blockName),
+          outsideSubflowOutputs: formatOutputsForDisplay(['results'], blockName),
+          relativeInsideSubflowOutputs: insidePaths,
+          relativeOutsideSubflowOutputs: ['results'],
           triggerMode: block.triggerMode,
         })
         continue
@@ -221,7 +227,8 @@ export async function executeGetBlockOutputs(
         blockId,
         blockName,
         blockType: block.type,
-        outputs: formatOutputsWithPrefix(outputs, blockName),
+        outputs: formatOutputsForDisplay(outputs, blockName),
+        relativeOutputs: outputs,
         triggerMode: block.triggerMode,
       })
     }
@@ -346,7 +353,7 @@ export async function executeGetBlockUpstreamReferences(
           const outputPaths = isInside
             ? getSubflowInsidePaths(block.type, accessibleBlockId, loops, parallels)
             : ['results']
-          formattedOutputs = formatOutputsWithPrefix(outputPaths, blockName)
+          formattedOutputs = formatOutputsForDisplay(outputPaths, blockName)
         } else {
           formattedOutputs = getBlockReferenceTags({
             block: {
@@ -428,7 +435,7 @@ function getSubflowInsidePaths(
   return paths
 }
 
-function formatOutputsWithPrefix(paths: string[], blockName: string): string[] {
+function formatOutputsForDisplay(paths: string[], blockName: string): string[] {
   const normalizedName = normalizeName(blockName)
   return paths.map((path) => `${normalizedName}.${path}`)
 }

@@ -78,6 +78,7 @@ const ExecuteWorkflowSchema = z.object({
       parallels: z.record(z.any()).optional(),
     })
     .optional(),
+  triggerBlockId: z.string().optional(),
   stopAfterBlockId: z.string().optional(),
   runFromBlock: z
     .object({
@@ -381,6 +382,7 @@ async function handleExecutePost(
       includeFileBase64,
       base64MaxBytes,
       workflowStateOverride,
+      triggerBlockId,
       stopAfterBlockId,
       runFromBlock: rawRunFromBlock,
     } = validation.data
@@ -484,6 +486,7 @@ async function handleExecutePost(
               includeFileBase64,
               base64MaxBytes,
               workflowStateOverride,
+              triggerBlockId: _triggerBlockId,
               stopAfterBlockId: _stopAfterBlockId,
               runFromBlock: _runFromBlock,
               workflowId: _workflowId, // Also exclude workflowId used for internal JWT auth
@@ -514,6 +517,7 @@ async function handleExecutePost(
       (body.useDraftState !== undefined ||
         body.workflowStateOverride !== undefined ||
         body.runFromBlock !== undefined ||
+        body.triggerBlockId !== undefined ||
         body.stopAfterBlockId !== undefined ||
         body.selectedOutputs?.length ||
         body.includeFileBase64 !== undefined ||
@@ -714,6 +718,7 @@ async function handleExecutePost(
         sessionUserId: isClientSession ? userId : undefined,
         workflowUserId: workflow.userId,
         triggerType,
+        triggerBlockId,
         useDraftState: shouldUseDraftState,
         startTime: new Date().toISOString(),
         isClientSession,
@@ -1122,6 +1127,7 @@ async function handleExecutePost(
             sessionUserId: isClientSession ? userId : undefined,
             workflowUserId: workflow.userId,
             triggerType,
+            triggerBlockId,
             useDraftState: shouldUseDraftState,
             startTime: new Date().toISOString(),
             isClientSession,

@@ -78,6 +78,22 @@ function buildExecutionError(error: unknown): ToolCallResult {
   return { success: false, error: message }
 }
 
+function resolveRunWorkflowInput(params: { workflow_input?: unknown; input?: unknown }): unknown {
+  if (Object.hasOwn(params, 'workflow_input')) {
+    return params.workflow_input
+  }
+  if (Object.hasOwn(params, 'input')) {
+    return params.input
+  }
+  return undefined
+}
+
+function resolveRunTriggerBlockId(params: { triggerBlockId?: unknown }): string | undefined {
+  return typeof params.triggerBlockId === 'string' && params.triggerBlockId.trim().length > 0
+    ? params.triggerBlockId
+    : undefined
+}
+
 function isBlockProtected(blockId: string, blocksById: Record<string, BlockState>): boolean {
   const block = blocksById[blockId]
   if (!block) return false
@@ -324,9 +340,14 @@ export async function executeRunWorkflow(
         variables: workflowRecord.variables || {},
       },
       generateRequestId(),
-      params.workflow_input || params.input || undefined,
+      resolveRunWorkflowInput(params),
       context.userId,
-      { enabled: true, useDraftState, workflowTriggerType: 'copilot' }
+      {
+        enabled: true,
+        useDraftState,
+        workflowTriggerType: 'copilot',
+        triggerBlockId: resolveRunTriggerBlockId(params),
+      }
     )
 
     return buildExecutionOutput(result)
@@ -575,13 +596,14 @@ export async function executeRunWorkflowUntilBlock(
         variables: workflowRecord.variables || {},
       },
       generateRequestId(),
-      params.workflow_input || params.input || undefined,
+      resolveRunWorkflowInput(params),
       context.userId,
       {
         enabled: true,
         useDraftState,
         stopAfterBlockId: params.stopAfterBlockId,
         workflowTriggerType: 'copilot',
+        triggerBlockId: resolveRunTriggerBlockId(params),
       }
     )
 
@@ -680,7 +702,7 @@ export async function executeRunFromBlock(
         variables: workflowRecord.variables || {},
       },
       generateRequestId(),
-      params.workflow_input || params.input || undefined,
+      resolveRunWorkflowInput(params),
       context.userId,
       {
         enabled: true,
@@ -1028,7 +1050,7 @@ export async function executeRunBlock(
         variables: workflowRecord.variables || {},
       },
       generateRequestId(),
-      params.workflow_input || params.input || undefined,
+      resolveRunWorkflowInput(params),
       context.userId,
       {
         enabled: true,

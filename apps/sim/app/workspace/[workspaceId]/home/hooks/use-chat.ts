@@ -27,7 +27,6 @@ import {
   DeployApi,
   DeployChat,
   DeployMcp,
-  File as FileTool,
   GetPageContents,
   GetWorkflowLogs,
   Glob,
@@ -113,6 +112,8 @@ import type {
   MothershipResourceType,
   QueuedMessage,
 } from '../types'
+
+const FILE_SUBAGENT_ID = 'file'
 
 export interface UseChatReturn {
   messages: ChatMessage[]
@@ -682,6 +683,7 @@ export function useChat(
   apiPathRef.current = options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH
   const stopPathRef = useRef(options?.stopPath ?? '/api/mothership/chat/stop')
   stopPathRef.current = options?.stopPath ?? '/api/mothership/chat/stop'
+  const pendingStopPromiseRef = useRef<Promise<void> | null>(null)
   const workflowIdRef = useRef(options?.workflowId)
   workflowIdRef.current = options?.workflowId
   const onToolResultRef = useRef(options?.onToolResult)
@@ -795,6 +797,7 @@ export function useChat(
   const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const messageQueueRef = useRef<QueuedMessage[]>([])
   messageQueueRef.current = messageQueue
+  const manualQueueSendIdRef = useRef<string | null>(null)
 
   const sendMessageRef = useRef<UseChatReturn['sendMessage']>(async () => {})
   const processSSEStreamRef = useRef<
@@ -1172,6 +1175,10 @@ export function useChat(
                 assistantId,
                 gen,
               })
+        if (succeeded && streamGenRef.current === gen && sendingRef.current) {
+          finalizeRef.current()
+          return
+        }
         if (!succeeded && streamGenRef.current === gen) {
           try {
             finalizeRef.current({ error: true })
@@ -1308,7 +1315,7 @@ export function useChat(
       try {
         const pendingLines: string[] = []
 
-        while (true) {
+        readLoop: while (true) {
           if (pendingLines.length === 0) {
             const { done, value } = await reader.read()
             if (done) break
@@ -1737,7 +1744,7 @@ export function useChat(
                     })
                     setActiveResourceId(fileResource.id)
                     invalidateResourceQueries(queryClient, workspaceId, 'file', fileResource.id)
-                  } else if (!activeSubagent || activeSubagent !== FileTool.id) {
+                  } else if (!activeSubagent || activeSubagent !== FILE_SUBAGENT_ID) {
                     setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
                   }
                 }
@@ -1941,7 +1948,7 @@ export function useChat(
                 if (!isSameActiveSubagent) {
                   blocks.push({ type: 'subagent', content: name })
                 }
-                if (name === FileTool.id && !isSameActiveSubagent) {
+                if (name === FILE_SUBAGENT_ID && !isSameActiveSubagent) {
                   applyPreviewSessionUpdate({
                     schemaVersion: 1,
                     id: parentToolCallId || 'file-preview',
@@ -1988,7 +1995,9 @@ export function useChat(
             }
             case MothershipStreamV1EventType.complete: {
               sawCompleteEvent = true
-              break
+              // `complete` is terminal for this stream, even if the transport takes a moment
+              // longer to close.
+              break readLoop
             }
           }
         }
@@ -2246,7 +2255,9 @@ export function useChat(
             afterCursor: lastCursorRef.current || '0',
             signal: abortControllerRef.current?.signal,
           })
-          return true
+          if (streamGenRef.current !== gen) return true
+          if (abortControllerRef.current?.signal.aborted) return true
+          if (!sendingRef.current) return true
         } catch (err) {
           if (err instanceof Error && err.name === 'AbortError') return true
           logger.warn('Reconnect attempt failed', {
@@ -2313,12 +2324,17 @@ export function useChat(
           ...(storedBlocks.length > 0 && { contentBlocks: storedBlocks }),
         }),
       })
-      if (res.ok) {
-        streamingContentRef.current = ''
-        streamingBlocksRef.current = []
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null)
+        throw new Error(
+          typeof payload?.error === 'string' ? payload.error : 'Failed to persist partial response'
+        )
       }
+      streamingContentRef.current = ''
+      streamingBlocksRef.current = []
     } catch (err) {
       logger.warn('Failed to persist partial response', err)
+      throw err instanceof Error ? err : new Error('Failed to persist partial response')
     }
   }, [])
 
@@ -2352,19 +2368,14 @@ export function useChat(
         }
       }
 
-      if (options?.error) {
-        setMessageQueue([])
+      if (options?.error || manualQueueSendIdRef.current) {
         return
       }
 
       const next = messageQueueRef.current[0]
       if (next) {
         setMessageQueue((prev) => prev.filter((m) => m.id !== next.id))
-        const gen = streamGenRef.current
-        queueMicrotask(() => {
-          if (streamGenRef.current !== gen) return
-          sendMessageRef.current(next.content, next.fileAttachments, next.contexts)
-        })
+        void sendMessageRef.current(next.content, next.fileAttachments, next.contexts)
       }
     },
     [invalidateChatQueries, reconcileTerminalPreviewSessions]
@@ -2374,6 +2385,7 @@ export function useChat(
   const sendMessage = useCallback(
     async (message: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
       if (!message.trim() || !workspaceId) return
+      const pendingStop = pendingStopPromiseRef.current
 
       if (sendingRef.current) {
         const queued: QueuedMessage = {
@@ -2421,26 +2433,13 @@ export function useChat(
         ...('fileId' in c && c.fileId ? { fileId: c.fileId } : {}),
         ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
       }))
-
-      if (requestChatId) {
-        const cachedUserMsg: PersistedMessage = {
-          id: userMessageId,
-          role: 'user' as const,
-          content: message,
-          timestamp: new Date().toISOString(),
-          ...(storedAttachments && { fileAttachments: storedAttachments }),
-          ...(messageContexts && messageContexts.length > 0 ? { contexts: messageContexts } : {}),
-        }
-        queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(requestChatId), (old) => {
-          return old
-            ? {
-                ...old,
-                resources: resourcesRef.current.filter((r) => r.id !== 'streaming-file'),
-                messages: [...old.messages, cachedUserMsg],
-                activeStreamId: userMessageId,
-              }
-            : undefined
-        })
+      const cachedUserMsg: PersistedMessage = {
+        id: userMessageId,
+        role: 'user' as const,
+        content: message,
+        timestamp: new Date().toISOString(),
+        ...(storedAttachments && { fileAttachments: storedAttachments }),
+        ...(messageContexts && messageContexts.length > 0 ? { contexts: messageContexts } : {}),
       }
 
       const userAttachments = storedAttachments?.map((f) => ({
@@ -2453,22 +2452,82 @@ export function useChat(
           : undefined,
       }))
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: userMessageId,
-          role: 'user',
-          content: message,
-          attachments: userAttachments,
-          ...(messageContexts && messageContexts.length > 0 ? { contexts: messageContexts } : {}),
-        },
-        { id: assistantId, role: 'assistant', content: '', contentBlocks: [] },
-      ])
+      const optimisticUserMessage: ChatMessage = {
+        id: userMessageId,
+        role: 'user',
+        content: message,
+        attachments: userAttachments,
+        ...(messageContexts && messageContexts.length > 0 ? { contexts: messageContexts } : {}),
+      }
+      const optimisticAssistantMessage: ChatMessage = {
+        id: assistantId,
+        role: 'assistant',
+        content: '',
+        contentBlocks: [],
+      }
+
+      const applyOptimisticSend = () => {
+        if (requestChatId) {
+          queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(requestChatId), (old) => {
+            if (!old) return undefined
+            const nextMessages = old.messages.filter((m) => m.id !== userMessageId)
+            return {
+              ...old,
+              resources: old.resources.filter((r) => r.id !== 'streaming-file'),
+              messages: [...nextMessages, cachedUserMsg],
+              activeStreamId: userMessageId,
+            }
+          })
+        }
+
+        setMessages((prev) => {
+          const nextMessages = prev.filter((m) => m.id !== userMessageId && m.id !== assistantId)
+          return [...nextMessages, optimisticUserMessage, optimisticAssistantMessage]
+        })
+      }
+
+      const rollbackOptimisticSend = () => {
+        if (requestChatId) {
+          queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(requestChatId), (old) => {
+            if (!old) return undefined
+            return {
+              ...old,
+              messages: old.messages.filter((m) => m.id !== userMessageId),
+              activeStreamId: old.activeStreamId === userMessageId ? null : old.activeStreamId,
+            }
+          })
+        }
+
+        setMessages((prev) => prev.filter((m) => m.id !== userMessageId && m.id !== assistantId))
+      }
+
+      applyOptimisticSend()
 
       const abortController = new AbortController()
       abortControllerRef.current = abortController
 
       try {
+        if (pendingStop) {
+          try {
+            await pendingStop
+            // Query invalidation from the stop barrier can briefly stomp the optimistic tail.
+            // Re-apply it before the real POST so the mothership UI stays immediate.
+            applyOptimisticSend()
+          } catch (err) {
+            rollbackOptimisticSend()
+            pendingUserMsgRef.current = null
+            if (streamIdRef.current === userMessageId) {
+              streamIdRef.current = undefined
+            }
+            abortControllerRef.current = null
+            sendingRef.current = false
+            setIsSending(false)
+            setIsReconnecting(false)
+            setError(err instanceof Error ? err.message : 'Failed to stop the previous response')
+            return
+          }
+        }
+
         const currentActiveId = activeResourceIdRef.current
         const currentResources = resourcesRef.current
         const resourceAttachments =
@@ -2544,6 +2603,9 @@ export function useChat(
             afterCursor: lastCursorRef.current || '0',
             signal: abortController.signal,
           })
+          if (streamGenRef.current === gen && sendingRef.current) {
+            finalize()
+          }
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return
@@ -2570,6 +2632,10 @@ export function useChat(
   sendMessageRef.current = sendMessage
 
   const stopGeneration = useCallback(async () => {
+    if (pendingStopPromiseRef.current) {
+      return pendingStopPromiseRef.current
+    }
+
     const wasSending = sendingRef.current
     const sid =
       streamIdRef.current ||
@@ -2605,67 +2671,100 @@ export function useChat(
       })
     )
 
-    if (sid) {
-      fetch('/api/copilot/chat/abort', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ streamId: sid }),
-      }).catch(() => {})
-    }
+    const stopBarrier = (async () => {
+      try {
+        if (wasSending && !chatIdRef.current) {
+          const start = Date.now()
+          while (!chatIdRef.current && Date.now() - start < 3000) {
+            await new Promise((r) => setTimeout(r, 50))
+          }
+        }
 
-    if (wasSending && !chatIdRef.current) {
-      const start = Date.now()
-      while (!chatIdRef.current && Date.now() - start < 3000) {
-        await new Promise((r) => setTimeout(r, 50))
+        const resolvedChatId = chatIdRef.current
+        const abortPromise = sid
+          ? (async () => {
+              const res = await fetch('/api/copilot/chat/abort', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  streamId: sid,
+                  ...(resolvedChatId ? { chatId: resolvedChatId } : {}),
+                }),
+              })
+              if (!res.ok) {
+                const payload = await res.json().catch(() => null)
+                throw new Error(
+                  typeof payload?.error === 'string'
+                    ? payload.error
+                    : 'Failed to abort previous response'
+                )
+              }
+            })()
+          : Promise.resolve()
+
+        if (wasSending && resolvedChatId) {
+          await persistPartialResponse()
+        }
+
+        await abortPromise
+      } finally {
+        invalidateChatQueries()
+        resetEphemeralPreviewState({ removeStreamingResource: true })
+
+        const execState = useExecutionStore.getState()
+        const consoleStore = useTerminalConsoleStore.getState()
+        for (const [workflowId, wfExec] of execState.workflowExecutions) {
+          if (!wfExec.isExecuting) continue
+
+          const toolCallId = markRunToolManuallyStopped(workflowId)
+          cancelRunToolExecution(workflowId)
+
+          const executionId = execState.getCurrentExecutionId(workflowId)
+          if (executionId) {
+            execState.setCurrentExecutionId(workflowId, null)
+            fetch(`/api/workflows/${workflowId}/executions/${executionId}/cancel`, {
+              method: 'POST',
+            }).catch(() => {})
+          }
+
+          consoleStore.cancelRunningEntries(workflowId)
+          const now = new Date()
+          consoleStore.addConsole({
+            input: {},
+            output: {},
+            success: false,
+            error: 'Execution was cancelled',
+            durationMs: 0,
+            startedAt: now.toISOString(),
+            executionOrder: Number.MAX_SAFE_INTEGER,
+            endedAt: now.toISOString(),
+            workflowId,
+            blockId: 'cancelled',
+            executionId: executionId ?? undefined,
+            blockName: 'Execution Cancelled',
+            blockType: 'cancelled',
+          })
+
+          executionStream.cancel(workflowId)
+          execState.setIsExecuting(workflowId, false)
+          execState.setIsDebugging(workflowId, false)
+          execState.setActiveBlocks(workflowId, new Set())
+
+          reportManualRunToolStop(workflowId, toolCallId).catch(() => {})
+        }
       }
-    }
+    })()
 
-    if (wasSending && chatIdRef.current) {
-      await persistPartialResponse()
-    }
-    invalidateChatQueries()
-    resetEphemeralPreviewState({ removeStreamingResource: true })
-
-    const execState = useExecutionStore.getState()
-    const consoleStore = useTerminalConsoleStore.getState()
-    for (const [workflowId, wfExec] of execState.workflowExecutions) {
-      if (!wfExec.isExecuting) continue
-
-      const toolCallId = markRunToolManuallyStopped(workflowId)
-      cancelRunToolExecution(workflowId)
-
-      const executionId = execState.getCurrentExecutionId(workflowId)
-      if (executionId) {
-        execState.setCurrentExecutionId(workflowId, null)
-        fetch(`/api/workflows/${workflowId}/executions/${executionId}/cancel`, {
-          method: 'POST',
-        }).catch(() => {})
+    pendingStopPromiseRef.current = stopBarrier
+    try {
+      await stopBarrier
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to stop the previous response')
+      throw err
+    } finally {
+      if (pendingStopPromiseRef.current === stopBarrier) {
+        pendingStopPromiseRef.current = null
       }
-
-      consoleStore.cancelRunningEntries(workflowId)
-      const now = new Date()
-      consoleStore.addConsole({
-        input: {},
-        output: {},
-        success: false,
-        error: 'Execution was cancelled',
-        durationMs: 0,
-        startedAt: now.toISOString(),
-        executionOrder: Number.MAX_SAFE_INTEGER,
-        endedAt: now.toISOString(),
-        workflowId,
-        blockId: 'cancelled',
-        executionId: executionId ?? undefined,
-        blockName: 'Execution Cancelled',
-        blockType: 'cancelled',
-      })
-
-      executionStream.cancel(workflowId)
-      execState.setIsExecuting(workflowId, false)
-      execState.setIsDebugging(workflowId, false)
-      execState.setActiveBlocks(workflowId, new Set())
-
-      reportManualRunToolStop(workflowId, toolCallId).catch(() => {})
     }
   }, [
     invalidateChatQueries,
@@ -2676,19 +2775,29 @@ export function useChat(
   ])
 
   const removeFromQueue = useCallback((id: string) => {
-    messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
     setMessageQueue((prev) => prev.filter((m) => m.id !== id))
   }, [])
 
   const sendNow = useCallback(
     async (id: string) => {
+      if (manualQueueSendIdRef.current === id) return
       const msg = messageQueueRef.current.find((m) => m.id === id)
       if (!msg) return
-      // Eagerly update ref so a rapid second click finds the message already gone
-      messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
-      await stopGeneration()
+      manualQueueSendIdRef.current = id
       setMessageQueue((prev) => prev.filter((m) => m.id !== id))
-      await sendMessage(msg.content, msg.fileAttachments, msg.contexts)
+      try {
+        await stopGeneration()
+        await sendMessage(msg.content, msg.fileAttachments, msg.contexts)
+      } catch {
+        setMessageQueue((prev) => {
+          if (prev.some((m) => m.id === id)) return prev
+          return [msg, ...prev]
+        })
+      } finally {
+        if (manualQueueSendIdRef.current === id) {
+          manualQueueSendIdRef.current = null
+        }
+      }
     },
     [stopGeneration, sendMessage]
   )
@@ -2696,7 +2805,6 @@ export function useChat(
   const editQueuedMessage = useCallback((id: string): QueuedMessage | undefined => {
     const msg = messageQueueRef.current.find((m) => m.id === id)
     if (!msg) return undefined
-    messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== id)
     setMessageQueue((prev) => prev.filter((m) => m.id !== id))
     return msg
   }, [])

@@ -85,12 +85,14 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
       const sizeHint = ASPECT_RATIO_TO_SIZE[aspectRatio]
 
       const parts: Part[] = []
+      const referenceRecords: Array<{ id: string; name: string }> = []
 
       if (params.referenceFileIds?.length) {
         for (const fileId of params.referenceFileIds) {
           try {
             const fileRecord = await getWorkspaceFile(workspaceId, fileId)
             if (fileRecord) {
+              referenceRecords.push({ id: fileRecord.id, name: fileRecord.name })
               const buffer = await downloadWorkspaceFile(fileRecord)
               const base64 = buffer.toString('base64')
               const mime = fileRecord.type || 'image/png'
@@ -169,19 +171,31 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
         return { success: false, message: fileNameValidationError }
       }
       const imageBuffer = Buffer.from(imageBase64, 'base64')
+      const inferredOverwriteFileId =
+        !params.overwriteFileId && params.fileName
+          ? referenceRecords.find((record) => record.name === fileName)?.id
+          : undefined
+      const overwriteFileId = params.overwriteFileId ?? inferredOverwriteFileId
 
-      if (params.overwriteFileId) {
-        const existing = await getWorkspaceFile(workspaceId, params.overwriteFileId)
+      if (inferredOverwriteFileId) {
+        logger.info('Inferring overwrite target from referenced file name', {
+          fileName,
+          overwriteFileId: inferredOverwriteFileId,
+        })
+      }
+
+      if (overwriteFileId) {
+        const existing = await getWorkspaceFile(workspaceId, overwriteFileId)
         if (!existing) {
           return {
             success: false,
-            message: `File not found for overwrite: ${params.overwriteFileId}`,
+            message: `File not found for overwrite: ${overwriteFileId}`,
           }
         }
         assertServerToolNotAborted(context)
         const updated = await updateWorkspaceFileContent(
           workspaceId,
-          params.overwriteFileId,
+          overwriteFileId,
           context.userId,
           imageBuffer,
           mimeType

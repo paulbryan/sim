@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { CreateFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -12,6 +11,7 @@ import {
 import { inferContentType, validateFlatWorkspaceFileName } from './workspace-file'
 
 const logger = createLogger('CreateFileServerTool')
+const CREATE_FILE_TOOL_ID = 'create_file'
 
 interface CreateFileArgs {
   fileName: string
@@ -30,7 +30,7 @@ interface CreateFileResult {
 }
 
 export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResult> = {
-  name: CreateFile.id,
+  name: CREATE_FILE_TOOL_ID,
   async execute(params: CreateFileArgs, context?: ServerToolContext): Promise<CreateFileResult> {
     if (!context?.userId) {
       throw new Error('Authentication required')

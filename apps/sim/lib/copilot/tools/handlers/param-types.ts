@@ -46,6 +46,8 @@ export interface RunWorkflowParams {
   workflowId?: string
   workflow_input?: unknown
   input?: unknown
+  /** Optional trigger block ID when the workflow has multiple entrypoints and the caller wants a specific one. */
+  triggerBlockId?: string
   /** When true, runs the deployed version instead of the draft. Default: false (draft). */
   useDeployedState?: boolean
 }
@@ -54,6 +56,8 @@ export interface RunWorkflowUntilBlockParams {
   workflowId?: string
   workflow_input?: unknown
   input?: unknown
+  /** Optional trigger block ID when the workflow has multiple entrypoints and the caller wants a specific one. */
+  triggerBlockId?: string
   /** The block ID to stop after. Execution halts once this block completes. */
   stopAfterBlockId: string
   /** When true, runs the deployed version instead of the draft. Default: false (draft). */
@@ -122,13 +126,16 @@ export interface DeployChatParams {
   identifier?: string
   title?: string
   description?: string
+  welcomeMessage?: string
   customizations?: {
     primaryColor?: string
     secondaryColor?: string
     welcomeMessage?: string
+    imageUrl?: string
+    /** @deprecated Prefer imageUrl for compatibility with chat deploy APIs. */
     iconUrl?: string
   }
-  authType?: 'none' | 'password' | 'public' | 'email' | 'sso'
+  authType?: 'password' | 'public' | 'email' | 'sso'
   password?: string
   subdomain?: string
   allowedEmails?: string[]

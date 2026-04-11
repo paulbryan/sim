@@ -54,6 +54,7 @@ import {
 describe('run tool execution cancellation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
   })
 
   it('passes an abort signal into executeWorkflowWithFullLogging and aborts it', async () => {
@@ -89,6 +90,35 @@ describe('run tool execution cancellation', () => {
       expect.objectContaining({
         method: 'POST',
         body: expect.stringContaining('"toolCallId":"tool-override"'),
+      })
+    )
+  })
+
+  it('prefers workflow_input, forwards triggerBlockId, and respects useDeployedState', async () => {
+    executeWorkflowWithFullLogging.mockResolvedValueOnce({
+      success: true,
+      output: { ok: true },
+      logs: [],
+    })
+
+    executeRunToolOnClient('tool-2', 'run_workflow', {
+      workflowId: 'wf-1',
+      workflow_input: { prompt: 'preferred' },
+      input: { prompt: 'fallback' },
+      triggerBlockId: 'trigger-1',
+      useDeployedState: true,
+    })
+
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(executeWorkflowWithFullLogging).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: 'wf-1',
+        workflowInput: { prompt: 'preferred' },
+        overrideTriggerType: 'copilot',
+        triggerBlockId: 'trigger-1',
+        useDraftState: false,
       })
     )
   })

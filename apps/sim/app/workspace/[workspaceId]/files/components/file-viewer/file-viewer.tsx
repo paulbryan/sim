@@ -268,7 +268,7 @@ export function FileViewer({
   }
 
   if (category === 'image-previewable') {
-    return <ImagePreview file={file} />
+    return <ImagePreview file={file} workspaceId={workspaceId} />
   }
 
   if (category === 'docx-previewable') {
@@ -997,8 +997,20 @@ const ZOOM_BUTTON_FACTOR = 1.2
 
 const clampZoom = (z: number) => Math.min(Math.max(z, ZOOM_MIN), ZOOM_MAX)
 
-const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
-  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace&t=${file.size}`
+const ImagePreview = memo(function ImagePreview({
+  file,
+  workspaceId,
+}: {
+  file: WorkspaceFileRecord
+  workspaceId: string
+}) {
+  const {
+    data: fileData,
+    isLoading,
+    error: fetchError,
+  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  const blobUrlRef = useRef<string | null>(null)
   const [zoom, setZoom] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const isDragging = useRef(false)
@@ -1008,6 +1020,15 @@ const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileR
   offsetRef.current = offset
 
   const containerRef = useRef<HTMLDivElement>(null)
+
+  const replaceBlobUrl = useCallback((nextUrl: string | null) => {
+    const previousUrl = blobUrlRef.current
+    blobUrlRef.current = nextUrl
+    setBlobUrl(nextUrl)
+    if (previousUrl && previousUrl !== nextUrl) {
+      URL.revokeObjectURL(previousUrl)
+    }
+  }, [])
 
   const zoomIn = useCallback(() => setZoom((z) => clampZoom(z * ZOOM_BUTTON_FACTOR)), [])
   const zoomOut = useCallback(() => setZoom((z) => clampZoom(z / ZOOM_BUTTON_FACTOR)), [])
@@ -1026,6 +1047,24 @@ const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileR
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
   }, [])
+
+  useEffect(() => {
+    replaceBlobUrl(null)
+  }, [file.id, file.key, replaceBlobUrl])
+
+  useEffect(() => {
+    return () => {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current)
+        blobUrlRef.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!fileData) return
+    replaceBlobUrl(URL.createObjectURL(new Blob([fileData], { type: file.type || 'image/png' })))
+  }, [file.type, fileData, replaceBlobUrl])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return
@@ -1052,7 +1091,21 @@ const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileR
   useEffect(() => {
     setZoom(1)
     setOffset({ x: 0, y: 0 })
-  }, [file.key])
+  }, [blobUrl])
+
+  const error = blobUrl !== null ? null : resolvePreviewError(fetchError, null)
+
+  if (error) {
+    return <PreviewError label='Image' error={error} />
+  }
+
+  if (isLoading && !blobUrl) {
+    return (
+      <div className='flex h-full items-center justify-center'>
+        <Skeleton className='h-[200px] w-[80%]' />
+      </div>
+    )
+  }
 
   return (
     <div
@@ -1071,7 +1124,7 @@ const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileR
         }}
       >
         <img
-          src={serveUrl}
+          src={blobUrl ?? undefined}
           alt={file.name}
           className='max-h-full max-w-full select-none rounded-md object-contain'
           draggable={false}
