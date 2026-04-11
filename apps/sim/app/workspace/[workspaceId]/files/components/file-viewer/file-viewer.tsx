@@ -1143,7 +1143,7 @@ const DocxPreview = memo(function DocxPreview({
         >
           <div
             ref={containerRef}
-            className='origin-top'
+            className='origin-top [&>.docx-wrapper]:bg-transparent'
             style={{
               transform: `scale(${docxScale})`,
               transformOrigin: 'top center',
