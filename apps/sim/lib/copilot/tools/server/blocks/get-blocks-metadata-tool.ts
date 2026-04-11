@@ -188,7 +188,10 @@ export const getBlocksMetadataServerTool: BaseServerTool<
 
           const configFields: Record<string, any> = {}
           for (const subBlock of trig.subBlocks) {
-            if (subBlock.mode === 'trigger' && !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)) {
+            if (
+              (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') &&
+              !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)
+            ) {
               const fieldDef: any = {
                 type: subBlock.type,
                 required: subBlock.required || false,
@@ -230,7 +233,9 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         const blockInputs = computeBlockLevelInputs(blockConfig)
         const { commonParameters, operationParameters } = splitParametersByOperation(
           Array.isArray(blockConfig.subBlocks)
-            ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger')
+            ? blockConfig.subBlocks.filter(
+                (sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced'
+              )
             : [],
           blockInputs
         )
@@ -427,7 +432,7 @@ function extractInputs(metadata: CopilotBlockMetadata): {
 
   for (const schema of metadata.inputSchema || []) {
     // Skip trigger subBlocks - they're handled separately in triggers.configFields
-    if (schema.mode === 'trigger') {
+    if (schema.mode === 'trigger' || schema.mode === 'trigger-advanced') {
       continue
     }
 
@@ -913,7 +918,7 @@ function splitParametersByOperation(
 function computeBlockLevelInputs(blockConfig: BlockConfig): Record<string, any> {
   const inputs = blockConfig.inputs || {}
   const subBlocks: any[] = Array.isArray(blockConfig.subBlocks)
-    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger')
+    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced')
     : []
 
   const byParamKey: Record<string, any[]> = {}
@@ -948,7 +953,7 @@ function computeOperationLevelInputs(
 ): Record<string, Record<string, any>> {
   const inputs = blockConfig.inputs || {}
   const subBlocks = Array.isArray(blockConfig.subBlocks)
-    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger')
+    ? blockConfig.subBlocks.filter((sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced')
     : []
 
   const opInputs: Record<string, Record<string, any>> = {}
