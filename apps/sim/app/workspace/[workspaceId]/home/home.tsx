@@ -115,7 +115,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
   const wasSendingRef = useRef(false)
 
-  useChatHistory(chatId)
+  const { isPending: isChatHistoryPending } = useChatHistory(chatId)
   const { mutate: markRead } = useMarkTaskRead(workspaceId)
 
   const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize()
@@ -311,6 +311,7 @@ export function Home({ chatId }: HomeProps = {}) {
   )
 
   const hasMessages = messages.length > 0
+  const showChatSkeleton = Boolean(chatId) && !hasMessages && isChatHistoryPending
 
   useEffect(() => {
     if (hasMessages) return
@@ -369,6 +370,7 @@ export function Home({ chatId }: HomeProps = {}) {
           messages={messages}
           isSending={isSending}
           isReconnecting={isReconnecting}
+          isLoading={showChatSkeleton}
           onSubmit={handleSubmit}
           onStopGeneration={handleStopGeneration}
           messageQueue={messageQueue}

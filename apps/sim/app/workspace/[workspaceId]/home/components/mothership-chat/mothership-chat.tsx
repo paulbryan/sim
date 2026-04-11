@@ -20,11 +20,13 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import type { ChatContext } from '@/stores/panel'
+import { MothershipChatSkeleton } from './mothership-chat-skeleton'
 
 interface MothershipChatProps {
   messages: ChatMessage[]
   isSending: boolean
   isReconnecting?: boolean
+  isLoading?: boolean
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
@@ -77,6 +79,7 @@ export function MothershipChat({
   messages,
   isSending,
   isReconnecting = false,
+  isLoading = false,
   onSubmit,
   onStopGeneration,
   messageQueue,
@@ -129,71 +132,75 @@ export function MothershipChat({
   return (
     <div className={cn('flex h-full min-h-0 flex-col', className)}>
       <div ref={scrollContainerRef} className={styles.scrollContainer}>
-        <div className={styles.content}>
-          {messages.map((msg, index) => {
-            if (msg.role === 'user') {
-              const hasAttachments = Boolean(msg.attachments?.length)
-              return (
-                <div key={msg.id} className={styles.userRow}>
-                  {hasAttachments && (
-                    <ChatMessageAttachments
-                      attachments={msg.attachments ?? []}
-                      align='end'
-                      className={styles.attachmentWidth}
-                    />
-                  )}
-                  <div className={styles.userBubble}>
-                    <UserMessageContent content={msg.content} contexts={msg.contexts} />
+        {isLoading && !hasMessages ? (
+          <MothershipChatSkeleton layout={layout} />
+        ) : (
+          <div className={styles.content}>
+            {messages.map((msg, index) => {
+              if (msg.role === 'user') {
+                const hasAttachments = Boolean(msg.attachments?.length)
+                return (
+                  <div key={msg.id} className={styles.userRow}>
+                    {hasAttachments && (
+                      <ChatMessageAttachments
+                        attachments={msg.attachments ?? []}
+                        align='end'
+                        className={styles.attachmentWidth}
+                      />
+                    )}
+                    <div className={styles.userBubble}>
+                      <UserMessageContent content={msg.content} contexts={msg.contexts} />
+                    </div>
                   </div>
+                )
+              }
+
+              const hasAnyBlocks = Boolean(msg.contentBlocks?.length)
+              const hasRenderableAssistant = assistantMessageHasRenderableContent(
+                msg.contentBlocks ?? [],
+                msg.content ?? ''
+              )
+              const isLastAssistant = index === messages.length - 1
+              const isThisStreaming = isStreamActive && isLastAssistant
+
+              if (!hasAnyBlocks && !msg.content?.trim() && isThisStreaming) {
+                return <PendingTagIndicator key={msg.id} />
+              }
+
+              if (!hasRenderableAssistant && !msg.content?.trim() && !isThisStreaming) {
+                return null
+              }
+
+              const isLastMessage = index === messages.length - 1
+              const precedingUserMsg = [...messages]
+                .slice(0, index)
+                .reverse()
+                .find((m) => m.role === 'user')
+
+              return (
+                <div key={msg.id} className={styles.assistantRow}>
+                  <MessageContent
+                    blocks={msg.contentBlocks || []}
+                    fallbackContent={msg.content}
+                    isStreaming={isThisStreaming}
+                    onOptionSelect={isLastMessage && !isStreamActive ? onSubmit : undefined}
+                    onWorkspaceResourceSelect={onWorkspaceResourceSelect}
+                  />
+                  {!isThisStreaming && (msg.content || msg.contentBlocks?.length) && (
+                    <div className='mt-2.5'>
+                      <MessageActions
+                        content={msg.content}
+                        chatId={chatId}
+                        userQuery={precedingUserMsg?.content}
+                        requestId={msg.requestId}
+                      />
+                    </div>
+                  )}
                 </div>
               )
-            }
-
-            const hasAnyBlocks = Boolean(msg.contentBlocks?.length)
-            const hasRenderableAssistant = assistantMessageHasRenderableContent(
-              msg.contentBlocks ?? [],
-              msg.content ?? ''
-            )
-            const isLastAssistant = index === messages.length - 1
-            const isThisStreaming = isStreamActive && isLastAssistant
-
-            if (!hasAnyBlocks && !msg.content?.trim() && isThisStreaming) {
-              return <PendingTagIndicator key={msg.id} />
-            }
-
-            if (!hasRenderableAssistant && !msg.content?.trim() && !isThisStreaming) {
-              return null
-            }
-
-            const isLastMessage = index === messages.length - 1
-            const precedingUserMsg = [...messages]
-              .slice(0, index)
-              .reverse()
-              .find((m) => m.role === 'user')
-
-            return (
-              <div key={msg.id} className={styles.assistantRow}>
-                <MessageContent
-                  blocks={msg.contentBlocks || []}
-                  fallbackContent={msg.content}
-                  isStreaming={isThisStreaming}
-                  onOptionSelect={isLastMessage && !isStreamActive ? onSubmit : undefined}
-                  onWorkspaceResourceSelect={onWorkspaceResourceSelect}
-                />
-                {!isThisStreaming && (msg.content || msg.contentBlocks?.length) && (
-                  <div className='mt-2.5'>
-                    <MessageActions
-                      content={msg.content}
-                      chatId={chatId}
-                      userQuery={precedingUserMsg?.content}
-                      requestId={msg.requestId}
-                    />
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+            })}
+          </div>
+        )}
       </div>
 
       <div

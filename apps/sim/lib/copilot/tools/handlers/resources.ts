@@ -1,6 +1,7 @@
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
+import { getLogById } from '@/lib/logs/service'
 import { getTableById } from '@/lib/table/service'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getWorkflowById } from '@/lib/workflows/utils'
@@ -50,6 +51,21 @@ async function resolveResource(
       return { error: `Knowledge base not found in the current workspace.` }
     resourceId = kb.id
     title = kb.name
+  }
+  if (resourceType === 'log') {
+    const logRecord = await getLogById(item.id)
+    if (!logRecord) return { error: `No log with id "${item.id}".` }
+    if (context.workspaceId && logRecord.workspaceId !== context.workspaceId)
+      return { error: `Log not found in the current workspace.` }
+    resourceId = logRecord.id
+    const workflowName = logRecord.workflowName ?? 'Unknown Workflow'
+    const timestamp = logRecord.startedAt.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    title = `${workflowName} — ${timestamp}`
   }
 
   return { type: resourceType, id: resourceId, title }

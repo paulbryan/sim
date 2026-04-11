@@ -5,6 +5,7 @@ export const MothershipResourceType = {
   knowledgebase: 'knowledgebase',
   folder: 'folder',
   task: 'task',
+  log: 'log',
   generic: 'generic',
 } as const
 export type MothershipResourceType =

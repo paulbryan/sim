@@ -38,7 +38,11 @@ import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 const EDGE_ZONE = 40
 const SCROLL_SPEED = 8
 
-const ADD_RESOURCE_EXCLUDED_TYPES: readonly MothershipResourceType[] = ['folder', 'task'] as const
+const ADD_RESOURCE_EXCLUDED_TYPES: readonly MothershipResourceType[] = [
+  'folder',
+  'task',
+  'log',
+] as const
 
 /**
  * Returns the id of the nearest resource to `idx` that is in `filter`
@@ -70,14 +74,16 @@ function buildMultiDragImage(
 ): HTMLElement | null {
   if (!scrollNode || selected.length === 0) return null
   const container = document.createElement('div')
-  container.style.position = 'fixed'
-  container.style.top = '-10000px'
-  container.style.left = '-10000px'
-  container.style.display = 'flex'
-  container.style.alignItems = 'center'
-  container.style.gap = '6px'
-  container.style.padding = '4px'
-  container.style.pointerEvents = 'none'
+  Object.assign(container.style, {
+    position: 'fixed',
+    top: '-10000px',
+    left: '-10000px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '4px',
+    pointerEvents: 'none',
+  } satisfies Partial<CSSStyleDeclaration>)
   let appendedAny = false
   for (const r of selected) {
     const original = scrollNode.querySelector<HTMLElement>(

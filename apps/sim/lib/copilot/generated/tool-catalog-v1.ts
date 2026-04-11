@@ -2011,7 +2011,7 @@ export const OpenResource: ToolCatalogEntry = {
             type: {
               type: 'string',
               description: 'The resource type.',
-              enum: ['workflow', 'table', 'knowledgebase', 'file'],
+              enum: ['workflow', 'table', 'knowledgebase', 'file', 'log'],
             },
           },
           required: ['type', 'id'],
