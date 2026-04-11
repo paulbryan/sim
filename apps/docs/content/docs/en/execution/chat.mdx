@@ -143,15 +143,16 @@ curl -X POST https://sim.ai/api/chat/your-identifier/otp \
   -H "Content-Type: application/json" \
   -d '{ "email": "allowed@example.com" }'
 
-# Step 2: Verify OTP
+# Step 2: Verify OTP (save the Set-Cookie header to a cookie jar)
 curl -X PUT https://sim.ai/api/chat/your-identifier/otp \
   -H "Content-Type: application/json" \
+  -c cookies.txt \
   -d '{ "email": "allowed@example.com", "otp": "123456" }'
 
-# Step 3: Send messages (include the auth cookie from step 2)
+# Step 3: Send messages (replay the auth cookie from step 2)
 curl -X POST https://sim.ai/api/chat/your-identifier \
   -H "Content-Type: application/json" \
-  -b "chat_auth_cookie" \
+  -b cookies.txt \
   -d '{ "input": "Hello" }'
 ```
 

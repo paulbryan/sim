@@ -118,6 +118,10 @@ Add to your VS Code MCP settings (`.vscode/mcp.json`):
   For public servers, omit the `X-API-Key` header and `--header` arguments. Public servers don't require authentication.
 </Callout>
 
+<Callout type="warn">
+  `$SIM_API_KEY` is a placeholder. For Claude Desktop and VS Code configs, replace it with your actual API key since these clients don't expand environment variables in JSON config files. Claude Code and Cursor handle variable expansion natively.
+</Callout>
+
 ## Server Management
 
 From the server detail view in **Settings → Workflow MCP Servers**, you can:
