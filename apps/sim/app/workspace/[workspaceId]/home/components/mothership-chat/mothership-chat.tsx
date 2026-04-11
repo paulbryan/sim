@@ -106,18 +106,11 @@ export function MothershipChat({
   })
   const hasMessages = messages.length > 0
   const initialScrollDoneRef = useRef(false)
-
-  const messageQueueRef = useRef(messageQueue)
-  messageQueueRef.current = messageQueue
-  const onSendQueuedMessageRef = useRef(onSendQueuedMessage)
-  onSendQueuedMessageRef.current = onSendQueuedMessage
-
-  const handleEnterWhileEmpty = useCallback(() => {
-    const topMessage = messageQueueRef.current[0]
-    if (!topMessage) return false
-    void onSendQueuedMessageRef.current(topMessage.id)
-    return true
-  }, [])
+  const handleSendQueuedHead = useCallback(() => {
+    const topMessage = messageQueue[0]
+    if (!topMessage) return
+    void onSendQueuedMessage(topMessage.id)
+  }, [messageQueue, onSendQueuedMessage])
 
   useLayoutEffect(() => {
     if (!hasMessages) {
@@ -224,7 +217,7 @@ export function MothershipChat({
             onContextRemove={onContextRemove}
             editValue={editValue}
             onEditValueConsumed={onEditValueConsumed}
-            onEnterWhileEmpty={handleEnterWhileEmpty}
+            onSendQueuedHead={handleSendQueuedHead}
           />
         </div>
       </div>

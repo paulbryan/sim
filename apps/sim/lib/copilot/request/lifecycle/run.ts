@@ -44,6 +44,7 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
   trace?: TraceCollector
   simRequestId?: string
   onGoTraceId?: (goTraceId: string) => void
+  executionContext?: ExecutionContext
 }
 
 export async function runCopilotLifecycle(
@@ -60,15 +61,17 @@ export async function runCopilotLifecycle(
     goRoute = '/api/copilot',
   } = options
 
-  const execContext = await buildExecutionContext(requestPayload, {
-    userId,
-    workflowId,
-    workspaceId,
-    chatId,
-    executionId,
-    runId,
-    abortSignal: options.abortSignal,
-  })
+  const execContext =
+    options.executionContext ??
+    (await buildExecutionContext(requestPayload, {
+      userId,
+      workflowId,
+      workspaceId,
+      chatId,
+      executionId,
+      runId,
+      abortSignal: options.abortSignal,
+    }))
 
   const payloadMsgId = requestPayload?.messageId
   const context = createStreamingContext({

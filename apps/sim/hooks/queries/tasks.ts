@@ -100,7 +100,7 @@ export async function fetchChatHistory(
     }
   }
 
-  const copilotRes = await fetch(`/api/copilot/chat?chatId=${encodeURIComponent(chatId)}`, {
+  const copilotRes = await fetch(`/api/mothership/chat?chatId=${encodeURIComponent(chatId)}`, {
     signal,
   })
 
@@ -220,7 +220,7 @@ async function addChatResource(params: {
   chatId: string
   resource: MothershipResource
 }): Promise<{ resources: MothershipResource[] }> {
-  const response = await fetch('/api/copilot/chat/resources', {
+  const response = await fetch('/api/mothership/chat/resources', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chatId: params.chatId, resource: params.resource }),
@@ -267,7 +267,7 @@ async function reorderChatResources(params: {
   chatId: string
   resources: MothershipResource[]
 }): Promise<{ resources: MothershipResource[] }> {
-  const response = await fetch('/api/copilot/chat/resources', {
+  const response = await fetch('/api/mothership/chat/resources', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chatId: params.chatId, resources: params.resources }),
@@ -310,7 +310,7 @@ async function removeChatResource(params: {
   resourceType: string
   resourceId: string
 }): Promise<{ resources: MothershipResource[] }> {
-  const response = await fetch('/api/copilot/chat/resources', {
+  const response = await fetch('/api/mothership/chat/resources', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),

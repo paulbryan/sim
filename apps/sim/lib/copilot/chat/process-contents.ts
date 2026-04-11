@@ -342,7 +342,7 @@ async function processWorkflowFromDb(
 
 async function processPastChat(chatId: string, tagOverride?: string): Promise<AgentContext | null> {
   try {
-    const resp = await fetch(`/api/copilot/chat/${encodeURIComponent(chatId)}`)
+    const resp = await fetch(`/api/mothership/chat?chatId=${encodeURIComponent(chatId)}`)
     if (!resp.ok) {
       logger.error('Failed to fetch past chat', { chatId, status: resp.status })
       return null

@@ -7,7 +7,7 @@ import type {
   PersistedFileAttachment,
   PersistedMessage,
 } from '@/lib/copilot/chat/persisted-message'
-import { COPILOT_CHAT_API_PATH, MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
 import type { MothershipStreamV1EventEnvelope } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   MothershipStreamV1EventType,
@@ -164,6 +164,17 @@ const RECONNECT_MAX_DELAY_MS = 30_000
 const logger = createLogger('useChat')
 
 type StreamPayload = Record<string, unknown>
+
+type QueueDispatchAction = { type: 'send_head'; epoch: number }
+
+type QueueDispatchActionInput = { type: 'send_head' }
+
+type ActiveTurn = {
+  userMessageId: string
+  assistantMessageId: string
+  optimisticUserMessage: ChatMessage
+  optimisticAssistantMessage: ChatMessage
+}
 
 function stringParam(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
@@ -654,7 +665,7 @@ export function getWorkflowCopilotUseChatOptions(
   > = {}
 ): UseChatOptions {
   return {
-    apiPath: COPILOT_CHAT_API_PATH,
+    apiPath: MOTHERSHIP_CHAT_API_PATH,
     stopPath: '/api/mothership/chat/stop',
     ...options,
   }
@@ -692,6 +703,13 @@ export function useChat(
   onTitleUpdateRef.current = options?.onTitleUpdate
   const onStreamEndRef = useRef(options?.onStreamEnd)
   onStreamEndRef.current = options?.onStreamEnd
+
+  const clearQueueDispatchState = useCallback(() => {
+    queueDispatchEpochRef.current++
+    queueDispatchActionsRef.current = []
+    queuedMessageDispatchIdsRef.current.clear()
+    queueDispatchTaskRef.current = null
+  }, [])
   const resourcesRef = useRef(resources)
   resourcesRef.current = resources
 
@@ -797,9 +815,15 @@ export function useChat(
   const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
   const messageQueueRef = useRef<QueuedMessage[]>([])
   messageQueueRef.current = messageQueue
-  const manualQueueSendIdRef = useRef<string | null>(null)
+  const queuedMessageDispatchIdsRef = useRef<Set<string>>(new Set())
+  const queueDispatchActionsRef = useRef<QueueDispatchAction[]>([])
+  const queueDispatchTaskRef = useRef<Promise<void> | null>(null)
+  const queueDispatchEpochRef = useRef(0)
+  const queueDispatchLoopRef = useRef<() => Promise<void>>(async () => {})
+  const enqueueQueueDispatchRef = useRef<(action: QueueDispatchActionInput) => Promise<void>>(
+    async () => {}
+  )
 
-  const sendMessageRef = useRef<UseChatReturn['sendMessage']>(async () => {})
   const processSSEStreamRef = useRef<
     (
       reader: ReadableStreamDefaultReader<Uint8Array>,
@@ -893,6 +917,7 @@ export function useChat(
   const selectedChatIdRef = useRef<string | undefined>(initialChatId)
   selectedChatIdRef.current = initialChatId
   const appliedChatHistoryKeyRef = useRef<string | undefined>(undefined)
+  const activeTurnRef = useRef<ActiveTurn | null>(null)
   const pendingUserMsgRef = useRef<{ id: string; content: string } | null>(null)
   const streamIdRef = useRef<string | undefined>(undefined)
   const locallyTerminalStreamIdRef = useRef<string | undefined>(undefined)
@@ -904,6 +929,67 @@ export function useChat(
   const clientExecutionStartedRef = useRef<Set<string>>(new Set())
   const executionStream = useExecutionStream()
   const isHomePage = pathname.endsWith('/home')
+
+  const setTransportIdle = useCallback(() => {
+    sendingRef.current = false
+    setIsSending(false)
+    setIsReconnecting(false)
+  }, [])
+
+  const setTransportStreaming = useCallback(() => {
+    sendingRef.current = true
+    setIsSending(true)
+    setIsReconnecting(false)
+  }, [])
+
+  const setTransportReconnecting = useCallback(() => {
+    sendingRef.current = true
+    setIsSending(true)
+    setIsReconnecting(true)
+  }, [])
+
+  const resetStreamingBuffers = useCallback(() => {
+    streamingContentRef.current = ''
+    streamingBlocksRef.current = []
+  }, [])
+
+  const clearActiveTurn = useCallback(() => {
+    activeTurnRef.current = null
+    pendingUserMsgRef.current = null
+    streamIdRef.current = undefined
+    lastCursorRef.current = '0'
+    resetStreamingBuffers()
+  }, [resetStreamingBuffers])
+
+  const mergeServerMessagesWithActiveTurn = useCallback(
+    (serverMessages: ChatMessage[], previousMessages: ChatMessage[]) => {
+      const activeTurn = activeTurnRef.current
+      if (!activeTurn || !sendingRef.current) {
+        return serverMessages
+      }
+
+      const nextMessages = [...serverMessages]
+      const localStreamingUser =
+        previousMessages.find(
+          (message) => message.id === activeTurn.userMessageId && message.role === 'user'
+        ) ?? activeTurn.optimisticUserMessage
+      const localStreamingAssistant =
+        previousMessages.find(
+          (message) => message.id === activeTurn.assistantMessageId && message.role === 'assistant'
+        ) ?? activeTurn.optimisticAssistantMessage
+
+      if (!nextMessages.some((message) => message.id === localStreamingUser.id)) {
+        nextMessages.push(localStreamingUser)
+      }
+
+      if (!nextMessages.some((message) => message.id === localStreamingAssistant.id)) {
+        nextMessages.push(localStreamingAssistant)
+      }
+
+      return nextMessages
+    },
+    []
+  )
 
   const { data: chatHistory } = useChatHistory(initialChatId)
 
@@ -925,7 +1011,7 @@ export function useChat(
 
     const persistChatId = chatIdRef.current ?? selectedChatIdRef.current
     if (persistChatId) {
-      fetch('/api/copilot/chat/resources', {
+      fetch('/api/mothership/chat/resources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chatId: persistChatId, resource }),
@@ -1007,31 +1093,38 @@ export function useChat(
         // Reopening that chat later will reconnect through the existing chatHistory flow.
         streamGenRef.current++
         abortControllerRef.current = null
-        sendingRef.current = false
-        setIsSending(false)
+        clearActiveTurn()
+        setTransportIdle()
         if (abandonedChatId) {
           queryClient.invalidateQueries({ queryKey: taskKeys.detail(abandonedChatId) })
         }
       } else {
         setResolvedChatId(initialChatId)
-        setMessageQueue([])
         return
       }
     }
     chatIdRef.current = initialChatId
     lastCursorRef.current = '0'
     locallyTerminalStreamIdRef.current = undefined
+    clearActiveTurn()
     setResolvedChatId(initialChatId)
     appliedChatHistoryKeyRef.current = undefined
     setMessages([])
     setError(null)
-    setIsSending(false)
-    setIsReconnecting(false)
+    setTransportIdle()
     setResources([])
     setActiveResourceId(null)
     resetEphemeralPreviewState()
     setMessageQueue([])
-  }, [initialChatId, queryClient, resetEphemeralPreviewState])
+    clearQueueDispatchState()
+  }, [
+    initialChatId,
+    queryClient,
+    resetEphemeralPreviewState,
+    clearQueueDispatchState,
+    clearActiveTurn,
+    setTransportIdle,
+  ])
 
   useEffect(() => {
     if (workflowIdRef.current) return
@@ -1040,19 +1133,25 @@ export function useChat(
     chatIdRef.current = undefined
     lastCursorRef.current = '0'
     locallyTerminalStreamIdRef.current = undefined
+    clearActiveTurn()
     setResolvedChatId(undefined)
     appliedChatHistoryKeyRef.current = undefined
     abortControllerRef.current = null
-    sendingRef.current = false
     setMessages([])
     setError(null)
-    setIsSending(false)
-    setIsReconnecting(false)
+    setTransportIdle()
     setResources([])
     setActiveResourceId(null)
     resetEphemeralPreviewState()
     setMessageQueue([])
-  }, [isHomePage, resetEphemeralPreviewState])
+    clearQueueDispatchState()
+  }, [
+    isHomePage,
+    resetEphemeralPreviewState,
+    clearQueueDispatchState,
+    clearActiveTurn,
+    setTransportIdle,
+  ])
 
   useEffect(() => {
     if (!chatHistory) return
@@ -1079,23 +1178,10 @@ export function useChat(
     if (!activeStreamId && locallyTerminalStreamIdRef.current) {
       locallyTerminalStreamIdRef.current = undefined
     }
-    const shouldPreserveActiveStreamingMessage =
-      sendingRef.current && Boolean(activeStreamId) && activeStreamId === streamIdRef.current
+    const shouldPreserveLocalActiveTurn = sendingRef.current && activeTurnRef.current !== null
 
-    if (shouldPreserveActiveStreamingMessage) {
-      setMessages((prev) => {
-        const localStreamingAssistant = prev[prev.length - 1]
-        if (localStreamingAssistant?.role !== 'assistant') {
-          return mappedMessages
-        }
-
-        const nextMessages =
-          mappedMessages[mappedMessages.length - 1]?.role === 'assistant'
-            ? mappedMessages.slice(0, -1)
-            : mappedMessages
-
-        return [...nextMessages, localStreamingAssistant]
-      })
+    if (shouldPreserveLocalActiveTurn) {
+      setMessages((prev) => mergeServerMessagesWithActiveTurn(mappedMessages, prev))
     } else {
       setMessages(mappedMessages)
     }
@@ -1103,7 +1189,7 @@ export function useChat(
     recoverPendingClientWorkflowTools(mappedMessages)
 
     if (chatHistory.resources.some((r) => r.id === 'streaming-file')) {
-      fetch('/api/copilot/chat/resources', {
+      fetch('/api/mothership/chat/resources', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1141,7 +1227,7 @@ export function useChat(
       abortControllerRef.current = abortController
       streamIdRef.current = activeStreamId
       lastCursorRef.current = '0'
-      sendingRef.current = true
+      setTransportReconnecting()
 
       const assistantId = generateId()
 
@@ -1179,13 +1265,16 @@ export function useChat(
           finalizeRef.current()
           return
         }
+        if (succeeded && streamGenRef.current === gen) {
+          setTransportIdle()
+          abortControllerRef.current = null
+          return
+        }
         if (!succeeded && streamGenRef.current === gen) {
           try {
             finalizeRef.current({ error: true })
           } catch {
-            sendingRef.current = false
-            setIsSending(false)
-            setIsReconnecting(false)
+            setTransportIdle()
             abortControllerRef.current = null
             setError('Failed to reconnect to the active stream')
           }
@@ -1199,6 +1288,9 @@ export function useChat(
     queryClient,
     recoverPendingClientWorkflowTools,
     seedPreviewSessions,
+    mergeServerMessagesWithActiveTurn,
+    setTransportIdle,
+    setTransportReconnecting,
   ])
 
   const processSSEStream = useCallback(
@@ -1290,6 +1382,7 @@ export function useChat(
       const isStale = () => expectedGen !== undefined && streamGenRef.current !== expectedGen
       let sawStreamError = false
       let sawCompleteEvent = false
+      let scheduledTextFlushFrame: number | null = null
 
       const flush = () => {
         if (isStale()) return
@@ -1309,6 +1402,19 @@ export function useChat(
             ...prev,
             { id: assistantId, role: 'assistant' as const, content: '', ...snapshot },
           ]
+        })
+      }
+
+      const flushText = () => {
+        if (isStale()) return
+        if (scheduledTextFlushFrame !== null) return
+        if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+          flush()
+          return
+        }
+        scheduledTextFlushFrame = window.requestAnimationFrame(() => {
+          scheduledTextFlushFrame = null
+          flush()
         })
       }
 
@@ -1439,7 +1545,7 @@ export function useChat(
                 runningText += normalizedChunk
                 lastContentSource = contentSource
                 streamingContentRef.current = runningText
-                flush()
+                flushText()
               }
               break
             }
@@ -2002,6 +2108,11 @@ export function useChat(
           }
         }
       } finally {
+        if (scheduledTextFlushFrame !== null) {
+          cancelAnimationFrame(scheduledTextFlushFrame)
+          scheduledTextFlushFrame = null
+          flush()
+        }
         if (streamReaderRef.current === reader) {
           streamReaderRef.current = null
         }
@@ -2050,7 +2161,7 @@ export function useChat(
       signal?: AbortSignal
     ): Promise<StreamBatchResponse> => {
       const response = await fetch(
-        `/api/copilot/chat/stream?streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(afterCursor)}&batch=true`,
+        `/api/mothership/chat/stream?streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(afterCursor)}&batch=true`,
         { signal }
       )
       if (!response.ok) {
@@ -2078,8 +2189,7 @@ export function useChat(
       let seedEvents = opts.initialBatch?.events ?? []
       let streamStatus = opts.initialBatch?.status ?? 'unknown'
 
-      setIsSending(true)
-      setIsReconnecting(true)
+      setTransportReconnecting()
       setError(null)
 
       try {
@@ -2115,14 +2225,14 @@ export function useChat(
           logger.info('Opening live stream tail', { streamId, afterCursor: latestCursor })
 
           const sseRes = await fetch(
-            `/api/copilot/chat/stream?streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(latestCursor)}`,
+            `/api/mothership/chat/stream?streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(latestCursor)}`,
             { signal: activeAbort.signal }
           )
           if (!sseRes.ok || !sseRes.body) {
             throw new Error(RECONNECT_TAIL_ERROR)
           }
 
-          setIsReconnecting(false)
+          setTransportStreaming()
 
           const liveResult = await processSSEStreamRef.current(
             sseRes.body.getReader(),
@@ -2139,7 +2249,7 @@ export function useChat(
             return { error: false, aborted: false }
           }
 
-          setIsReconnecting(true)
+          setTransportReconnecting()
 
           latestCursor = lastCursorRef.current || latestCursor
 
@@ -2171,10 +2281,16 @@ export function useChat(
         }
         throw err
       } finally {
-        setIsReconnecting(false)
+        if (streamGenRef.current === expectedGen) {
+          if (sendingRef.current) {
+            setIsReconnecting(false)
+          } else {
+            setTransportIdle()
+          }
+        }
       }
     },
-    [fetchStreamBatch]
+    [fetchStreamBatch, setTransportIdle, setTransportReconnecting, setTransportStreaming]
   )
   attachToExistingStreamRef.current = attachToExistingStream
 
@@ -2217,9 +2333,11 @@ export function useChat(
 
       if (streamGenRef.current === gen && !reconnectResult.aborted) {
         finalizeRef.current(reconnectResult.error ? { error: true } : undefined)
+      } else if (streamGenRef.current === gen && reconnectResult.aborted && !sendingRef.current) {
+        setTransportIdle()
       }
     },
-    [fetchStreamBatch, attachToExistingStream]
+    [fetchStreamBatch, attachToExistingStream, setTransportIdle]
   )
 
   const retryReconnect = useCallback(
@@ -2241,10 +2359,24 @@ export function useChat(
             maxAttempts: MAX_RECONNECT_ATTEMPTS,
             delayMs,
           })
-          setIsReconnecting(true)
+          setTransportReconnecting()
           await new Promise((resolve) => setTimeout(resolve, delayMs))
-          if (streamGenRef.current !== gen) return true
-          if (abortControllerRef.current?.signal.aborted) return true
+          if (streamGenRef.current !== gen) {
+            if (!sendingRef.current) {
+              setTransportIdle()
+            } else {
+              setIsReconnecting(false)
+            }
+            return true
+          }
+          if (abortControllerRef.current?.signal.aborted) {
+            if (!sendingRef.current) {
+              setTransportIdle()
+            } else {
+              setIsReconnecting(false)
+            }
+            return true
+          }
         }
 
         try {
@@ -2255,11 +2387,35 @@ export function useChat(
             afterCursor: lastCursorRef.current || '0',
             signal: abortControllerRef.current?.signal,
           })
-          if (streamGenRef.current !== gen) return true
-          if (abortControllerRef.current?.signal.aborted) return true
-          if (!sendingRef.current) return true
+          if (streamGenRef.current !== gen) {
+            if (!sendingRef.current) {
+              setTransportIdle()
+            } else {
+              setIsReconnecting(false)
+            }
+            return true
+          }
+          if (abortControllerRef.current?.signal.aborted) {
+            if (!sendingRef.current) {
+              setTransportIdle()
+            } else {
+              setIsReconnecting(false)
+            }
+            return true
+          }
+          if (!sendingRef.current) {
+            setTransportIdle()
+            return true
+          }
         } catch (err) {
-          if (err instanceof Error && err.name === 'AbortError') return true
+          if (err instanceof Error && err.name === 'AbortError') {
+            if (!sendingRef.current) {
+              setTransportIdle()
+            } else {
+              setIsReconnecting(false)
+            }
+            return true
+          }
           logger.warn('Reconnect attempt failed', {
             streamId,
             attempt: attempt + 1,
@@ -2275,68 +2431,81 @@ export function useChat(
       setIsReconnecting(false)
       return false
     },
-    [resumeOrFinalize]
+    [resumeOrFinalize, setTransportIdle, setTransportReconnecting]
   )
   retryReconnectRef.current = retryReconnect
 
-  const persistPartialResponse = useCallback(async () => {
-    const chatId = chatIdRef.current
-    const streamId = streamIdRef.current
-    if (!chatId || !streamId) return
+  const persistPartialResponse = useCallback(
+    async (overrides?: {
+      chatId?: string
+      streamId?: string
+      content?: string
+      blocks?: ContentBlock[]
+    }) => {
+      const chatId = overrides?.chatId ?? chatIdRef.current
+      const streamId = overrides?.streamId ?? streamIdRef.current
+      if (!chatId || !streamId) return
 
-    const content = streamingContentRef.current
+      const content = overrides?.content ?? streamingContentRef.current
 
-    const storedBlocks = streamingBlocksRef.current.map((block) => {
-      if (block.type === 'tool_call' && block.toolCall) {
-        const isCancelled =
-          block.toolCall.status === 'executing' || block.toolCall.status === 'cancelled'
-        return {
-          type: block.type,
-          content: block.content,
-          toolCall: {
-            id: block.toolCall.id,
-            name: block.toolCall.name,
-            state: isCancelled ? MothershipStreamV1ToolOutcome.cancelled : block.toolCall.status,
-            params: block.toolCall.params,
-            result: block.toolCall.result,
-            display: {
-              text: isCancelled ? 'Stopped by user' : block.toolCall.displayTitle,
+      const sourceBlocks = overrides?.blocks ?? streamingBlocksRef.current
+      const storedBlocks = sourceBlocks.map((block) => {
+        if (block.type === 'tool_call' && block.toolCall) {
+          const isCancelled =
+            block.toolCall.status === 'executing' || block.toolCall.status === 'cancelled'
+          return {
+            type: block.type,
+            content: block.content,
+            toolCall: {
+              id: block.toolCall.id,
+              name: block.toolCall.name,
+              state: isCancelled ? MothershipStreamV1ToolOutcome.cancelled : block.toolCall.status,
+              params: block.toolCall.params,
+              result: block.toolCall.result,
+              display: {
+                text: isCancelled ? 'Stopped by user' : block.toolCall.displayTitle,
+              },
+              calledBy: block.toolCall.calledBy,
             },
-            calledBy: block.toolCall.calledBy,
-          },
+          }
         }
-      }
-      return { type: block.type, content: block.content }
-    })
-
-    if (storedBlocks.length > 0) {
-      storedBlocks.push({ type: 'stopped', content: undefined })
-    }
-
-    try {
-      const res = await fetch(stopPathRef.current, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chatId,
-          streamId,
-          content,
-          ...(storedBlocks.length > 0 && { contentBlocks: storedBlocks }),
-        }),
+        return { type: block.type, content: block.content }
       })
-      if (!res.ok) {
-        const payload = await res.json().catch(() => null)
-        throw new Error(
-          typeof payload?.error === 'string' ? payload.error : 'Failed to persist partial response'
-        )
+
+      if (storedBlocks.length > 0) {
+        storedBlocks.push({ type: 'stopped', content: undefined })
       }
-      streamingContentRef.current = ''
-      streamingBlocksRef.current = []
-    } catch (err) {
-      logger.warn('Failed to persist partial response', err)
-      throw err instanceof Error ? err : new Error('Failed to persist partial response')
-    }
-  }, [])
+
+      try {
+        const res = await fetch(stopPathRef.current, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chatId,
+            streamId,
+            content,
+            ...(storedBlocks.length > 0 && { contentBlocks: storedBlocks }),
+          }),
+        })
+        if (!res.ok) {
+          const payload = await res.json().catch(() => null)
+          throw new Error(
+            typeof payload?.error === 'string'
+              ? payload.error
+              : 'Failed to persist partial response'
+          )
+        }
+        if (!overrides || streamIdRef.current === streamId) {
+          streamingContentRef.current = ''
+          streamingBlocksRef.current = []
+        }
+      } catch (err) {
+        logger.warn('Failed to persist partial response', err)
+        throw err instanceof Error ? err : new Error('Failed to persist partial response')
+      }
+    },
+    []
+  )
 
   const invalidateChatQueries = useCallback(() => {
     const activeChatId = chatIdRef.current
@@ -2354,10 +2523,10 @@ export function useChat(
   const finalize = useCallback(
     (options?: { error?: boolean }) => {
       reconcileTerminalPreviewSessions()
-      locallyTerminalStreamIdRef.current = streamIdRef.current
-      sendingRef.current = false
-      setIsSending(false)
-      setIsReconnecting(false)
+      locallyTerminalStreamIdRef.current =
+        streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? undefined
+      clearActiveTurn()
+      setTransportIdle()
       abortControllerRef.current = null
       invalidateChatQueries()
 
@@ -2368,41 +2537,33 @@ export function useChat(
         }
       }
 
-      if (options?.error || manualQueueSendIdRef.current) {
+      if (options?.error) {
         return
       }
 
-      const next = messageQueueRef.current[0]
-      if (next) {
-        setMessageQueue((prev) => prev.filter((m) => m.id !== next.id))
-        void sendMessageRef.current(next.content, next.fileAttachments, next.contexts)
+      if (messageQueueRef.current.length > 0) {
+        void enqueueQueueDispatchRef.current({ type: 'send_head' })
       }
     },
-    [invalidateChatQueries, reconcileTerminalPreviewSessions]
+    [clearActiveTurn, invalidateChatQueries, reconcileTerminalPreviewSessions, setTransportIdle]
   )
   finalizeRef.current = finalize
 
-  const sendMessage = useCallback(
-    async (message: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
-      if (!message.trim() || !workspaceId) return
-      const pendingStop = pendingStopPromiseRef.current
-
-      if (sendingRef.current) {
-        const queued: QueuedMessage = {
-          id: generateId(),
-          content: message,
-          fileAttachments,
-          contexts,
-        }
-        setMessageQueue((prev) => [...prev, queued])
-        return
-      }
+  const startSendMessage = useCallback(
+    async (
+      message: string,
+      fileAttachments?: FileAttachmentForApi[],
+      contexts?: ChatContext[],
+      pendingStopOverride?: Promise<void> | null
+    ) => {
+      if (!message.trim() || !workspaceId) return false
+      const pendingStop = pendingStopOverride ?? pendingStopPromiseRef.current
 
       const gen = ++streamGenRef.current
+      let consumedByTranscript = false
 
       setError(null)
-      setIsSending(true)
-      sendingRef.current = true
+      setTransportStreaming()
       locallyTerminalStreamIdRef.current = undefined
 
       const userMessageId = generateId()
@@ -2411,6 +2572,7 @@ export function useChat(
       pendingUserMsgRef.current = { id: userMessageId, content: message }
       streamIdRef.current = userMessageId
       lastCursorRef.current = '0'
+      resetStreamingBuffers()
 
       const storedAttachments: PersistedFileAttachment[] | undefined =
         fileAttachments && fileAttachments.length > 0
@@ -2465,6 +2627,12 @@ export function useChat(
         content: '',
         contentBlocks: [],
       }
+      activeTurnRef.current = {
+        userMessageId,
+        assistantMessageId: assistantId,
+        optimisticUserMessage,
+        optimisticAssistantMessage,
+      }
 
       const applyOptimisticSend = () => {
         if (requestChatId) {
@@ -2502,6 +2670,7 @@ export function useChat(
       }
 
       applyOptimisticSend()
+      consumedByTranscript = true
 
       const abortController = new AbortController()
       abortControllerRef.current = abortController
@@ -2515,16 +2684,11 @@ export function useChat(
             applyOptimisticSend()
           } catch (err) {
             rollbackOptimisticSend()
-            pendingUserMsgRef.current = null
-            if (streamIdRef.current === userMessageId) {
-              streamIdRef.current = undefined
-            }
             abortControllerRef.current = null
-            sendingRef.current = false
-            setIsSending(false)
-            setIsReconnecting(false)
+            clearActiveTurn()
+            setTransportIdle()
             setError(err instanceof Error ? err.message : 'Failed to stop the previous response')
-            return
+            return false
           }
         }
 
@@ -2571,11 +2735,11 @@ export function useChat(
               assistantId,
               gen,
             })
-            if (succeeded) return
+            if (succeeded) return consumedByTranscript
             if (streamGenRef.current === gen) {
               finalize({ error: true })
             }
-            return
+            return consumedByTranscript
           }
           throw new Error(errorData.error || `Request failed: ${response.status}`)
         }
@@ -2586,14 +2750,14 @@ export function useChat(
         if (streamGenRef.current === gen) {
           if (streamResult.sawStreamError) {
             finalize({ error: true })
-            return
+            return consumedByTranscript
           }
 
           // A live SSE `complete` event is already terminal. Finalize immediately so follow-up
           // sends do not get spuriously queued behind an already-finished response.
           if (streamResult.sawComplete) {
             finalize()
-            return
+            return consumedByTranscript
           }
 
           await resumeOrFinalize({
@@ -2608,7 +2772,7 @@ export function useChat(
           }
         }
       } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return
+        if (err instanceof Error && err.name === 'AbortError') return consumedByTranscript
 
         const activeStreamId = streamIdRef.current
         if (activeStreamId && streamGenRef.current === gen) {
@@ -2617,19 +2781,93 @@ export function useChat(
             assistantId,
             gen,
           })
-          if (succeeded) return
+          if (succeeded) return consumedByTranscript
         }
 
         setError(err instanceof Error ? err.message : 'Failed to send message')
         if (streamGenRef.current === gen) {
           finalize({ error: true })
         }
+        return consumedByTranscript
+      }
+      return consumedByTranscript
+    },
+    [
+      workspaceId,
+      queryClient,
+      processSSEStream,
+      finalize,
+      resumeOrFinalize,
+      retryReconnect,
+      clearActiveTurn,
+      resetStreamingBuffers,
+      setTransportIdle,
+      setTransportStreaming,
+    ]
+  )
+  const sendMessage = useCallback(
+    async (message: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
+      if (!message.trim() || !workspaceId) return
+
+      if (sendingRef.current) {
+        const queued: QueuedMessage = {
+          id: generateId(),
+          content: message,
+          fileAttachments,
+          contexts,
+        }
+        setMessageQueue((prev) => [...prev, queued])
         return
       }
+
+      await startSendMessage(message, fileAttachments, contexts)
     },
-    [workspaceId, queryClient, processSSEStream, finalize, resumeOrFinalize, retryReconnect]
+    [workspaceId, startSendMessage]
   )
-  sendMessageRef.current = sendMessage
+  const cancelActiveWorkflowExecutions = useCallback(() => {
+    const execState = useExecutionStore.getState()
+    const consoleStore = useTerminalConsoleStore.getState()
+
+    for (const [workflowId, wfExec] of execState.workflowExecutions) {
+      if (!wfExec.isExecuting) continue
+
+      const toolCallId = markRunToolManuallyStopped(workflowId)
+      cancelRunToolExecution(workflowId)
+
+      const executionId = execState.getCurrentExecutionId(workflowId)
+      if (executionId) {
+        execState.setCurrentExecutionId(workflowId, null)
+        fetch(`/api/workflows/${workflowId}/executions/${executionId}/cancel`, {
+          method: 'POST',
+        }).catch(() => {})
+      }
+
+      consoleStore.cancelRunningEntries(workflowId)
+      const now = new Date()
+      consoleStore.addConsole({
+        input: {},
+        output: {},
+        success: false,
+        error: 'Execution was cancelled',
+        durationMs: 0,
+        startedAt: now.toISOString(),
+        executionOrder: Number.MAX_SAFE_INTEGER,
+        endedAt: now.toISOString(),
+        workflowId,
+        blockId: 'cancelled',
+        executionId: executionId ?? undefined,
+        blockName: 'Execution Cancelled',
+        blockType: 'cancelled',
+      })
+
+      executionStream.cancel(workflowId)
+      execState.setIsExecuting(workflowId, false)
+      execState.setIsDebugging(workflowId, false)
+      execState.setActiveBlocks(workflowId, new Set())
+
+      reportManualRunToolStop(workflowId, toolCallId).catch(() => {})
+    }
+  }, [executionStream])
 
   const stopGeneration = useCallback(async () => {
     if (pendingStopPromiseRef.current) {
@@ -2639,18 +2877,25 @@ export function useChat(
     const wasSending = sendingRef.current
     const sid =
       streamIdRef.current ||
+      activeTurnRef.current?.userMessageId ||
       queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatIdRef.current))
         ?.activeStreamId ||
       undefined
+    const stopContentSnapshot = streamingContentRef.current
+    const stopBlocksSnapshot = streamingBlocksRef.current.map((block) => ({
+      ...block,
+      ...(block.options ? { options: [...block.options] } : {}),
+      ...(block.toolCall ? { toolCall: { ...block.toolCall } } : {}),
+    }))
 
     locallyTerminalStreamIdRef.current = sid
     streamGenRef.current++
+    clearActiveTurn()
     streamReaderRef.current?.cancel().catch(() => {})
     streamReaderRef.current = null
     abortControllerRef.current?.abort('user_stop:client_stopGeneration')
     abortControllerRef.current = null
-    sendingRef.current = false
-    setIsSending(false)
+    setTransportIdle()
 
     setMessages((prev) =>
       prev.map((msg) => {
@@ -2671,6 +2916,10 @@ export function useChat(
       })
     )
 
+    // Cancel active run-tool executions before waiting for the server-side stream
+    // shutdown barrier; otherwise the abort settle can sit behind tool execution teardown.
+    cancelActiveWorkflowExecutions()
+
     const stopBarrier = (async () => {
       try {
         if (wasSending && !chatIdRef.current) {
@@ -2683,7 +2932,7 @@ export function useChat(
         const resolvedChatId = chatIdRef.current
         const abortPromise = sid
           ? (async () => {
-              const res = await fetch('/api/copilot/chat/abort', {
+              const res = await fetch('/api/mothership/chat/abort', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -2703,55 +2952,18 @@ export function useChat(
           : Promise.resolve()
 
         if (wasSending && resolvedChatId) {
-          await persistPartialResponse()
+          await persistPartialResponse({
+            chatId: resolvedChatId,
+            streamId: sid,
+            content: stopContentSnapshot,
+            blocks: stopBlocksSnapshot,
+          })
         }
 
         await abortPromise
       } finally {
         invalidateChatQueries()
         resetEphemeralPreviewState({ removeStreamingResource: true })
-
-        const execState = useExecutionStore.getState()
-        const consoleStore = useTerminalConsoleStore.getState()
-        for (const [workflowId, wfExec] of execState.workflowExecutions) {
-          if (!wfExec.isExecuting) continue
-
-          const toolCallId = markRunToolManuallyStopped(workflowId)
-          cancelRunToolExecution(workflowId)
-
-          const executionId = execState.getCurrentExecutionId(workflowId)
-          if (executionId) {
-            execState.setCurrentExecutionId(workflowId, null)
-            fetch(`/api/workflows/${workflowId}/executions/${executionId}/cancel`, {
-              method: 'POST',
-            }).catch(() => {})
-          }
-
-          consoleStore.cancelRunningEntries(workflowId)
-          const now = new Date()
-          consoleStore.addConsole({
-            input: {},
-            output: {},
-            success: false,
-            error: 'Execution was cancelled',
-            durationMs: 0,
-            startedAt: now.toISOString(),
-            executionOrder: Number.MAX_SAFE_INTEGER,
-            endedAt: now.toISOString(),
-            workflowId,
-            blockId: 'cancelled',
-            executionId: executionId ?? undefined,
-            blockName: 'Execution Cancelled',
-            blockType: 'cancelled',
-          })
-
-          executionStream.cancel(workflowId)
-          execState.setIsExecuting(workflowId, false)
-          execState.setIsDebugging(workflowId, false)
-          execState.setActiveBlocks(workflowId, new Set())
-
-          reportManualRunToolStop(workflowId, toolCallId).catch(() => {})
-        }
       }
     })()
 
@@ -2767,39 +2979,155 @@ export function useChat(
       }
     }
   }, [
+    cancelActiveWorkflowExecutions,
     invalidateChatQueries,
     persistPartialResponse,
-    executionStream,
     queryClient,
     resetEphemeralPreviewState,
+    clearActiveTurn,
+    setTransportIdle,
   ])
+
+  const runQueueDispatchLoop = useCallback(async () => {
+    if (queueDispatchTaskRef.current) {
+      return queueDispatchTaskRef.current
+    }
+
+    const task = (async () => {
+      while (true) {
+        const action = queueDispatchActionsRef.current.shift()
+        if (!action) return
+
+        if (action.epoch !== queueDispatchEpochRef.current) {
+          continue
+        }
+
+        const msg = messageQueueRef.current[0]
+        if (!msg) continue
+
+        let originalIndex = 0
+        let removedFromQueue = false
+
+        try {
+          const currentIndex = messageQueueRef.current.findIndex((queued) => queued.id === msg.id)
+          if (currentIndex !== -1) {
+            originalIndex = currentIndex
+            removedFromQueue = true
+            setMessageQueue((prev) => prev.filter((queued) => queued.id !== msg.id))
+          }
+
+          const consumed = await startSendMessage(msg.content, msg.fileAttachments, msg.contexts)
+          if (!consumed && removedFromQueue && action.epoch === queueDispatchEpochRef.current) {
+            setMessageQueue((prev) => {
+              if (prev.some((queued) => queued.id === msg.id)) return prev
+              const next = [...prev]
+              next.splice(Math.min(originalIndex, next.length), 0, msg)
+              return next
+            })
+          }
+        } catch {
+          if (removedFromQueue && action.epoch === queueDispatchEpochRef.current) {
+            setMessageQueue((prev) => {
+              if (prev.some((queued) => queued.id === msg.id)) return prev
+              const next = [...prev]
+              next.splice(Math.min(originalIndex, next.length), 0, msg)
+              return next
+            })
+          }
+        }
+      }
+    })()
+
+    queueDispatchTaskRef.current = task
+
+    return task.finally(() => {
+      if (queueDispatchTaskRef.current === task) {
+        queueDispatchTaskRef.current = null
+      }
+      if (queueDispatchActionsRef.current.length > 0) {
+        void queueDispatchLoopRef.current()
+      }
+    })
+  }, [startSendMessage])
+  queueDispatchLoopRef.current = runQueueDispatchLoop
+
+  const enqueueQueueDispatch = useCallback((action: QueueDispatchActionInput) => {
+    const epoch = queueDispatchEpochRef.current
+    queueDispatchActionsRef.current.push({ ...action, epoch } as QueueDispatchAction)
+    return queueDispatchLoopRef.current()
+  }, [])
+  enqueueQueueDispatchRef.current = enqueueQueueDispatch
 
   const removeFromQueue = useCallback((id: string) => {
     setMessageQueue((prev) => prev.filter((m) => m.id !== id))
   }, [])
 
-  const sendNow = useCallback(
+  const sendQueuedMessageImmediately = useCallback(
     async (id: string) => {
-      if (manualQueueSendIdRef.current === id) return
-      const msg = messageQueueRef.current.find((m) => m.id === id)
-      if (!msg) return
-      manualQueueSendIdRef.current = id
-      setMessageQueue((prev) => prev.filter((m) => m.id !== id))
-      try {
-        await stopGeneration()
-        await sendMessage(msg.content, msg.fileAttachments, msg.contexts)
-      } catch {
-        setMessageQueue((prev) => {
-          if (prev.some((m) => m.id === id)) return prev
-          return [msg, ...prev]
-        })
-      } finally {
-        if (manualQueueSendIdRef.current === id) {
-          manualQueueSendIdRef.current = null
+      const epoch = queueDispatchEpochRef.current
+      const initialIndex = messageQueueRef.current.findIndex((m) => m.id === id)
+      if (initialIndex === -1) return
+      const msg = messageQueueRef.current[initialIndex]
+
+      if (queuedMessageDispatchIdsRef.current.has(msg.id)) {
+        return
+      }
+      queuedMessageDispatchIdsRef.current.add(msg.id)
+
+      // Explicit queue sends should supersede any older auto-drain work scheduled by finalize().
+      queueDispatchActionsRef.current = queueDispatchActionsRef.current.filter(
+        (queuedAction) => queuedAction.type !== 'send_head'
+      )
+
+      let originalIndex = initialIndex
+      let removedFromQueue = false
+      const restoreQueuedMessage = () => {
+        if (!removedFromQueue || epoch !== queueDispatchEpochRef.current) {
+          return
         }
+        setMessageQueue((prev) => {
+          if (prev.some((queued) => queued.id === msg.id)) return prev
+          const next = [...prev]
+          next.splice(Math.min(originalIndex, next.length), 0, msg)
+          return next
+        })
+      }
+
+      try {
+        const currentIndex = messageQueueRef.current.findIndex((queued) => queued.id === msg.id)
+        if (currentIndex === -1) {
+          return
+        }
+
+        originalIndex = currentIndex
+        removedFromQueue = true
+        setMessageQueue((prev) => prev.filter((queued) => queued.id !== msg.id))
+
+        const pendingStop = sendingRef.current ? stopGeneration() : pendingStopPromiseRef.current
+        const consumed = await startSendMessage(
+          msg.content,
+          msg.fileAttachments,
+          msg.contexts,
+          pendingStop
+        )
+
+        if (!consumed) {
+          restoreQueuedMessage()
+        }
+      } catch {
+        restoreQueuedMessage()
+      } finally {
+        queuedMessageDispatchIdsRef.current.delete(msg.id)
       }
     },
-    [stopGeneration, sendMessage]
+    [startSendMessage, stopGeneration]
+  )
+
+  const sendNow = useCallback(
+    async (id: string) => {
+      await sendQueuedMessageImmediately(id)
+    },
+    [sendQueuedMessageImmediately]
   )
 
   const editQueuedMessage = useCallback((id: string): QueuedMessage | undefined => {
@@ -2811,12 +3139,14 @@ export function useChat(
 
   useEffect(() => {
     return () => {
+      clearQueueDispatchState()
       streamReaderRef.current = null
       abortControllerRef.current = null
       streamGenRef.current++
+      clearActiveTurn()
       sendingRef.current = false
     }
-  }, [])
+  }, [clearQueueDispatchState, clearActiveTurn])
 
   return {
     messages,
