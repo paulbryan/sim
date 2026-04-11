@@ -2,6 +2,7 @@
 title: Tags and Filtering
 ---
 
+import { Callout } from 'fumadocs-ui/components/callout'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
@@ -15,15 +16,37 @@ You can add custom tags to any document in your knowledgebase to organize and ca
   <Video src="knowledgebase-tag.mp4" width={700} height={450} />
 </div>
 
-### Tag Management
-- **Custom tags**: Create your own tag system that fits your workflow
-- **Multiple tags per document**: Apply as many tags as needed to each document. Each knowledgebase has 17 tag slots total: 7 text, 5 number, 2 date, and 3 boolean slots, shared by all documents in the knowledgebase
-- **Tag organization**: Group related documents with consistent tagging
+### Tag Slots and Field Types
+
+Each knowledge base has **17 tag slots** shared across all documents. Slots are organized by field type:
+
+| Field Type | Slots | Accepted Values | Example |
+|-----------|-------|----------------|---------|
+| **Text** | 7 slots | Any string (case-insensitive matching) | `category: "engineering"` |
+| **Number** | 5 slots | Any valid number | `priority: 3` |
+| **Date** | 2 slots | `YYYY-MM-DD` format | `published: 2025-06-15` |
+| **Boolean** | 3 slots | `true` or `false` | `reviewed: true` |
+
+<Callout type="info">
+  Tag slots are shared across all documents and connectors in a knowledge base. If a connector auto-populates 3 text tags, you have 4 text slots remaining for manual tags or other connectors.
+</Callout>
+
+### Creating Tags
+
+Tags are defined at the knowledge base level — you create a tag definition (e.g., "Department" of type text), and then set values on individual documents. To create a tag:
+
+1. Open a knowledge base and select a document
+2. Click **Add Tag** in the document detail panel
+3. Choose a field type and enter a display name
+4. Set the tag value for that document
+
+Once a tag definition exists, you can set its value on any document in the knowledge base. Connectors can also auto-populate tags with metadata from the source (see [Connectors](/knowledgebase/connectors)).
 
 ### Tag Best Practices
 - **Consistent naming**: Use standardized tag names across your documents
 - **Descriptive tags**: Use clear, meaningful tag names
-- **Regular cleanup**: Remove unused or outdated tags periodically
+- **Plan for connectors**: If you use connectors that auto-populate tags, leave enough slots for manual tags
+- **Regular cleanup**: Remove unused or outdated tags periodically — unused tag definitions can be cleaned up to free slots
 
 ## Using Tags in Knowledge Blocks
 
@@ -66,10 +89,17 @@ When you **provide both tags and a search query**:
 ### Search Configuration
 
 #### Tag Filtering
-- **Multiple tags**: Use multiple tags with AND or OR logic to control whether documents must match all or any of the specified tags
-- **Tag combinations**: Mix different tag types for precise filtering
-- **Case sensitivity**: Tag matching is case-insensitive
-- **Partial matching**: Text fields support partial matching operators such as contains, starts_with, and ends_with in addition to exact matching
+
+Configure tag filters in the Knowledge block to narrow results before vector search runs:
+
+- **AND / OR logic**: Control whether documents must match all tags (AND) or any tag (OR)
+- **Case-insensitive**: Tag matching ignores capitalization
+- **Text operators**: `equals`, `not equals`, `contains`, `does not contain`, `starts with`, `ends with`
+- **Number operators**: `equals`, `not equals`, `greater than`, `greater than or equal`, `less than`, `less than or equal`, `between`
+- **Date operators**: `equals`, `after`, `on or after`, `before`, `on or before`, `between`
+- **Boolean operators**: `is` / `is not`
+
+Mix different field types freely — for example, filter by `department = "engineering"` AND `priority >= 3` AND `reviewed = true`.
 
 #### Vector Search Parameters
 - **Query complexity**: Natural language questions work best

@@ -1,0 +1,262 @@
+---
+title: API Deployment
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { FAQ } from '@/components/ui/faq'
+
+Deploy your workflow as a REST API endpoint that applications can call directly. Supports synchronous, streaming, and asynchronous execution modes.
+
+## Deploying a Workflow
+
+1. Open your workflow and click **Deploy**
+2. The **General** tab shows deployment status — click **Deploy** to publish
+3. Switch to the **API** tab to see your endpoint URL and code examples
+
+{/* TODO: Screenshot of the API tab in the deploy modal showing code examples */}
+
+Once deployed, your workflow is available at:
+
+```
+POST https://sim.ai/api/workflows/{workflow-id}/execute
+```
+
+<Callout type="info">
+  API executions run against the active deployment snapshot. After making canvas changes, click **Update** in the Deploy modal to publish a new version.
+</Callout>
+
+## Authentication
+
+By default, API endpoints require an API key in the `x-api-key` header. You can generate keys in **Settings → Sim Keys**.
+
+```bash
+curl -X POST https://sim.ai/api/workflows/{workflow-id}/execute \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SIM_API_KEY" \
+  -d '{ "input": "Hello" }'
+```
+
+### Public APIs
+
+You can make an API endpoint public so it doesn't require authentication. This is useful for public-facing integrations or webhooks from external services.
+
+{/* TODO: Screenshot of the public/private API toggle */}
+
+<Callout type="warn">
+  Public endpoints can be called by anyone with the URL. Only use this for workflows that don't expose sensitive data or perform sensitive actions.
+</Callout>
+
+## Execution Modes
+
+The API tab in the Deploy modal shows code examples for each mode in **cURL**, **Python**, **JavaScript**, and **TypeScript**.
+
+### Synchronous
+
+The default mode. Send a request and wait for the complete response:
+
+<Tabs items={['cURL', 'Python']}>
+  <Tab value="cURL">
+```bash
+curl -X POST https://sim.ai/api/workflows/{workflow-id}/execute \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SIM_API_KEY" \
+  -d '{ "input": "Summarize this article" }'
+```
+  </Tab>
+  <Tab value="Python">
+```python
+import requests
+import os
+
+response = requests.post(
+    "https://sim.ai/api/workflows/{workflow-id}/execute",
+    headers={
+        "Content-Type": "application/json",
+        "x-api-key": os.environ.get("SIM_API_KEY")
+    },
+    json={"input": "Summarize this article"}
+)
+
+print(response.json())
+```
+  </Tab>
+</Tabs>
+
+### Streaming
+
+Stream the response as it's generated. Choose which block outputs to stream using the output selector in the API tab.
+
+{/* TODO: Screenshot of the streaming output selector dropdown */}
+
+<Tabs items={['cURL', 'Python']}>
+  <Tab value="cURL">
+```bash
+curl -X POST https://sim.ai/api/workflows/{workflow-id}/execute \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SIM_API_KEY" \
+  -d '{
+    "input": "Write a long essay",
+    "stream": true,
+    "selectedOutputs": ["agent_1.content"]
+  }'
+```
+  </Tab>
+  <Tab value="Python">
+```python
+import requests
+import os
+
+response = requests.post(
+    "https://sim.ai/api/workflows/{workflow-id}/execute",
+    headers={
+        "Content-Type": "application/json",
+        "x-api-key": os.environ.get("SIM_API_KEY")
+    },
+    json={
+        "input": "Write a long essay",
+        "stream": True,
+        "selectedOutputs": ["agent_1.content"]
+    },
+    stream=True
+)
+
+for line in response.iter_lines():
+    if line:
+        print(line.decode())
+```
+  </Tab>
+</Tabs>
+
+### Asynchronous
+
+For long-running workflows, use async mode to start a job and poll for results. Set the `X-Execution-Mode: async` header to submit the workflow and receive a job ID immediately without waiting for completion.
+
+<Tabs items={['Start Job', 'Check Status']}>
+  <Tab value="Start Job">
+```bash
+curl -X POST https://sim.ai/api/workflows/{workflow-id}/execute \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SIM_API_KEY" \
+  -H "X-Execution-Mode: async" \
+  -d '{ "input": "Process this large dataset" }'
+```
+
+**Response** (HTTP 202):
+```json
+{
+  "success": true,
+  "async": true,
+  "jobId": "run_abc123",
+  "executionId": "exec_xyz",
+  "message": "Workflow execution queued",
+  "statusUrl": "https://sim.ai/api/jobs/run_abc123"
+}
+```
+  </Tab>
+  <Tab value="Check Status">
+```bash
+curl https://sim.ai/api/jobs/{jobId} \
+  -H "x-api-key: $SIM_API_KEY"
+```
+
+**Response** (while processing):
+```json
+{
+  "success": true,
+  "taskId": "run_abc123",
+  "status": "processing",
+  "metadata": {
+    "createdAt": "2025-09-10T12:00:00.000Z",
+    "startedAt": "2025-09-10T12:00:01.000Z"
+  },
+  "estimatedDuration": 300000
+}
+```
+
+**Response** (when completed):
+```json
+{
+  "success": true,
+  "taskId": "run_abc123",
+  "status": "completed",
+  "metadata": {
+    "createdAt": "2025-09-10T12:00:00.000Z",
+    "startedAt": "2025-09-10T12:00:01.000Z",
+    "completedAt": "2025-09-10T12:00:05.000Z",
+    "duration": 4000
+  },
+  "output": { "result": "..." }
+}
+```
+  </Tab>
+</Tabs>
+
+#### Job Status Values
+
+| Status | Description |
+|--------|-------------|
+| `queued` | Job is waiting to be picked up |
+| `processing` | Workflow is actively executing |
+| `completed` | Finished successfully — `output` field contains the result |
+| `failed` | Execution failed — `error` field contains the message |
+
+Poll the `statusUrl` returned in the initial response until the status is `completed` or `failed`.
+
+#### Execution Time Limits
+
+Async jobs can run significantly longer than synchronous requests:
+
+| Plan | Sync Limit | Async Limit |
+|------|-----------|-------------|
+| **Community** | 5 minutes | 90 minutes |
+| **Pro / Max / Team / Enterprise** | 50 minutes | 90 minutes |
+
+If a job exceeds its time limit, it is automatically marked as `failed`.
+
+#### Job Retention
+
+Completed and failed job results are retained for **24 hours**. After that, the job data is cleaned up and the status endpoint returns `404`. If you need results longer, retrieve and store them on your end after completion.
+
+#### Capacity Limits
+
+If the execution queue is full, the API returns a `503` response with a `Retry-After` header:
+
+```json
+{
+  "error": "Service temporarily at capacity",
+  "retryAfterSeconds": 10
+}
+```
+
+Wait the indicated number of seconds before retrying.
+
+<Callout type="info">
+  Async mode always runs against the deployed version. It does not support draft state, block overrides, or partial execution options like `runFromBlock` or `stopAfterBlockId`.
+</Callout>
+
+## API Key Management
+
+Generate and manage API keys in **Settings → Sim Keys**:
+
+- **Create** new keys for different applications or environments
+- **Revoke** keys that are no longer needed
+- Keys are scoped to your workspace
+
+<Callout type="info">
+  The API tab in the Deploy modal shows a masked version of your key in the code examples. Copy the examples directly — they include the correct authentication header.
+</Callout>
+
+## Rate Limits
+
+API calls are subject to rate limits based on your plan. Rate limit details are returned in response headers (`X-RateLimit-*`) and in the response body. Use async mode for high-volume or long-running workloads.
+
+For detailed rate limit information and the logs/webhooks API, see [External API](/execution/api).
+
+<FAQ items={[
+  { question: "What's the difference between the API tab and the External API docs?", answer: "The API tab in the Deploy modal is for deploying your workflow as a callable endpoint. The External API documentation covers the logs query API and webhook notifications for monitoring executions." },
+  { question: "Can I deploy the same workflow as both an API and a chat?", answer: "Yes. A workflow can be deployed as an API, chat, MCP tool, and more simultaneously. Each deployment type runs against the same active snapshot." },
+  { question: "How do I choose between sync, streaming, and async?", answer: "Use sync for quick workflows (under a few seconds). Use streaming when you want to show progressive output to users. Use async for long-running workflows where you don't want to hold a connection open." },
+  { question: "How long are async job results available?", answer: "Completed and failed job results are retained for 24 hours. After that, the status endpoint returns 404. Retrieve and store results on your end if you need them longer." },
+  { question: "What happens if my API key is compromised?", answer: "Revoke the key immediately in Settings → Sim Keys and create a new one. Revoked keys stop working instantly." },
+]} />

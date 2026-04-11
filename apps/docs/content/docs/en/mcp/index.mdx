@@ -26,19 +26,49 @@ MCP servers provide collections of tools that your agents can use. Configure the
   <Video src="mcp/settings-mcp-tools.mp4" width={700} height={450} />
 </div>
 
-1. Navigate to your workspace settings
-2. Go to the **MCP Servers** section
-3. Click **Add MCP Server**
-4. Enter the server configuration details
-5. Save the configuration
+1. Navigate to **Settings → MCP Servers**
+2. Click **Add MCP Server**
+3. Enter the server name and URL
+4. Add any required headers (e.g., authentication tokens)
+5. Click **Test Connection** to verify the server is reachable
+6. Save the configuration
 
 <Callout type="info">
 You can also configure MCP servers directly from the toolbar in an Agent block for quick setup.
 </Callout>
 
-### Refresh Tools
+### Server Configuration Options
 
-Click **Refresh** on a server to fetch the latest tool schemas and automatically update any agent blocks using those tools with the new parameter definitions.
+| Field | Description |
+|-------|-------------|
+| **Name** | Display name for the server |
+| **URL** | The MCP server endpoint |
+| **Transport** | Currently supports `streamable-http` |
+| **Headers** | Key-value pairs for authentication or custom headers |
+| **Timeout** | Connection timeout in milliseconds (default: 30,000) |
+
+### Environment Variables in Configuration
+
+Server URLs and headers support environment variable substitution using `{{VAR_NAME}}` syntax. This keeps sensitive values like API keys out of the server configuration.
+
+```
+URL: https://api.example.com/mcp
+Authorization: Bearer {{MCP_API_TOKEN}}
+```
+
+When you type `{{` in the URL or header fields, a dropdown appears showing available workspace environment variables.
+
+### Testing and Validation
+
+Click **Test Connection** before saving to verify the server is reachable and discover available tools. The test response shows the number of tools found and the protocol version.
+
+After saving, each server displays its available tools with parameter names, types, and required flags. If a server's tools change (e.g., after a server update), click **Refresh** to fetch the latest schemas. This automatically updates any agent blocks using those tools.
+
+Tool validation badges appear on servers with issues — for example, if a tool was removed from the server but is still referenced in a workflow. Click the badge to see which workflows are affected.
+
+### Domain Allowlisting
+
+Self-hosted deployments can restrict which MCP server domains are allowed by setting the `ALLOWED_MCP_DOMAINS` environment variable (comma-separated list). When set, only servers on approved domains can be added. When unset, all domains are allowed.
 
 ## Using MCP Tools in Agents
 

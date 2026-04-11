@@ -43,7 +43,13 @@ Open a knowledge base and click **Add Connector**. You'll see the full list of a
 
 Most connectors use **OAuth** — select an existing credential from the dropdown, or click **Connect new account** to authorize through the service's login flow. Tokens are refreshed automatically, so you won't need to re-authenticate unless you revoke access.
 
-A few connectors (Evernote, Obsidian, Fireflies) use **API keys** instead. Paste your key or developer token directly, and it will be stored securely.
+A few connectors use **API keys** instead of OAuth. Paste your key or developer token directly, and it will be stored securely.
+
+| Connector | Credential | Where to find it |
+|-----------|-----------|-----------------|
+| **Evernote** | Developer Token (starts with `S=`) | [Evernote Developer Tokens](https://dev.evernote.com/doc/articles/dev_tokens.php) — request a developer token from your account settings |
+| **Obsidian** | API Key | Install the [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) community plugin in Obsidian, then copy the API key from the plugin settings |
+| **Fireflies** | API Key | Generate an API key from the Integrations page in your Fireflies account settings |
 
 <Callout type="info">
   If you rotate an API key in the external service, you'll need to update it in Sim as well. OAuth tokens are refreshed automatically, but API keys are not.
@@ -59,7 +65,8 @@ Each connector has its own configuration fields that control what gets synced. S
 - **Notion**: Choose between syncing an entire workspace, a specific database, or a single page tree
 - **GitHub**: Specify a repository, branch, and optional file extension filter
 - **Confluence**: Enter your Atlassian domain and optionally filter by space key or content type
-- **Obsidian**: Provide your vault URL and optionally restrict to a folder path
+- **Obsidian**: Provide your vault URL (default: `https://127.0.0.1:27124`) and optionally restrict to a folder path
+- **Fireflies**: Optionally filter by host email or limit the number of transcripts synced
 
 All configuration is validated when you save — if a repository doesn't exist or a domain is unreachable, you'll get an immediate error.
 
@@ -136,6 +143,37 @@ Every synced document retains a link back to the original in the external servic
 You can add multiple connectors to a single knowledge base. For example, you might sync internal documentation from Confluence alongside code from GitHub and meeting notes from Fireflies — all searchable together through the Knowledge block.
 
 Each connector manages its own documents independently. Metadata tag slots are shared across the knowledge base, so keep an eye on slot usage if you're combining several connectors that each populate tags.
+
+## PDF Processing and OCR
+
+When connectors sync PDF files, Sim can use OCR (Optical Character Recognition) to extract text from scanned documents, images within PDFs, and complex layouts that standard text extraction would miss.
+
+### OCR Providers
+
+Sim supports two OCR providers. If neither is configured, PDFs fall back to a basic text parser.
+
+| Provider | Setup | Notes |
+|----------|-------|-------|
+| **Mistral OCR** | Set `MISTRAL_API_KEY` environment variable, or add a Mistral key via workspace BYOK settings | Splits large PDFs (1,000+ pages) into chunks and processes them concurrently |
+| **Azure Mistral OCR** | Set `OCR_AZURE_ENDPOINT`, `OCR_AZURE_API_KEY`, and `OCR_AZURE_MODEL_NAME` environment variables | Same 1,000-page chunking behavior as Mistral OCR |
+
+<Callout type="info">
+  OCR is automatic — if the environment variables are configured, PDF processing uses OCR. No per-connector toggle is needed.
+</Callout>
+
+### Self-Hosted OCR Setup
+
+If you're self-hosting Sim, add the relevant environment variables to your `.env` file:
+
+```bash
+# Option 1: Mistral OCR
+MISTRAL_API_KEY=your-mistral-api-key
+
+# Option 2: Azure Mistral OCR
+OCR_AZURE_ENDPOINT=https://your-azure-endpoint.openai.azure.com
+OCR_AZURE_API_KEY=your-azure-api-key
+OCR_AZURE_MODEL_NAME=your-model-name
+```
 
 ## Common Use Cases
 

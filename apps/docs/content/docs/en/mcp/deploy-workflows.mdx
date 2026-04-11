@@ -17,11 +17,14 @@ MCP servers group your workflow tools together. Create and manage them in worksp
   <Video src="mcp/mcp-server.mp4" width={700} height={450} />
 </div>
 
-1. Navigate to **Settings → MCP Servers**
+1. Navigate to **Settings → Workflow MCP Servers**
 2. Click **Create Server**
 3. Enter a name and optional description
-4. Copy the server URL for use in your MCP clients
-5. View and manage all tools added to the server
+4. Choose access: **API Key** (private, requires `X-API-Key` header) or **Public** (no authentication)
+5. Optionally select deployed workflows to add as tools immediately
+6. Copy the server URL for use in your MCP clients
+
+{/* TODO: Screenshot of the Workflow MCP Servers settings page */}
 
 ## Adding a Workflow as a Tool
 
@@ -54,9 +57,35 @@ Your workflow's input format fields become tool parameters. Add descriptions to 
 
 ## Connecting MCP Clients
 
-Use the server URL from settings to connect external applications:
+The server detail page generates ready-to-use configuration snippets for each supported client. Select your client to see the exact config.
+
+### Cursor
+
+Cursor supports direct URL configuration. Add to your Cursor MCP settings (`.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "my-sim-workflows": {
+      "url": "YOUR_SERVER_URL",
+      "headers": { "X-API-Key": "$SIM_API_KEY" }
+    }
+  }
+}
+```
+
+Cursor also provides a one-click install button in the server detail view.
+
+### Claude Code
+
+Run this command in your terminal:
+
+```bash
+claude mcp add "my-sim-workflows" --url "YOUR_SERVER_URL" --header "X-API-Key:$SIM_API_KEY"
+```
 
 ### Claude Desktop
+
 Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
 ```json
@@ -64,22 +93,34 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
   "mcpServers": {
     "my-sim-workflows": {
       "command": "npx",
-      "args": ["-y", "mcp-remote", "YOUR_SERVER_URL"]
+      "args": ["-y", "mcp-remote", "YOUR_SERVER_URL", "--header", "X-API-Key:$SIM_API_KEY"]
     }
   }
 }
 ```
 
-### Cursor
-Add the server URL in Cursor's MCP settings using the same mcp-remote pattern.
+### VS Code
 
-<Callout type="warn">
-Include your API key header (`X-API-Key`) for authenticated access when using mcp-remote or other HTTP-based MCP transports.
+Add to your VS Code MCP settings (`.vscode/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "my-sim-workflows": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "YOUR_SERVER_URL", "--header", "X-API-Key:$SIM_API_KEY"]
+    }
+  }
+}
+```
+
+<Callout type="info">
+  For public servers, omit the `X-API-Key` header and `--header` arguments. Public servers don't require authentication.
 </Callout>
 
 ## Server Management
 
-From the server detail view in **Settings → MCP Servers**, you can:
+From the server detail view in **Settings → Workflow MCP Servers**, you can:
 
 - **View tools**: See all workflows added to a server
 - **Copy URL**: Get the server URL for MCP clients
