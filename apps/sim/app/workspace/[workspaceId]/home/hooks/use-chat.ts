@@ -2189,6 +2189,13 @@ export function useChat(
       let seedEvents = opts.initialBatch?.events ?? []
       let streamStatus = opts.initialBatch?.status ?? 'unknown'
 
+      const isStaleReconnect = () =>
+        streamGenRef.current !== expectedGen || abortControllerRef.current?.signal.aborted === true
+
+      if (isStaleReconnect()) {
+        return { error: false, aborted: true }
+      }
+
       setTransportReconnecting()
       setError(null)
 
@@ -2232,6 +2239,10 @@ export function useChat(
             throw new Error(RECONNECT_TAIL_ERROR)
           }
 
+          if (isStaleReconnect()) {
+            return { error: false, aborted: true }
+          }
+
           setTransportStreaming()
 
           const liveResult = await processSSEStreamRef.current(
@@ -2247,6 +2258,10 @@ export function useChat(
 
           if (liveResult.sawComplete) {
             return { error: false, aborted: false }
+          }
+
+          if (isStaleReconnect()) {
+            return { error: false, aborted: true }
           }
 
           setTransportReconnecting()
@@ -2344,9 +2359,11 @@ export function useChat(
     async (opts: { streamId: string; assistantId: string; gen: number }): Promise<boolean> => {
       const { streamId, assistantId, gen } = opts
 
+      const isStaleReconnect = () =>
+        streamGenRef.current !== gen || abortControllerRef.current?.signal.aborted === true
+
       for (let attempt = 0; attempt <= MAX_RECONNECT_ATTEMPTS; attempt++) {
-        if (streamGenRef.current !== gen) return true
-        if (abortControllerRef.current?.signal.aborted) return true
+        if (isStaleReconnect()) return true
 
         if (attempt > 0) {
           const delayMs = Math.min(
@@ -2359,6 +2376,9 @@ export function useChat(
             maxAttempts: MAX_RECONNECT_ATTEMPTS,
             delayMs,
           })
+
+          if (isStaleReconnect()) return true
+
           setTransportReconnecting()
           await new Promise((resolve) => setTimeout(resolve, delayMs))
           if (streamGenRef.current !== gen) {
@@ -2428,7 +2448,9 @@ export function useChat(
         streamId,
         maxAttempts: MAX_RECONNECT_ATTEMPTS,
       })
-      setIsReconnecting(false)
+      if (streamGenRef.current === gen) {
+        setIsReconnecting(false)
+      }
       return false
     },
     [resumeOrFinalize, setTransportIdle, setTransportReconnecting]
