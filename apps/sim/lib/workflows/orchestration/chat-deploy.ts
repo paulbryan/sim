@@ -157,7 +157,19 @@ export async function performChatDeploy(
     resourceId: chatId,
     resourceName: title,
     description: `Deployed chat "${title}"`,
-    metadata: { workflowId, identifier, authType },
+    metadata: {
+      workflowId,
+      identifier,
+      authType,
+      chatUrl,
+      isUpdate: !!existingDeployment,
+      hasOutputConfigs: outputConfigs.length > 0,
+      hasCustomizations: !!(
+        params.customizations?.primaryColor ||
+        params.customizations?.welcomeMessage ||
+        params.customizations?.imageUrl
+      ),
+    },
   })
 
   return {
@@ -208,6 +220,11 @@ export async function performChatUndeploy(
     resourceId: chatId,
     resourceName: chatRecord.title || chatId,
     description: `Deleted chat deployment "${chatRecord.title || chatId}"`,
+    metadata: {
+      workflowId: chatRecord.workflowId || undefined,
+      identifier: chatRecord.identifier || undefined,
+      authType: chatRecord.authType || undefined,
+    },
   })
 
   return { success: true }

@@ -27,6 +27,7 @@ import {
   isBillingEnabled,
   isCredentialSetsEnabled,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { AuditLogsSkeleton } from '@/ee/audit-logs/components/audit-logs-skeleton'
 
 /**
  * Generic skeleton fallback for sections without a dedicated skeleton.
@@ -160,6 +161,10 @@ const AccessControl = dynamic(
   () => import('@/ee/access-control/components/access-control').then((m) => m.AccessControl),
   { loading: () => <SettingsSectionSkeleton /> }
 )
+const AuditLogs = dynamic(
+  () => import('@/ee/audit-logs/components/audit-logs').then((m) => m.AuditLogs),
+  { loading: () => <AuditLogsSkeleton /> }
+)
 const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((m) => m.SSO), {
   loading: () => <SettingsSectionSkeleton />,
 })
@@ -210,6 +215,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {/* {effectiveSection === 'template-profile' && <TemplateProfile />} */}
       {effectiveSection === 'credential-sets' && <CredentialSets />}
       {effectiveSection === 'access-control' && <AccessControl />}
+      {effectiveSection === 'audit-logs' && <AuditLogs />}
       {effectiveSection === 'apikeys' && <ApiKeys />}
       {isBillingEnabled && effectiveSection === 'subscription' && <Subscription />}
       {isBillingEnabled && effectiveSection === 'team' && <TeamManagement />}
