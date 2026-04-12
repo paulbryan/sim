@@ -1,6 +1,15 @@
 'use client'
 
-import { memo, type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  memo,
+  type ReactElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react'
 import Editor from 'react-simple-code-editor'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
@@ -185,6 +194,7 @@ export function isPreviewable(file: { type: string; name: string }): boolean {
 }
 
 export type PreviewMode = 'editor' | 'split' | 'preview'
+type StreamingMode = 'append' | 'replace'
 
 interface FileViewerProps {
   file: WorkspaceFileRecord
@@ -197,7 +207,7 @@ interface FileViewerProps {
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
-  streamingMode?: 'append' | 'replace'
+  streamingMode?: StreamingMode
   disableStreamingAutoScroll?: boolean
   useCodeRendererForCodeFiles?: boolean
   previewContextKey?: string
@@ -221,6 +231,262 @@ function resolveCodeEditorLanguage(file: { type: string; name: string }): CodeEd
     CODE_EDITOR_LANGUAGE_BY_MIME[file.type] ??
     (ext === 'json' ? 'json' : 'javascript')
   )
+}
+
+function areNumberArraysEqual(a: number[], b: number[]): boolean {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+  for (let index = 0; index < a.length; index++) {
+    if (a[index] !== b[index]) {
+      return false
+    }
+  }
+  return true
+}
+
+type TextEditorContentPhase = 'uninitialized' | 'ready' | 'streaming' | 'reconciling'
+
+interface TextEditorContentState {
+  phase: TextEditorContentPhase
+  content: string
+  savedContent: string
+  lastStreamedContent: string | null
+}
+
+interface SyncTextEditorContentStateOptions {
+  canReconcileToFetchedContent: boolean
+  fetchedContent?: string
+  streamingContent?: string
+  streamingMode: StreamingMode
+}
+
+type TextEditorContentAction =
+  | ({ type: 'sync-external' } & SyncTextEditorContentStateOptions)
+  | { type: 'edit'; content: string }
+  | { type: 'save-success'; content: string }
+
+const INITIAL_TEXT_EDITOR_CONTENT_STATE: TextEditorContentState = {
+  phase: 'uninitialized',
+  content: '',
+  savedContent: '',
+  lastStreamedContent: null,
+}
+
+function resolveStreamingEditorContent(
+  fetchedContent: string | undefined,
+  streamingContent: string,
+  streamingMode: StreamingMode
+): string {
+  if (streamingMode === 'replace' || fetchedContent === undefined) {
+    return streamingContent
+  }
+
+  if (
+    fetchedContent.endsWith(streamingContent) ||
+    fetchedContent.endsWith(`\n${streamingContent}`)
+  ) {
+    return fetchedContent
+  }
+
+  return `${fetchedContent}\n${streamingContent}`
+}
+
+function finalizeTextEditorContentState(
+  state: TextEditorContentState,
+  nextContent: string
+): TextEditorContentState {
+  if (
+    state.phase === 'ready' &&
+    state.content === nextContent &&
+    state.savedContent === nextContent &&
+    state.lastStreamedContent === null
+  ) {
+    return state
+  }
+
+  return {
+    phase: 'ready',
+    content: nextContent,
+    savedContent: nextContent,
+    lastStreamedContent: null,
+  }
+}
+
+function moveTextEditorContentStateToStreaming(
+  state: TextEditorContentState,
+  nextContent: string
+): TextEditorContentState {
+  if (
+    state.phase === 'streaming' &&
+    state.content === nextContent &&
+    state.lastStreamedContent === nextContent
+  ) {
+    return state
+  }
+
+  return {
+    ...state,
+    phase: 'streaming',
+    content: nextContent,
+    lastStreamedContent: nextContent,
+  }
+}
+
+function moveTextEditorContentStateToReconcile(
+  state: TextEditorContentState
+): TextEditorContentState {
+  if (state.phase === 'reconciling') {
+    return state
+  }
+
+  return {
+    ...state,
+    phase: 'reconciling',
+  }
+}
+
+function syncTextEditorContentState(
+  state: TextEditorContentState,
+  options: SyncTextEditorContentStateOptions
+): TextEditorContentState {
+  const { canReconcileToFetchedContent, fetchedContent, streamingContent, streamingMode } = options
+
+  if (streamingContent !== undefined) {
+    const nextContent = resolveStreamingEditorContent(
+      fetchedContent,
+      streamingContent,
+      streamingMode
+    )
+    const fetchedMatchesNextContent = fetchedContent !== undefined && fetchedContent === nextContent
+    const fetchedMatchesLastStreamedContent =
+      fetchedContent !== undefined &&
+      state.lastStreamedContent !== null &&
+      fetchedContent === state.lastStreamedContent
+    const hasFetchedAdvanced = fetchedContent !== undefined && fetchedContent !== state.savedContent
+
+    if (
+      (state.phase === 'streaming' || state.phase === 'reconciling') &&
+      (hasFetchedAdvanced || fetchedMatchesLastStreamedContent || fetchedMatchesNextContent)
+    ) {
+      return finalizeTextEditorContentState(state, fetchedContent)
+    }
+
+    if (
+      state.phase === 'ready' &&
+      state.content === state.savedContent &&
+      fetchedMatchesNextContent &&
+      fetchedContent !== undefined
+    ) {
+      return finalizeTextEditorContentState(state, fetchedContent)
+    }
+
+    return moveTextEditorContentStateToStreaming(state, nextContent)
+  }
+
+  if (state.phase === 'streaming' || state.phase === 'reconciling') {
+    if (!canReconcileToFetchedContent) {
+      return finalizeTextEditorContentState(state, state.content)
+    }
+
+    if (fetchedContent !== undefined) {
+      const hasFetchedAdvanced = fetchedContent !== state.savedContent
+      const fetchedMatchesLastStreamedContent =
+        state.lastStreamedContent !== null && fetchedContent === state.lastStreamedContent
+
+      if (hasFetchedAdvanced || fetchedMatchesLastStreamedContent) {
+        return finalizeTextEditorContentState(state, fetchedContent)
+      }
+    }
+
+    return moveTextEditorContentStateToReconcile(state)
+  }
+
+  if (fetchedContent === undefined) {
+    return state
+  }
+
+  if (state.phase === 'uninitialized') {
+    return finalizeTextEditorContentState(state, fetchedContent)
+  }
+
+  if (fetchedContent === state.savedContent) {
+    return state
+  }
+
+  if (state.content === state.savedContent) {
+    return finalizeTextEditorContentState(state, fetchedContent)
+  }
+
+  return state
+}
+
+function textEditorContentReducer(
+  state: TextEditorContentState,
+  action: TextEditorContentAction
+): TextEditorContentState {
+  switch (action.type) {
+    case 'sync-external':
+      return syncTextEditorContentState(state, action)
+    case 'edit':
+      if (state.phase !== 'ready' || action.content === state.content) {
+        return state
+      }
+      return {
+        ...state,
+        content: action.content,
+      }
+    case 'save-success':
+      if (
+        state.phase === 'ready' &&
+        state.content === action.content &&
+        state.savedContent === action.content &&
+        state.lastStreamedContent === null
+      ) {
+        return state
+      }
+      return {
+        ...state,
+        phase: 'ready',
+        content: action.content,
+        savedContent: action.content,
+        lastStreamedContent: null,
+      }
+    default:
+      return state
+  }
+}
+
+function useTextEditorContentState(options: SyncTextEditorContentStateOptions) {
+  const [state, dispatch] = useReducer(textEditorContentReducer, INITIAL_TEXT_EDITOR_CONTENT_STATE)
+
+  useEffect(() => {
+    dispatch({
+      type: 'sync-external',
+      ...options,
+    })
+  }, [
+    options.canReconcileToFetchedContent,
+    options.fetchedContent,
+    options.streamingContent,
+    options.streamingMode,
+  ])
+
+  const setDraftContent = useCallback((content: string) => {
+    dispatch({ type: 'edit', content })
+  }, [])
+
+  const markSavedContent = useCallback((content: string) => {
+    dispatch({ type: 'save-success', content })
+  }, [])
+
+  return {
+    content: state.content,
+    savedContent: state.savedContent,
+    isInitialized: state.phase !== 'uninitialized',
+    isStreamInteractionLocked: state.phase === 'streaming' || state.phase === 'reconciling',
+    setDraftContent,
+    markSavedContent,
+  }
 }
 
 export function FileViewer({
@@ -296,7 +562,7 @@ interface TextEditorProps {
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
-  streamingMode?: 'append' | 'replace'
+  streamingMode?: StreamingMode
   disableStreamingAutoScroll: boolean
   useCodeRendererForCodeFiles?: boolean
   previewContextKey?: string
@@ -317,12 +583,11 @@ function TextEditor({
   useCodeRendererForCodeFiles = false,
   previewContextKey,
 }: TextEditorProps) {
-  const initializedRef = useRef(false)
-  const contentRef = useRef('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const codeEditorRef = useRef<HTMLDivElement>(null)
   const codeScrollRef = useRef<HTMLDivElement>(null)
+  const hasAutoFocusedRef = useRef(false)
 
   const [splitPct, setSplitPct] = useState(SPLIT_DEFAULT_PCT)
   const [isResizing, setIsResizing] = useState(false)
@@ -333,7 +598,6 @@ function TextEditor({
     data: fetchedContent,
     isLoading,
     error,
-    dataUpdatedAt,
   } = useWorkspaceFileContent(
     workspaceId,
     file.id,
@@ -347,157 +611,92 @@ function TextEditor({
   const updateContentRef = useRef(updateContent)
   updateContentRef.current = updateContent
 
-  const [content, setContent] = useState('')
-  const [savedContent, setSavedContent] = useState('')
-  const savedContentRef = useRef('')
-  const [isStreamInteractionLocked, setIsStreamInteractionLocked] = useState(false)
-  const wasStreamingRef = useRef(false)
-  const pendingStreamReconcileRef = useRef(false)
-  const lastStreamedContentRef = useRef<string | null>(null)
   const shouldUseCodeRenderer = useCodeRendererForCodeFiles && isCodeFile(file)
-  const codeLanguage = useMemo(() => resolveCodeEditorLanguage(file), [file])
+  const codeLanguage = useMemo(() => resolveCodeEditorLanguage(file), [file.name, file.type])
+  const onDirtyChangeRef = useRef(onDirtyChange)
+  const onSaveStatusChangeRef = useRef(onSaveStatusChange)
+  onDirtyChangeRef.current = onDirtyChange
+  onSaveStatusChangeRef.current = onSaveStatusChange
+
+  const {
+    content,
+    savedContent,
+    isInitialized,
+    isStreamInteractionLocked,
+    setDraftContent,
+    markSavedContent,
+  } = useTextEditorContentState({
+    canReconcileToFetchedContent: file.key.length > 0,
+    fetchedContent,
+    streamingContent,
+    streamingMode,
+  })
 
   useEffect(() => {
-    const lastStreamed = lastStreamedContentRef.current
-    const hasPendingReconcile = wasStreamingRef.current && pendingStreamReconcileRef.current
-    const hasFetchedAdvanced =
-      fetchedContent !== undefined && fetchedContent !== savedContentRef.current
-    const fetchedMatchesLastStream =
-      fetchedContent !== undefined && lastStreamed !== null && fetchedContent === lastStreamed
-
-    if (streamingContent !== undefined) {
-      const nextContent =
-        streamingMode === 'replace' || fetchedContent === undefined
-          ? streamingContent
-          : fetchedContent.endsWith(streamingContent) ||
-              fetchedContent.endsWith(`\n${streamingContent}`)
-            ? fetchedContent
-            : `${fetchedContent}\n${streamingContent}`
-      const fetchedMatchesNextStream =
-        fetchedContent !== undefined && fetchedContent === nextContent
-
-      if (
-        hasPendingReconcile &&
-        (hasFetchedAdvanced || fetchedMatchesLastStream || fetchedMatchesNextStream)
-      ) {
-        pendingStreamReconcileRef.current = false
-        wasStreamingRef.current = false
-        lastStreamedContentRef.current = null
-        setIsStreamInteractionLocked(false)
-        setContent(fetchedContent)
-        contentRef.current = fetchedContent
-        setSavedContent(fetchedContent)
-        savedContentRef.current = fetchedContent
-        initializedRef.current = true
-        return
-      }
-
-      wasStreamingRef.current = true
-      setIsStreamInteractionLocked(true)
-      if (nextContent === contentRef.current) {
-        pendingStreamReconcileRef.current = true
-        lastStreamedContentRef.current = nextContent
-        initializedRef.current = true
-        return
-      }
-      pendingStreamReconcileRef.current = true
-      lastStreamedContentRef.current = nextContent
-      setContent(nextContent)
-      contentRef.current = nextContent
-      initializedRef.current = true
+    if (!autoFocus || !isInitialized || hasAutoFocusedRef.current) {
       return
     }
 
-    if (hasPendingReconcile) {
-      if (hasFetchedAdvanced || fetchedMatchesLastStream) {
-        pendingStreamReconcileRef.current = false
-        wasStreamingRef.current = false
-        lastStreamedContentRef.current = null
-        setIsStreamInteractionLocked(false)
-        setContent(fetchedContent)
-        contentRef.current = fetchedContent
-        setSavedContent(fetchedContent)
-        savedContentRef.current = fetchedContent
+    hasAutoFocusedRef.current = true
+    requestAnimationFrame(() => {
+      const editorTextarea = codeEditorRef.current?.querySelector('textarea')
+      if (editorTextarea instanceof HTMLTextAreaElement) {
+        editorTextarea.focus()
         return
       }
-    }
+      textareaRef.current?.focus()
+    })
+  }, [autoFocus, isInitialized])
 
-    if (streamingContent === undefined) {
-      setIsStreamInteractionLocked(false)
-    }
-
-    if (fetchedContent === undefined) return
-
-    if (!initializedRef.current) {
-      setContent(fetchedContent)
-      setSavedContent(fetchedContent)
-      savedContentRef.current = fetchedContent
-      contentRef.current = fetchedContent
-      initializedRef.current = true
-
-      if (autoFocus) {
-        requestAnimationFrame(() => {
-          const editorTextarea = codeEditorRef.current?.querySelector('textarea')
-          if (editorTextarea instanceof HTMLTextAreaElement) {
-            editorTextarea.focus()
-            return
-          }
-          textareaRef.current?.focus()
-        })
+  const handleContentChange = useCallback(
+    (value: string) => {
+      if (value === content) {
+        return
       }
-      return
-    }
-
-    if (fetchedContent === savedContentRef.current) return
-    const isClean = contentRef.current === savedContentRef.current
-    if (isClean) {
-      setContent(fetchedContent)
-      setSavedContent(fetchedContent)
-      savedContentRef.current = fetchedContent
-      contentRef.current = fetchedContent
-    }
-  }, [streamingContent, fetchedContent, streamingMode, dataUpdatedAt, autoFocus])
-
-  const handleContentChange = useCallback((value: string) => {
-    setContent(value)
-    contentRef.current = value
-  }, [])
+      setDraftContent(value)
+    },
+    [content, setDraftContent]
+  )
 
   const onSave = useCallback(async () => {
-    const currentContent = contentRef.current
-    if (currentContent === savedContentRef.current) return
+    if (content === savedContent) return
 
     await updateContentRef.current.mutateAsync({
       workspaceId,
       fileId: file.id,
-      content: currentContent,
+      content,
     })
-    setSavedContent(currentContent)
-    savedContentRef.current = currentContent
-  }, [workspaceId, file.id])
+    markSavedContent(content)
+  }, [content, file.id, markSavedContent, savedContent, workspaceId])
 
   const { saveStatus, saveImmediately, isDirty } = useAutosave({
     content,
     savedContent,
     onSave,
-    enabled: canEdit && initializedRef.current && streamingContent === undefined,
+    enabled: canEdit && isInitialized && !isStreamInteractionLocked,
   })
 
   useEffect(() => {
-    onDirtyChange?.(isDirty)
-  }, [isDirty, onDirtyChange])
+    onDirtyChangeRef.current?.(isDirty)
+  }, [isDirty])
 
   useEffect(() => {
-    onSaveStatusChange?.(saveStatus)
-  }, [saveStatus, onSaveStatusChange])
+    onSaveStatusChangeRef.current?.(saveStatus)
+  }, [saveStatus])
 
-  if (saveRef) saveRef.current = saveImmediately
-  useEffect(
-    () => () => {
-      if (saveRef) saveRef.current = null
-    },
-    [saveRef]
-  )
+  useEffect(() => {
+    if (!saveRef) {
+      return
+    }
+
+    saveRef.current = saveImmediately
+
+    return () => {
+      if (saveRef.current === saveImmediately) {
+        saveRef.current = null
+      }
+    }
+  }, [saveImmediately, saveRef])
 
   useEffect(() => {
     if (!isResizing) return
@@ -527,12 +726,12 @@ function TextEditor({
 
   const handleCheckboxToggle = useCallback(
     (checkboxIndex: number, checked: boolean) => {
-      const toggled = toggleMarkdownCheckbox(contentRef.current, checkboxIndex, checked)
-      if (toggled !== contentRef.current) {
+      const toggled = toggleMarkdownCheckbox(content, checkboxIndex, checked)
+      if (toggled !== content) {
         handleContentChange(toggled)
       }
     },
-    [handleContentChange]
+    [content, handleContentChange]
   )
 
   const isStreaming = isStreamInteractionLocked
@@ -545,9 +744,10 @@ function TextEditor({
   const sharedCodeEditorProps = useMemo(
     () =>
       getCodeEditorProps({
-        disabled: !canEdit,
+        disabled: isEditorReadOnly,
+        isStreaming: isStreaming,
       }),
-    [canEdit]
+    [isEditorReadOnly, isStreaming]
   )
   const highlightCode = useMemo(() => {
     return (value: string) => {
@@ -566,31 +766,6 @@ function TextEditor({
   const textareaStuckRef = useRef(true)
 
   useEffect(() => {
-    if (!shouldUseCodeRenderer || !codeEditorRef.current) return
-
-    const setCodeEditorReadOnly = () => {
-      const textarea = codeEditorRef.current?.querySelector('textarea')
-      if (!(textarea instanceof HTMLTextAreaElement)) return
-      textarea.readOnly = isEditorReadOnly
-      textarea.spellcheck = false
-    }
-
-    setCodeEditorReadOnly()
-
-    const timeoutId = setTimeout(setCodeEditorReadOnly, 0)
-    const observer = new MutationObserver(setCodeEditorReadOnly)
-    observer.observe(codeEditorRef.current, {
-      childList: true,
-      subtree: true,
-    })
-
-    return () => {
-      clearTimeout(timeoutId)
-      observer.disconnect()
-    }
-  }, [isEditorReadOnly, shouldUseCodeRenderer])
-
-  useEffect(() => {
     if (!shouldUseCodeRenderer) return
     const textarea = codeEditorRef.current?.querySelector('textarea')
     if (!(textarea instanceof HTMLTextAreaElement)) return
@@ -598,7 +773,10 @@ function TextEditor({
     const updateActiveLineNumber = () => {
       const pos = textarea.selectionStart
       const textBeforeCursor = renderedContent.substring(0, pos)
-      setActiveLineNumber(textBeforeCursor.split('\n').length)
+      const nextActiveLineNumber = textBeforeCursor.split('\n').length
+      setActiveLineNumber((currentLineNumber) =>
+        currentLineNumber === nextActiveLineNumber ? currentLineNumber : nextActiveLineNumber
+      )
     }
 
     updateActiveLineNumber()
@@ -650,7 +828,11 @@ function TextEditor({
       })
 
       document.body.removeChild(tempContainer)
-      setVisualLineHeights(newVisualLineHeights)
+      setVisualLineHeights((currentVisualLineHeights) =>
+        areNumberArraysEqual(currentVisualLineHeights, newVisualLineHeights)
+          ? currentVisualLineHeights
+          : newVisualLineHeights
+      )
     }
 
     const timeoutId = setTimeout(calculateVisualLines, 50)
@@ -788,6 +970,7 @@ function TextEditor({
                     onValueChange={handleCodeContentChange}
                     highlight={highlightCode}
                     padding={sharedCodeEditorProps.padding}
+                    readOnly={isEditorReadOnly}
                     className={cn(sharedCodeEditorProps.className, 'min-h-full')}
                     textareaClassName={cn(sharedCodeEditorProps.textareaClassName, 'min-h-full')}
                   />

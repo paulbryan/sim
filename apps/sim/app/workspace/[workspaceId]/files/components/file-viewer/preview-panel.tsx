@@ -139,11 +139,20 @@ const STATIC_MARKDOWN_COMPONENTS = {
       {children}
     </h4>
   ),
-  inlineCode: ({ children }: { children?: React.ReactNode }) => (
-    <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[13px] text-[var(--caution)]'>
-      {children}
-    </code>
-  ),
+  inlineCode: ({ children }: { children?: React.ReactNode }) => {
+    if (typeof children === 'string' && children.includes('\n')) {
+      return (
+        <code className='my-4 block overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface-5)] p-4 font-mono text-[13px] text-[var(--text-primary)] leading-[1.6]'>
+          {children}
+        </code>
+      )
+    }
+    return (
+      <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[13px] text-[var(--caution)]'>
+        {children}
+      </code>
+    )
+  },
   pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   strong: ({ children }: { children?: React.ReactNode }) => (
     <strong className='break-words font-semibold text-[var(--text-primary)]'>{children}</strong>
@@ -387,13 +396,15 @@ const MarkdownPreview = memo(function MarkdownPreview({
     }
   }, [content])
 
+  const streamdownMode = isStreaming ? undefined : 'static'
+
   if (onCheckboxToggle) {
     return (
       <NavigateCtx.Provider value={navigate}>
         <MarkdownCheckboxCtx.Provider value={ctxValue}>
           <div ref={setScrollRef} className='h-full overflow-auto p-6'>
             <Streamdown
-              mode='static'
+              mode={streamdownMode}
               remarkPlugins={REMARK_PLUGINS}
               rehypePlugins={REHYPE_PLUGINS}
               components={MARKDOWN_COMPONENTS}
@@ -410,7 +421,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
     <NavigateCtx.Provider value={navigate}>
       <div ref={setScrollRef} className='h-full overflow-auto p-6'>
         <Streamdown
-          mode='static'
+          mode={streamdownMode}
           remarkPlugins={REMARK_PLUGINS}
           rehypePlugins={REHYPE_PLUGINS}
           components={MARKDOWN_COMPONENTS}
