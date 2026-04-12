@@ -5,12 +5,16 @@ import { getWorkflowById } from '@/lib/workflows/utils'
 export async function prepareExecutionContext(
   userId: string,
   workflowId: string,
-  chatId?: string
+  chatId?: string,
+  options?: {
+    workspaceId?: string
+    decryptedEnvVars?: Record<string, string>
+  }
 ): Promise<ExecutionContext> {
-  const wf = await getWorkflowById(workflowId)
-  const workspaceId = wf?.workspaceId ?? undefined
-
-  const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workspaceId)
+  const workspaceId =
+    options?.workspaceId ?? (await getWorkflowById(workflowId))?.workspaceId ?? undefined
+  const decryptedEnvVars =
+    options?.decryptedEnvVars ?? (await getEffectiveDecryptedEnv(userId, workspaceId))
 
   return {
     userId,

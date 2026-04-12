@@ -1,6 +1,6 @@
 'use client'
 
-import { createElement, useMemo, useState } from 'react'
+import { createElement, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { ArrowRight, ChevronDown, Expandable, ExpandableContent } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -405,6 +405,13 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
   const disabled = !onSelect
   const [expanded, setExpanded] = useState(!disabled)
   const entries = Object.entries(data)
+
+  useEffect(() => {
+    if (!disabled) {
+      setExpanded(true)
+    }
+  }, [disabled])
+
   if (entries.length === 0) return null
 
   return (

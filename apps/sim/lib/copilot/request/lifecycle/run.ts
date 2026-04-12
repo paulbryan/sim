@@ -50,6 +50,7 @@ export interface CopilotLifecycleOptions extends OrchestratorOptions {
   trace?: TraceCollector
   simRequestId?: string
   onGoTraceId?: (goTraceId: string) => void
+  executionContext?: ExecutionContext
 }
 
 export async function runCopilotLifecycle(
@@ -77,26 +78,41 @@ export async function runCopilotLifecycle(
     runId,
     messageId: payloadMsgId,
   })
+  const resolvedExecutionId = runIdentity.executionId ?? executionId
+  const resolvedRunId = runIdentity.runId ?? runId
   const lifecycleOptions: CopilotLifecycleOptions = {
     ...options,
-    executionId: runIdentity.executionId,
-    runId: runIdentity.runId,
+    executionId: resolvedExecutionId,
+    runId: resolvedRunId,
+    ...(options.executionContext
+      ? {
+          executionContext: {
+            ...options.executionContext,
+            messageId: payloadMsgId,
+            executionId: resolvedExecutionId,
+            runId: resolvedRunId,
+            abortSignal: options.abortSignal,
+          },
+        }
+      : {}),
   }
 
-  const execContext = await buildExecutionContext(requestPayload, {
-    userId,
-    workflowId,
-    workspaceId,
-    chatId,
-    executionId: runIdentity.executionId,
-    runId: runIdentity.runId,
-    abortSignal: lifecycleOptions.abortSignal,
-  })
+  const execContext =
+    lifecycleOptions.executionContext ??
+    (await buildExecutionContext(requestPayload, {
+      userId,
+      workflowId,
+      workspaceId,
+      chatId,
+      executionId: resolvedExecutionId,
+      runId: resolvedRunId,
+      abortSignal: lifecycleOptions.abortSignal,
+    }))
 
   const context = createStreamingContext({
     chatId,
-    executionId: runIdentity.executionId,
-    runId: runIdentity.runId,
+    executionId: resolvedExecutionId,
+    runId: resolvedRunId,
     messageId: payloadMsgId,
     ...(lifecycleOptions.trace ? { trace: lifecycleOptions.trace } : {}),
   })

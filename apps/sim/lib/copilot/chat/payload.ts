@@ -6,11 +6,19 @@ import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getWorkflowById } from '@/lib/workflows/utils'
 import { tools } from '@/tools/registry'
 import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
 
 const logger = createLogger('CopilotChatPayload')
+const TOOL_SCHEMA_CACHE_TTL_MS = 30_000
+
+type ToolSchemaCacheEntry = {
+  expiresAt: number
+  value?: ToolSchema[]
+  promise?: Promise<ToolSchema[]>
+}
+
+const toolSchemaCache = new Map<string, ToolSchemaCacheEntry>()
 
 interface BuildPayloadParams {
   message: string
@@ -56,71 +64,98 @@ export async function buildIntegrationToolSchemas(
   messageId?: string,
   options: BuildIntegrationToolSchemasOptions = { schemaSurface: 'copilot' }
 ): Promise<ToolSchema[]> {
-  const reqLogger = logger.withMetadata({ messageId })
-  const integrationTools: ToolSchema[] = []
-  try {
-    const { createUserToolSchema } = await import('@/tools/params')
-    const latestTools = getLatestVersionTools(tools)
-    let shouldAppendEmailTagline = false
-
-    try {
-      const subscription = await getHighestPrioritySubscription(userId)
-      shouldAppendEmailTagline = !subscription || !isPaid(subscription.plan)
-    } catch (error) {
-      reqLogger.warn('Failed to load subscription for copilot tool descriptions', {
-        userId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
-
-    for (const [toolId, toolConfig] of Object.entries(latestTools)) {
-      try {
-        const userSchema = createUserToolSchema(toolConfig, {
-          surface: options.schemaSurface ?? 'copilot',
-        })
-        const strippedName = stripVersionSuffix(toolId)
-        const catalogEntry = getToolEntry(strippedName)
-        integrationTools.push({
-          name: strippedName,
-          description: getCopilotToolDescription(toolConfig, {
-            isHosted,
-            fallbackName: strippedName,
-            appendEmailTagline: shouldAppendEmailTagline,
-          }),
-          input_schema: userSchema as unknown as Record<string, unknown>,
-          defer_loading: true,
-          executeLocally:
-            catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
-          ...(toolConfig.oauth?.required && {
-            oauth: {
-              required: true,
-              provider: toolConfig.oauth.provider,
-            },
-          }),
-        })
-      } catch (toolError) {
-        logger.warn(
-          messageId
-            ? `Failed to build schema for tool, skipping [messageId:${messageId}]`
-            : 'Failed to build schema for tool, skipping',
-          {
-            toolId,
-            error: toolError instanceof Error ? toolError.message : String(toolError),
-          }
-        )
-      }
-    }
-  } catch (error) {
-    logger.warn(
-      messageId
-        ? `Failed to build tool schemas [messageId:${messageId}]`
-        : 'Failed to build tool schemas',
-      {
-        error: error instanceof Error ? error.message : String(error),
-      }
-    )
+  const cacheKey = `${userId}:${options.schemaSurface ?? 'copilot'}`
+  const now = Date.now()
+  const cached = toolSchemaCache.get(cacheKey)
+  if (cached?.value && cached.expiresAt > now) {
+    return cached.value.map((tool) => ({ ...tool, input_schema: { ...tool.input_schema } }))
   }
-  return integrationTools
+  if (cached?.promise) {
+    const tools = await cached.promise
+    return tools.map((tool) => ({ ...tool, input_schema: { ...tool.input_schema } }))
+  }
+
+  const reqLogger = logger.withMetadata({ messageId })
+  const promise = (async () => {
+    const integrationTools: ToolSchema[] = []
+    try {
+      const { createUserToolSchema } = await import('@/tools/params')
+      const latestTools = getLatestVersionTools(tools)
+      let shouldAppendEmailTagline = false
+
+      try {
+        const subscription = await getHighestPrioritySubscription(userId)
+        shouldAppendEmailTagline = !subscription || !isPaid(subscription.plan)
+      } catch (error) {
+        reqLogger.warn('Failed to load subscription for copilot tool descriptions', {
+          userId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+
+      for (const [toolId, toolConfig] of Object.entries(latestTools)) {
+        try {
+          const userSchema = createUserToolSchema(toolConfig, {
+            surface: options.schemaSurface ?? 'copilot',
+          })
+          const strippedName = stripVersionSuffix(toolId)
+          const catalogEntry = getToolEntry(strippedName)
+          integrationTools.push({
+            name: strippedName,
+            description: getCopilotToolDescription(toolConfig, {
+              isHosted,
+              fallbackName: strippedName,
+              appendEmailTagline: shouldAppendEmailTagline,
+            }),
+            input_schema: userSchema as unknown as Record<string, unknown>,
+            defer_loading: true,
+            executeLocally:
+              catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
+            ...(toolConfig.oauth?.required && {
+              oauth: {
+                required: true,
+                provider: toolConfig.oauth.provider,
+              },
+            }),
+          })
+        } catch (toolError) {
+          logger.warn(
+            messageId
+              ? `Failed to build schema for tool, skipping [messageId:${messageId}]`
+              : 'Failed to build schema for tool, skipping',
+            {
+              toolId,
+              error: toolError instanceof Error ? toolError.message : String(toolError),
+            }
+          )
+        }
+      }
+    } catch (error) {
+      logger.warn(
+        messageId
+          ? `Failed to build tool schemas [messageId:${messageId}]`
+          : 'Failed to build tool schemas',
+        {
+          error: error instanceof Error ? error.message : String(error),
+        }
+      )
+    }
+
+    toolSchemaCache.set(cacheKey, {
+      value: integrationTools,
+      expiresAt: Date.now() + TOOL_SCHEMA_CACHE_TTL_MS,
+    })
+
+    return integrationTools
+  })()
+
+  toolSchemaCache.set(cacheKey, {
+    expiresAt: now + TOOL_SCHEMA_CACHE_TTL_MS,
+    promise,
+  })
+
+  const integrationTools = await promise
+  return integrationTools.map((tool) => ({ ...tool, input_schema: { ...tool.input_schema } }))
 }
 
 /**
@@ -204,29 +239,25 @@ export async function buildCopilotRequestPayload(
     })
 
     // Discover MCP tools from workspace servers and include as deferred tools
-    if (workflowId) {
+    if (params.workspaceId) {
       try {
-        const wf = await getWorkflowById(workflowId)
-        if (wf?.workspaceId) {
-          const { mcpService } = await import('@/lib/mcp/service')
-          const mcpTools = await mcpService.discoverTools(userId, wf.workspaceId)
-          for (const mcpTool of mcpTools) {
-            integrationTools.push({
-              name: createMcpToolId(mcpTool.serverId, mcpTool.name),
-              description:
-                mcpTool.description || `MCP tool: ${mcpTool.name} (${mcpTool.serverName})`,
-              input_schema: mcpTool.inputSchema as unknown as Record<string, unknown>,
-              executeLocally: false,
-            })
-          }
-          if (mcpTools.length > 0) {
-            logger.error(
-              userMessageId
-                ? `Added MCP tools to copilot payload [messageId:${userMessageId}]`
-                : 'Added MCP tools to copilot payload',
-              { count: mcpTools.length }
-            )
-          }
+        const { mcpService } = await import('@/lib/mcp/service')
+        const mcpTools = await mcpService.discoverTools(userId, params.workspaceId)
+        for (const mcpTool of mcpTools) {
+          integrationTools.push({
+            name: createMcpToolId(mcpTool.serverId, mcpTool.name),
+            description: mcpTool.description || `MCP tool: ${mcpTool.name} (${mcpTool.serverName})`,
+            input_schema: mcpTool.inputSchema as unknown as Record<string, unknown>,
+            executeLocally: false,
+          })
+        }
+        if (mcpTools.length > 0) {
+          logger.error(
+            userMessageId
+              ? `Added MCP tools to copilot payload [messageId:${userMessageId}]`
+              : 'Added MCP tools to copilot payload',
+            { count: mcpTools.length }
+          )
         }
       } catch (error) {
         logger.warn(

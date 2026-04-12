@@ -50,7 +50,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function hasOutputValue(result: { output?: unknown } | undefined): result is { output: unknown } {
-  return Boolean(result) && Object.hasOwn(result, 'output')
+  return result !== undefined && Object.hasOwn(result, 'output')
 }
 
 function buildCompletionSignal(input: {
