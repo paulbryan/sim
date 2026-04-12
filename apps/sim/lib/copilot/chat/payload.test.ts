@@ -42,7 +42,7 @@ vi.mock('@/tools/registry', () => ({
       name: 'Brandfetch Search',
       description: 'Search for brands by company name',
     },
-    // Catalog marks run_workflow as client / clientExecutable; registry ToolConfig has no executor fields.
+    // Catalog marks run_workflow as client-routed / clientExecutable; registry ToolConfig has no routing fields.
     run_workflow: {
       id: 'run_workflow',
       name: 'Run Workflow',

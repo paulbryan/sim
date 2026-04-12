@@ -24,22 +24,48 @@ export {
   scheduleBufferCleanup,
   writeAbortMarker,
 } from './buffer'
+export type {
+  ContractStreamEvent,
+  PersistedStreamEventEnvelope,
+  SessionStreamEvent,
+  StreamEvent,
+  SubagentSpanStreamEvent,
+  SyntheticFilePreviewEventEnvelope,
+  SyntheticFilePreviewPayload,
+  SyntheticStreamEvent,
+  ToolArgsDeltaStreamEvent,
+  ToolCallStreamEvent,
+  ToolResultStreamEvent,
+} from './contract'
+export {
+  isContractStreamEventEnvelope,
+  isSubagentSpanStreamEvent,
+  isSyntheticFilePreviewEventEnvelope,
+  isToolArgsDeltaStreamEvent,
+  isToolCallStreamEvent,
+  isToolResultStreamEvent,
+  parsePersistedStreamEventEnvelope,
+  parsePersistedStreamEventEnvelopeJson,
+} from './contract'
 export { createEvent, eventToStreamEvent, isEventRecord, TOOL_CALL_STATUS } from './event'
+export {
+  clearFilePreviewSessions,
+  createFilePreviewSession,
+  readFilePreviewSessions,
+  scheduleFilePreviewSessionCleanup,
+  upsertFilePreviewSession,
+} from './file-preview-session'
 export type {
   FilePreviewContentMode,
   FilePreviewSession,
   FilePreviewStatus,
   FilePreviewTargetKind,
-} from './file-preview-session'
+} from './file-preview-session-contract'
 export {
-  clearFilePreviewSessions,
-  createFilePreviewSession,
   FILE_PREVIEW_SESSION_SCHEMA_VERSION,
-  readFilePreviewSessions,
-  scheduleFilePreviewSessionCleanup,
-  upsertFilePreviewSession,
-} from './file-preview-session'
+  isFilePreviewSession,
+} from './file-preview-session-contract'
 export { checkForReplayGap, type ReplayGapResult } from './recovery'
 export { encodeSSEComment, encodeSSEEnvelope, SSE_RESPONSE_HEADERS } from './sse'
-export type { StreamEvent } from './types'
+export type { StreamBatchEvent } from './types'
 export { StreamWriter, type StreamWriterOptions } from './writer'

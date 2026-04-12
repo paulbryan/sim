@@ -1,5 +1,6 @@
 import { TraceCollector } from '@/lib/copilot/request/trace'
 import type { StreamingContext } from '@/lib/copilot/request/types'
+import { generateId } from '@/lib/core/utils/uuid'
 
 /**
  * Create a fresh StreamingContext.
@@ -9,7 +10,7 @@ export function createStreamingContext(overrides?: Partial<StreamingContext>): S
     chatId: undefined,
     executionId: undefined,
     runId: undefined,
-    messageId: crypto.randomUUID(),
+    messageId: generateId(),
     accumulatedContent: '',
     contentBlocks: [],
     toolCalls: new Map(),

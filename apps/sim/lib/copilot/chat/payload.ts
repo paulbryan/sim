@@ -90,7 +90,7 @@ export async function buildIntegrationToolSchemas(
           input_schema: userSchema as unknown as Record<string, unknown>,
           defer_loading: true,
           executeLocally:
-            catalogEntry?.clientExecutable === true || catalogEntry?.executor === 'client',
+            catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
           ...(toolConfig.oauth?.required && {
             oauth: {
               required: true,

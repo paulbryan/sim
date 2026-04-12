@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import { FunctionExecute } from '@/lib/copilot/generated/tool-catalog-v1'
 import { buildToolCallSummaries } from '@/lib/copilot/request/context/result'
 import { TraceCollector } from '@/lib/copilot/request/trace'
@@ -63,4 +64,33 @@ describe('buildToolCallSummaries', () => {
     expect(summaries).toHaveLength(1)
     expect(summaries[0]?.status).toBe('executing')
   })
+
+  it.concurrent(
+    'preserves canonical terminal statuses instead of deriving them from result success',
+    () => {
+      const context = makeContext()
+      context.toolCalls.set('tool-3', {
+        id: 'tool-3',
+        name: 'download_to_workspace_file',
+        status: MothershipStreamV1ToolOutcome.cancelled,
+        result: { success: false },
+        error: 'Stopped by user',
+        startTime: 1,
+        endTime: 2,
+      })
+
+      const summaries = buildToolCallSummaries(context)
+
+      expect(summaries).toHaveLength(1)
+      expect(summaries[0]).toEqual({
+        id: 'tool-3',
+        name: 'download_to_workspace_file',
+        status: MothershipStreamV1ToolOutcome.cancelled,
+        params: undefined,
+        result: undefined,
+        error: 'Stopped by user',
+        durationMs: 1,
+      })
+    }
+  )
 })

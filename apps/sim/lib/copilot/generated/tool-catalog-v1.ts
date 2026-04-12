@@ -4,7 +4,6 @@
 
 export interface ToolCatalogEntry {
   clientExecutable?: boolean
-  executor: 'client' | 'go' | 'sim' | 'subagent'
   hidden?: boolean
   id:
     | 'agent'
@@ -184,6 +183,7 @@ export interface ToolCatalogEntry {
   requiredPermission?: 'admin' | 'write'
   requiresConfirmation?: boolean
   resultSchema?: unknown
+  route: 'client' | 'go' | 'sim' | 'subagent'
   subagentId?:
     | 'agent'
     | 'auth'
@@ -200,7 +200,7 @@ export interface ToolCatalogEntry {
 export const Agent: ToolCatalogEntry = {
   id: 'agent',
   name: 'agent',
-  executor: 'subagent',
+  route: 'subagent',
   mode: 'async',
   parameters: {
     properties: {
@@ -217,7 +217,7 @@ export const Agent: ToolCatalogEntry = {
 export const Auth: ToolCatalogEntry = {
   id: 'auth',
   name: 'auth',
-  executor: 'subagent',
+  route: 'subagent',
   mode: 'async',
   parameters: {
     properties: {
@@ -233,7 +233,7 @@ export const Auth: ToolCatalogEntry = {
 export const CheckDeploymentStatus: ToolCatalogEntry = {
   id: 'check_deployment_status',
   name: 'check_deployment_status',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -249,7 +249,7 @@ export const CheckDeploymentStatus: ToolCatalogEntry = {
 export const CompleteJob: ToolCatalogEntry = {
   id: 'complete_job',
   name: 'complete_job',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -263,7 +263,7 @@ export const CompleteJob: ToolCatalogEntry = {
 export const ContextWrite: ToolCatalogEntry = {
   id: 'context_write',
   name: 'context_write',
-  executor: 'go',
+  route: 'go',
   mode: 'sync',
   parameters: {
     type: 'object',
@@ -281,7 +281,7 @@ export const ContextWrite: ToolCatalogEntry = {
 export const CrawlWebsite: ToolCatalogEntry = {
   id: 'crawl_website',
   name: 'crawl_website',
-  executor: 'go',
+  route: 'go',
   mode: 'sync',
   parameters: {
     type: 'object',
@@ -307,7 +307,7 @@ export const CrawlWebsite: ToolCatalogEntry = {
 export const CreateFile: ToolCatalogEntry = {
   id: 'create_file',
   name: 'create_file',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -340,7 +340,7 @@ export const CreateFile: ToolCatalogEntry = {
 export const CreateFolder: ToolCatalogEntry = {
   id: 'create_folder',
   name: 'create_folder',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -357,7 +357,7 @@ export const CreateFolder: ToolCatalogEntry = {
 export const CreateJob: ToolCatalogEntry = {
   id: 'create_job',
   name: 'create_job',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -411,7 +411,7 @@ export const CreateJob: ToolCatalogEntry = {
 export const CreateWorkflow: ToolCatalogEntry = {
   id: 'create_workflow',
   name: 'create_workflow',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -429,7 +429,7 @@ export const CreateWorkflow: ToolCatalogEntry = {
 export const CreateWorkspaceMcpServer: ToolCatalogEntry = {
   id: 'create_workspace_mcp_server',
   name: 'create_workspace_mcp_server',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -447,7 +447,7 @@ export const CreateWorkspaceMcpServer: ToolCatalogEntry = {
 export const DeleteFile: ToolCatalogEntry = {
   id: 'delete_file',
   name: 'delete_file',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -474,7 +474,7 @@ export const DeleteFile: ToolCatalogEntry = {
 export const DeleteFolder: ToolCatalogEntry = {
   id: 'delete_folder',
   name: 'delete_folder',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -494,7 +494,7 @@ export const DeleteFolder: ToolCatalogEntry = {
 export const DeleteWorkflow: ToolCatalogEntry = {
   id: 'delete_workflow',
   name: 'delete_workflow',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -514,7 +514,7 @@ export const DeleteWorkflow: ToolCatalogEntry = {
 export const DeleteWorkspaceMcpServer: ToolCatalogEntry = {
   id: 'delete_workspace_mcp_server',
   name: 'delete_workspace_mcp_server',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -530,7 +530,7 @@ export const DeleteWorkspaceMcpServer: ToolCatalogEntry = {
 export const Deploy: ToolCatalogEntry = {
   id: 'deploy',
   name: 'deploy',
-  executor: 'subagent',
+  route: 'subagent',
   mode: 'async',
   parameters: {
     properties: {
@@ -550,7 +550,7 @@ export const Deploy: ToolCatalogEntry = {
 export const DeployApi: ToolCatalogEntry = {
   id: 'deploy_api',
   name: 'deploy_api',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -621,7 +621,7 @@ export const DeployApi: ToolCatalogEntry = {
 export const DeployChat: ToolCatalogEntry = {
   id: 'deploy_chat',
   name: 'deploy_chat',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -753,7 +753,7 @@ export const DeployChat: ToolCatalogEntry = {
 export const DeployMcp: ToolCatalogEntry = {
   id: 'deploy_mcp',
   name: 'deploy_mcp',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -846,7 +846,7 @@ export const DeployMcp: ToolCatalogEntry = {
 export const DownloadToWorkspaceFile: ToolCatalogEntry = {
   id: 'download_to_workspace_file',
   name: 'download_to_workspace_file',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -870,7 +870,7 @@ export const DownloadToWorkspaceFile: ToolCatalogEntry = {
 export const EditContent: ToolCatalogEntry = {
   id: 'edit_content',
   name: 'edit_content',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -902,7 +902,7 @@ export const EditContent: ToolCatalogEntry = {
 export const EditWorkflow: ToolCatalogEntry = {
   id: 'edit_workflow',
   name: 'edit_workflow',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -946,7 +946,7 @@ export const EditWorkflow: ToolCatalogEntry = {
 export const File: ToolCatalogEntry = {
   id: 'file',
   name: 'file',
-  executor: 'subagent',
+  route: 'subagent',
   mode: 'async',
   parameters: { type: 'object' },
   subagentId: 'file',
@@ -956,7 +956,7 @@ export const File: ToolCatalogEntry = {
 export const FunctionExecute: ToolCatalogEntry = {
   id: 'function_execute',
   name: 'function_execute',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1018,7 +1018,7 @@ export const FunctionExecute: ToolCatalogEntry = {
 export const GenerateApiKey: ToolCatalogEntry = {
   id: 'generate_api_key',
   name: 'generate_api_key',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1041,7 +1041,7 @@ export const GenerateApiKey: ToolCatalogEntry = {
 export const GenerateImage: ToolCatalogEntry = {
   id: 'generate_image',
   name: 'generate_image',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1081,7 +1081,7 @@ export const GenerateImage: ToolCatalogEntry = {
 export const GenerateVisualization: ToolCatalogEntry = {
   id: 'generate_visualization',
   name: 'generate_visualization',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1122,7 +1122,7 @@ export const GenerateVisualization: ToolCatalogEntry = {
 export const GetBlockOutputs: ToolCatalogEntry = {
   id: 'get_block_outputs',
   name: 'get_block_outputs',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1144,7 +1144,7 @@ export const GetBlockOutputs: ToolCatalogEntry = {
 export const GetBlockUpstreamReferences: ToolCatalogEntry = {
   id: 'get_block_upstream_references',
   name: 'get_block_upstream_references',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1167,7 +1167,7 @@ export const GetBlockUpstreamReferences: ToolCatalogEntry = {
 export const GetDeployedWorkflowState: ToolCatalogEntry = {
   id: 'get_deployed_workflow_state',
   name: 'get_deployed_workflow_state',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1183,7 +1183,7 @@ export const GetDeployedWorkflowState: ToolCatalogEntry = {
 export const GetDeploymentVersion: ToolCatalogEntry = {
   id: 'get_deployment_version',
   name: 'get_deployment_version',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1198,7 +1198,7 @@ export const GetDeploymentVersion: ToolCatalogEntry = {
 export const GetExecutionSummary: ToolCatalogEntry = {
   id: 'get_execution_summary',
   name: 'get_execution_summary',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1226,7 +1226,7 @@ export const GetExecutionSummary: ToolCatalogEntry = {
 export const GetJobLogs: ToolCatalogEntry = {
   id: 'get_job_logs',
   name: 'get_job_logs',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1246,7 +1246,7 @@ export const GetJobLogs: ToolCatalogEntry = {
 export const GetPageContents: ToolCatalogEntry = {
   id: 'get_page_contents',
   name: 'get_page_contents',
-  executor: 'go',
+  route: 'go',
   mode: 'sync',
   parameters: {
     type: 'object',
@@ -1273,7 +1273,7 @@ export const GetPageContents: ToolCatalogEntry = {
 export const GetPlatformActions: ToolCatalogEntry = {
   id: 'get_platform_actions',
   name: 'get_platform_actions',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: { type: 'object', properties: {} },
 }
@@ -1281,7 +1281,7 @@ export const GetPlatformActions: ToolCatalogEntry = {
 export const GetWorkflowData: ToolCatalogEntry = {
   id: 'get_workflow_data',
   name: 'get_workflow_data',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1303,7 +1303,7 @@ export const GetWorkflowData: ToolCatalogEntry = {
 export const GetWorkflowLogs: ToolCatalogEntry = {
   id: 'get_workflow_logs',
   name: 'get_workflow_logs',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1326,7 +1326,7 @@ export const GetWorkflowLogs: ToolCatalogEntry = {
 export const Glob: ToolCatalogEntry = {
   id: 'glob',
   name: 'glob',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1349,7 +1349,7 @@ export const Glob: ToolCatalogEntry = {
 export const Grep: ToolCatalogEntry = {
   id: 'grep',
   name: 'grep',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1394,7 +1394,7 @@ export const Grep: ToolCatalogEntry = {
 export const Job: ToolCatalogEntry = {
   id: 'job',
   name: 'job',
-  executor: 'subagent',
+  route: 'subagent',
   mode: 'async',
   parameters: {
     properties: { request: { description: 'What job action is needed.', type: 'string' } },
@@ -1408,7 +1408,7 @@ export const Job: ToolCatalogEntry = {
 export const Knowledge: ToolCatalogEntry = {
   id: 'knowledge',
   name: 'knowledge',
-  executor: 'subagent',
+  route: 'subagent',
   mode: 'async',
   parameters: {
     properties: {
@@ -1424,7 +1424,7 @@ export const Knowledge: ToolCatalogEntry = {
 export const KnowledgeBase: ToolCatalogEntry = {
   id: 'knowledge_base',
   name: 'knowledge_base',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1601,7 +1601,7 @@ export const KnowledgeBase: ToolCatalogEntry = {
 export const ListFolders: ToolCatalogEntry = {
   id: 'list_folders',
   name: 'list_folders',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1614,7 +1614,7 @@ export const ListFolders: ToolCatalogEntry = {
 export const ListUserWorkspaces: ToolCatalogEntry = {
   id: 'list_user_workspaces',
   name: 'list_user_workspaces',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: { type: 'object', properties: {} },
 }
@@ -1622,7 +1622,7 @@ export const ListUserWorkspaces: ToolCatalogEntry = {
 export const ListWorkspaceMcpServers: ToolCatalogEntry = {
   id: 'list_workspace_mcp_servers',
   name: 'list_workspace_mcp_servers',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1635,7 +1635,7 @@ export const ListWorkspaceMcpServers: ToolCatalogEntry = {
 export const ManageCredential: ToolCatalogEntry = {
   id: 'manage_credential',
   name: 'manage_credential',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1662,7 +1662,7 @@ export const ManageCredential: ToolCatalogEntry = {
 export const ManageCustomTool: ToolCatalogEntry = {
   id: 'manage_custom_tool',
   name: 'manage_custom_tool',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1730,7 +1730,7 @@ export const ManageCustomTool: ToolCatalogEntry = {
 export const ManageJob: ToolCatalogEntry = {
   id: 'manage_job',
   name: 'manage_job',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1790,7 +1790,7 @@ export const ManageJob: ToolCatalogEntry = {
 export const ManageMcpTool: ToolCatalogEntry = {
   id: 'manage_mcp_tool',
   name: 'manage_mcp_tool',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1841,7 +1841,7 @@ export const ManageMcpTool: ToolCatalogEntry = {
 export const ManageSkill: ToolCatalogEntry = {
   id: 'manage_skill',
   name: 'manage_skill',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1879,7 +1879,7 @@ export const ManageSkill: ToolCatalogEntry = {
 export const MaterializeFile: ToolCatalogEntry = {
   id: 'materialize_file',
   name: 'materialize_file',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1916,7 +1916,7 @@ export const MaterializeFile: ToolCatalogEntry = {
 export const MoveFolder: ToolCatalogEntry = {
   id: 'move_folder',
   name: 'move_folder',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1936,7 +1936,7 @@ export const MoveFolder: ToolCatalogEntry = {
 export const MoveWorkflow: ToolCatalogEntry = {
   id: 'move_workflow',
   name: 'move_workflow',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1959,7 +1959,7 @@ export const MoveWorkflow: ToolCatalogEntry = {
 export const OauthGetAuthLink: ToolCatalogEntry = {
   id: 'oauth_get_auth_link',
   name: 'oauth_get_auth_link',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1977,7 +1977,7 @@ export const OauthGetAuthLink: ToolCatalogEntry = {
 export const OauthRequestAccess: ToolCatalogEntry = {
   id: 'oauth_request_access',
   name: 'oauth_request_access',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -1996,7 +1996,7 @@ export const OauthRequestAccess: ToolCatalogEntry = {
 export const OpenResource: ToolCatalogEntry = {
   id: 'open_resource',
   name: 'open_resource',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2025,7 +2025,7 @@ export const OpenResource: ToolCatalogEntry = {
 export const Read: ToolCatalogEntry = {
   id: 'read',
   name: 'read',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2049,7 +2049,7 @@ export const Read: ToolCatalogEntry = {
 export const Redeploy: ToolCatalogEntry = {
   id: 'redeploy',
   name: 'redeploy',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2114,7 +2114,7 @@ export const Redeploy: ToolCatalogEntry = {
 export const RenameFile: ToolCatalogEntry = {
   id: 'rename_file',
   name: 'rename_file',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2143,7 +2143,7 @@ export const RenameFile: ToolCatalogEntry = {
 export const RenameWorkflow: ToolCatalogEntry = {
   id: 'rename_workflow',
   name: 'rename_workflow',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2159,7 +2159,7 @@ export const RenameWorkflow: ToolCatalogEntry = {
 export const Research: ToolCatalogEntry = {
   id: 'research',
   name: 'research',
-  executor: 'subagent',
+  route: 'subagent',
   mode: 'async',
   parameters: {
     properties: { topic: { description: 'The topic to research.', type: 'string' } },
@@ -2173,7 +2173,7 @@ export const Research: ToolCatalogEntry = {
 export const Respond: ToolCatalogEntry = {
   id: 'respond',
   name: 'respond',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     additionalProperties: true,
@@ -2196,7 +2196,7 @@ export const Respond: ToolCatalogEntry = {
 export const RestoreResource: ToolCatalogEntry = {
   id: 'restore_resource',
   name: 'restore_resource',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2217,7 +2217,7 @@ export const RestoreResource: ToolCatalogEntry = {
 export const RevertToVersion: ToolCatalogEntry = {
   id: 'revert_to_version',
   name: 'revert_to_version',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2234,7 +2234,7 @@ export const RevertToVersion: ToolCatalogEntry = {
 export const RunBlock: ToolCatalogEntry = {
   id: 'run_block',
   name: 'run_block',
-  executor: 'client',
+  route: 'client',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2269,7 +2269,7 @@ export const RunBlock: ToolCatalogEntry = {
 export const RunFromBlock: ToolCatalogEntry = {
   id: 'run_from_block',
   name: 'run_from_block',
-  executor: 'client',
+  route: 'client',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2304,7 +2304,7 @@ export const RunFromBlock: ToolCatalogEntry = {
 export const RunWorkflow: ToolCatalogEntry = {
   id: 'run_workflow',
   name: 'run_workflow',
-  executor: 'client',
+  route: 'client',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2338,7 +2338,7 @@ export const RunWorkflow: ToolCatalogEntry = {
 export const RunWorkflowUntilBlock: ToolCatalogEntry = {
   id: 'run_workflow_until_block',
   name: 'run_workflow_until_block',
-  executor: 'client',
+  route: 'client',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2376,7 +2376,7 @@ export const RunWorkflowUntilBlock: ToolCatalogEntry = {
 export const ScrapePage: ToolCatalogEntry = {
   id: 'scrape_page',
   name: 'scrape_page',
-  executor: 'go',
+  route: 'go',
   mode: 'sync',
   parameters: {
     type: 'object',
@@ -2398,7 +2398,7 @@ export const ScrapePage: ToolCatalogEntry = {
 export const SearchDocumentation: ToolCatalogEntry = {
   id: 'search_documentation',
   name: 'search_documentation',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2413,7 +2413,7 @@ export const SearchDocumentation: ToolCatalogEntry = {
 export const SearchLibraryDocs: ToolCatalogEntry = {
   id: 'search_library_docs',
   name: 'search_library_docs',
-  executor: 'go',
+  route: 'go',
   mode: 'sync',
   parameters: {
     type: 'object',
@@ -2435,7 +2435,7 @@ export const SearchLibraryDocs: ToolCatalogEntry = {
 export const SearchOnline: ToolCatalogEntry = {
   id: 'search_online',
   name: 'search_online',
-  executor: 'go',
+  route: 'go',
   mode: 'sync',
   parameters: {
     type: 'object',
@@ -2471,7 +2471,7 @@ export const SearchOnline: ToolCatalogEntry = {
 export const SearchPatterns: ToolCatalogEntry = {
   id: 'search_patterns',
   name: 'search_patterns',
-  executor: 'go',
+  route: 'go',
   mode: 'sync',
   parameters: {
     type: 'object',
@@ -2497,7 +2497,7 @@ export const SearchPatterns: ToolCatalogEntry = {
 export const SetBlockEnabled: ToolCatalogEntry = {
   id: 'set_block_enabled',
   name: 'set_block_enabled',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2524,7 +2524,7 @@ export const SetBlockEnabled: ToolCatalogEntry = {
 export const SetEnvironmentVariables: ToolCatalogEntry = {
   id: 'set_environment_variables',
   name: 'set_environment_variables',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2551,7 +2551,7 @@ export const SetEnvironmentVariables: ToolCatalogEntry = {
 export const SetGlobalWorkflowVariables: ToolCatalogEntry = {
   id: 'set_global_workflow_variables',
   name: 'set_global_workflow_variables',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2584,7 +2584,7 @@ export const SetGlobalWorkflowVariables: ToolCatalogEntry = {
 export const Superagent: ToolCatalogEntry = {
   id: 'superagent',
   name: 'superagent',
-  executor: 'subagent',
+  route: 'subagent',
   mode: 'async',
   parameters: {
     properties: {
@@ -2604,7 +2604,7 @@ export const Superagent: ToolCatalogEntry = {
 export const Table: ToolCatalogEntry = {
   id: 'table',
   name: 'table',
-  executor: 'subagent',
+  route: 'subagent',
   mode: 'async',
   parameters: {
     properties: { request: { description: 'What table action is needed.', type: 'string' } },
@@ -2618,7 +2618,7 @@ export const Table: ToolCatalogEntry = {
 export const ToolSearchToolRegex: ToolCatalogEntry = {
   id: 'tool_search_tool_regex',
   name: 'tool_search_tool_regex',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     properties: {
@@ -2643,7 +2643,7 @@ export const ToolSearchToolRegex: ToolCatalogEntry = {
 export const UpdateJobHistory: ToolCatalogEntry = {
   id: 'update_job_history',
   name: 'update_job_history',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2662,7 +2662,7 @@ export const UpdateJobHistory: ToolCatalogEntry = {
 export const UpdateWorkspaceMcpServer: ToolCatalogEntry = {
   id: 'update_workspace_mcp_server',
   name: 'update_workspace_mcp_server',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2681,7 +2681,7 @@ export const UpdateWorkspaceMcpServer: ToolCatalogEntry = {
 export const UserMemory: ToolCatalogEntry = {
   id: 'user_memory',
   name: 'user_memory',
-  executor: 'go',
+  route: 'go',
   mode: 'sync',
   parameters: {
     type: 'object',
@@ -2724,7 +2724,7 @@ export const UserMemory: ToolCatalogEntry = {
 export const UserTable: ToolCatalogEntry = {
   id: 'user_table',
   name: 'user_table',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
@@ -2885,7 +2885,7 @@ export const UserTable: ToolCatalogEntry = {
 export const Workflow: ToolCatalogEntry = {
   id: 'workflow',
   name: 'workflow',
-  executor: 'subagent',
+  route: 'subagent',
   mode: 'async',
   parameters: { type: 'object' },
   subagentId: 'workflow',
@@ -2895,7 +2895,7 @@ export const Workflow: ToolCatalogEntry = {
 export const WorkspaceFile: ToolCatalogEntry = {
   id: 'workspace_file',
   name: 'workspace_file',
-  executor: 'sim',
+  route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',

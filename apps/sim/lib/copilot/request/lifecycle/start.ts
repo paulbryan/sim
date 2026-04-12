@@ -33,6 +33,10 @@ export { SSE_RESPONSE_HEADERS }
 
 const logger = createLogger('CopilotChatStreaming')
 
+type CurrentChatSummary = {
+  title?: string | null
+} | null
+
 export interface StreamingOrchestrationParams {
   requestPayload: Record<string, unknown>
   userId: string
@@ -40,7 +44,7 @@ export interface StreamingOrchestrationParams {
   executionId: string
   runId: string
   chatId?: string
-  currentChat: any
+  currentChat: CurrentChatSummary
   isNewChat: boolean
   message: string
   titleModel: string
@@ -238,7 +242,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 
 function fireTitleGeneration(params: {
   chatId?: string
-  currentChat: any
+  currentChat: CurrentChatSummary
   isNewChat: boolean
   message: string
   titleModel: string

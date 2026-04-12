@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
-import type { MothershipStreamV1EventEnvelope } from '@/lib/copilot/generated/mothership-stream-v1'
 import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
+import {
+  type PersistedStreamEventEnvelope,
+  parsePersistedStreamEventEnvelopeJson,
+} from './contract'
 
 const logger = createLogger('SessionBuffer')
 
@@ -129,8 +132,8 @@ export async function scheduleBufferCleanup(
 }
 
 export async function appendEvents(
-  envelopes: MothershipStreamV1EventEnvelope[]
-): Promise<MothershipStreamV1EventEnvelope[]> {
+  envelopes: PersistedStreamEventEnvelope[]
+): Promise<PersistedStreamEventEnvelope[]> {
   if (envelopes.length === 0) {
     return envelopes
   }
@@ -156,8 +159,8 @@ export async function appendEvents(
 }
 
 export async function appendEvent(
-  envelope: MothershipStreamV1EventEnvelope
-): Promise<MothershipStreamV1EventEnvelope> {
+  envelope: PersistedStreamEventEnvelope
+): Promise<PersistedStreamEventEnvelope> {
   await appendEvents([envelope])
   return envelope
 }
@@ -175,7 +178,7 @@ export class InvalidCursorError extends Error {
 export async function readEvents(
   streamId: string,
   afterCursor: string
-): Promise<MothershipStreamV1EventEnvelope[]> {
+): Promise<PersistedStreamEventEnvelope[]> {
   const afterSeq = Number(afterCursor || '0')
   if (!Number.isFinite(afterSeq)) {
     throw new InvalidCursorError(streamId, afterCursor)
@@ -186,21 +189,19 @@ export async function readEvents(
     return redis.zrangebyscore(getEventsKey(streamId), minScore, '+inf')
   })
 
-  const envelopes: MothershipStreamV1EventEnvelope[] = []
+  const envelopes: PersistedStreamEventEnvelope[] = []
   for (const entry of rawEntries) {
-    try {
-      const parsed = JSON.parse(entry) as MothershipStreamV1EventEnvelope
-      if (!parsed?.stream?.streamId || typeof parsed.seq !== 'number') {
-        logger.warn('Skipping corrupt outbox entry: missing required fields', { streamId })
-        continue
-      }
-      envelopes.push(parsed)
-    } catch (error) {
-      logger.warn('Skipping corrupt outbox entry: JSON parse failed', {
+    const parsed = parsePersistedStreamEventEnvelopeJson(entry)
+    if (!parsed.ok) {
+      logger.warn('Skipping corrupt outbox entry', {
         streamId,
-        error: error instanceof Error ? error.message : String(error),
+        reason: parsed.reason,
+        message: parsed.message,
+        errors: parsed.errors,
       })
+      continue
     }
+    envelopes.push(parsed.event)
   }
   return envelopes
 }

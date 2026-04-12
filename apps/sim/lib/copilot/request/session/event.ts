@@ -1,33 +1,44 @@
-import { createLogger } from '@sim/logger'
-import type {
-  MothershipStreamV1EventEnvelope,
-  MothershipStreamV1EventType as MothershipStreamV1EventTypeUnion,
-  MothershipStreamV1StreamScope,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
-import type { StreamEvent } from './types'
+import {
+  type PersistedStreamEventEnvelope,
+  parsePersistedStreamEventEnvelope,
+  type SessionStreamEvent,
+} from './contract'
 
-const logger = createLogger('SessionEvent')
+type CreateEventBase = {
+  chatId?: string
+  cursor: string
+  requestId: string
+  seq: number
+  streamId: string
+  ts?: string
+}
 
-type JsonRecord = Record<string, unknown>
+type CreateEventVariant<TEvent extends SessionStreamEvent> = CreateEventBase &
+  Pick<TEvent, 'type' | 'payload' | 'scope'>
 
-const VALID_EVENT_TYPES = new Set<string>(Object.values(MothershipStreamV1EventType))
+export type CreateEventInput = SessionStreamEvent extends infer TEvent
+  ? TEvent extends SessionStreamEvent
+    ? CreateEventVariant<TEvent>
+    : never
+  : never
+
+type CreateEventResult<TInput extends CreateEventInput> = Extract<
+  PersistedStreamEventEnvelope,
+  { type: TInput['type']; payload: TInput['payload'] }
+>
+
+type StreamEventFromEnvelope<TEnvelope extends PersistedStreamEventEnvelope> = Extract<
+  SessionStreamEvent,
+  { type: TEnvelope['type']; payload: TEnvelope['payload'] }
+>
 
 export const TOOL_CALL_STATUS = {
   generating: 'generating',
 } as const
 
-export function createEvent(input: {
-  streamId: string
-  chatId?: string
-  cursor: string
-  seq: number
-  requestId: string
-  type: MothershipStreamV1EventTypeUnion
-  payload: JsonRecord
-  scope?: MothershipStreamV1StreamScope
-  ts?: string
-}): MothershipStreamV1EventEnvelope {
+export function createEvent<TInput extends CreateEventInput>(
+  input: TInput
+): CreateEventResult<TInput> {
   const { streamId, chatId, cursor, seq, requestId, type, payload, scope, ts } = input
 
   return {
@@ -45,41 +56,19 @@ export function createEvent(input: {
     },
     ...(scope ? { scope } : {}),
     payload,
-  }
+  } as CreateEventResult<TInput>
 }
 
-export function isEventRecord(value: unknown): value is MothershipStreamV1EventEnvelope {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
-
-  const record = value as Record<string, unknown>
-  return (
-    record.v === 1 &&
-    typeof record.type === 'string' &&
-    VALID_EVENT_TYPES.has(record.type) &&
-    typeof record.seq === 'number' &&
-    typeof record.ts === 'string' &&
-    !!record.stream &&
-    typeof record.stream === 'object' &&
-    typeof (record.stream as Record<string, unknown>).streamId === 'string' &&
-    !!record.payload &&
-    typeof record.payload === 'object'
-  )
+export function isEventRecord(value: unknown): value is PersistedStreamEventEnvelope {
+  return parsePersistedStreamEventEnvelope(value).ok
 }
 
-export function eventToStreamEvent(envelope: MothershipStreamV1EventEnvelope): StreamEvent {
+export function eventToStreamEvent<TEnvelope extends PersistedStreamEventEnvelope>(
+  envelope: TEnvelope
+): StreamEventFromEnvelope<TEnvelope> {
   return {
     type: envelope.type,
-    payload: asJsonRecord(envelope.payload),
+    payload: envelope.payload,
     ...(envelope.scope ? { scope: envelope.scope } : {}),
-  }
-}
-
-function asJsonRecord(value: unknown): JsonRecord {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as JsonRecord
-  }
-  logger.warn('Envelope payload is not a valid JSON record, defaulting to empty object')
-  return {}
+  } as StreamEventFromEnvelope<TEnvelope>
 }

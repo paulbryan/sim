@@ -78,6 +78,7 @@ export async function orchestrateSubagentStream(
       execContext,
       {
         ...options,
+        interactive: false,
         onBeforeDispatch: (event: StreamEvent, ctx: StreamingContext) => {
           if (
             event.type === MothershipStreamV1EventType.span &&

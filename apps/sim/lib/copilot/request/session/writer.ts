@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
-import type { MothershipStreamV1EventEnvelope } from '@/lib/copilot/generated/mothership-stream-v1'
 import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
 import { appendEvents } from './buffer'
+import type { PersistedStreamEventEnvelope } from './contract'
 import { createEvent } from './event'
 import { encodeSSEComment, encodeSSEEnvelope } from './sse'
 import type { StreamEvent } from './types'
@@ -33,7 +33,7 @@ export class StreamWriter {
   private _clientDisconnected = false
   private _sawComplete = false
   private nextSeq = 0
-  private pendingEnvelopes: MothershipStreamV1EventEnvelope[] = []
+  private pendingEnvelopes: PersistedStreamEventEnvelope[] = []
   private persistenceTail: Promise<void> = Promise.resolve()
   private lastPersistenceError: Error | null = null
 
@@ -122,7 +122,7 @@ export class StreamWriter {
     this.controller = null
   }
 
-  private enqueue(envelope: MothershipStreamV1EventEnvelope): void {
+  private enqueue(envelope: PersistedStreamEventEnvelope): void {
     if (this._clientDisconnected || !this.controller) return
     try {
       this.controller.enqueue(encodeSSEEnvelope(envelope))
@@ -137,21 +137,19 @@ export class StreamWriter {
     }
   }
 
-  private createEnvelope(event: StreamEvent): MothershipStreamV1EventEnvelope {
+  private createEnvelope(event: StreamEvent): PersistedStreamEventEnvelope {
     const seq = ++this.nextSeq
     return createEvent({
+      ...event,
       streamId: this.streamId,
       chatId: this.chatId,
       cursor: String(seq),
       seq,
       requestId: this.requestId,
-      type: event.type,
-      payload: event.payload,
-      scope: event.scope,
     })
   }
 
-  private queuePersistence(envelope: MothershipStreamV1EventEnvelope): void {
+  private queuePersistence(envelope: PersistedStreamEventEnvelope): void {
     this.pendingEnvelopes.push(envelope)
     if (this.pendingEnvelopes.length >= this.flushMaxBatch) {
       this.flushPendingPersistence()

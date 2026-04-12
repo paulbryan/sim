@@ -39,7 +39,7 @@ describe('copilot orchestrator persistence', () => {
   let row: {
     status: string
     error?: string | null
-    result?: Record<string, unknown> | null
+    result?: unknown
     updatedAt: Date
   } | null
 
@@ -66,7 +66,34 @@ describe('copilot orchestrator persistence', () => {
     })
   })
 
-  it('waits through intermediate events until the durable row becomes terminal', async () => {
+  it('preserves primitive durable results in confirmations', async () => {
+    row = {
+      status: 'completed',
+      result: 'done',
+      error: null,
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    }
+
+    await expect(getToolConfirmation('tool-1')).resolves.toEqual({
+      status: 'success',
+      message: undefined,
+      data: 'done',
+      timestamp: '2026-01-01T00:00:00.000Z',
+    })
+  })
+
+  it('ignores delivered rows in request confirmation flow', async () => {
+    row = {
+      status: 'delivered',
+      result: { ok: true },
+      error: null,
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    }
+
+    await expect(getToolConfirmation('tool-1')).resolves.toBeNull()
+  })
+
+  it('ignores background when waiting for a foreground terminal status', async () => {
     row = {
       status: 'pending',
       error: null,
@@ -81,7 +108,8 @@ describe('copilot orchestrator persistence', () => {
 
     publishToolConfirmation({
       toolCallId: 'tool-1',
-      status: 'accepted',
+      status: 'background',
+      message: 'Client disconnected, execution continuing server-side',
       timestamp: '2026-01-01T00:00:01.000Z',
     })
 
@@ -105,6 +133,34 @@ describe('copilot orchestrator persistence', () => {
       message: undefined,
       data: { ok: true },
       timestamp: '2026-01-01T00:00:02.000Z',
+    })
+  })
+
+  it('resolves background from the pubsub event when the durable row stays pending', async () => {
+    row = {
+      status: 'pending',
+      error: null,
+      result: null,
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    }
+
+    const waitPromise = waitForToolConfirmation('tool-1', 5_000, undefined, {
+      acceptStatus: (status) => status === 'background',
+    })
+
+    await Promise.resolve()
+
+    publishToolConfirmation({
+      toolCallId: 'tool-1',
+      status: 'background',
+      message: 'Client disconnected, execution continuing server-side',
+      timestamp: '2026-01-01T00:00:01.000Z',
+    })
+
+    await expect(waitPromise).resolves.toEqual({
+      status: 'background',
+      message: 'Client disconnected, execution continuing server-side',
+      timestamp: '2026-01-01T00:00:01.000Z',
     })
   })
 })

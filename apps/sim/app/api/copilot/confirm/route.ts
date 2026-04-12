@@ -1,7 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { ASYNC_TOOL_STATUS } from '@/lib/copilot/async-runs/lifecycle'
+import {
+  ASYNC_TOOL_CONFIRMATION_STATUS,
+  ASYNC_TOOL_STATUS,
+  type AsyncCompletionData,
+  type AsyncConfirmationStatus,
+} from '@/lib/copilot/async-runs/lifecycle'
 import {
   completeAsyncToolCall,
   getAsyncToolCall,
@@ -16,7 +21,6 @@ import {
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-  type NotificationStatus,
 } from '@/lib/copilot/request/http'
 
 const logger = createLogger('CopilotConfirmAPI')
@@ -24,29 +28,48 @@ const logger = createLogger('CopilotConfirmAPI')
 // Schema for confirmation request
 const ConfirmationSchema = z.object({
   toolCallId: z.string().min(1, 'Tool call ID is required'),
-  status: z.enum(['success', 'error', 'accepted', 'rejected', 'background', 'cancelled'] as const, {
-    errorMap: () => ({ message: 'Invalid notification status' }),
-  }),
+  status: z.enum(
+    Object.values(ASYNC_TOOL_CONFIRMATION_STATUS) as [
+      AsyncConfirmationStatus,
+      ...AsyncConfirmationStatus[],
+    ],
+    {
+      errorMap: () => ({ message: 'Invalid notification status' }),
+    }
+  ),
   message: z.string().optional(),
-  data: z.record(z.unknown()).optional(),
+  data: z.unknown().optional(),
 })
 
 /**
- * Persist the durable tool status, then publish a wakeup event.
+ * Persist terminal durable tool status, then publish a wakeup event.
+ *
+ * `background` remains a live detach signal in the current browser workflow
+ * runtime, so it should not rewrite the durable async row.
  */
 async function updateToolCallStatus(
   existing: NonNullable<Awaited<ReturnType<typeof getAsyncToolCall>>>,
-  status: NotificationStatus,
+  status: AsyncConfirmationStatus,
   message?: string,
-  data?: Record<string, unknown>
+  data?: AsyncCompletionData
 ): Promise<boolean> {
   const toolCallId = existing.toolCallId
+  if (status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
+    publishToolConfirmation({
+      toolCallId,
+      status,
+      message: message || undefined,
+      timestamp: new Date().toISOString(),
+      data,
+    })
+    return true
+  }
   const durableStatus =
     status === 'success'
       ? ASYNC_TOOL_STATUS.completed
       : status === 'cancelled'
         ? ASYNC_TOOL_STATUS.cancelled
-        : status === 'error' || status === 'rejected'
+        : status === 'error'
           ? ASYNC_TOOL_STATUS.failed
           : ASYNC_TOOL_STATUS.pending
   try {
@@ -71,12 +94,11 @@ async function updateToolCallStatus(
         status: durableStatus,
       })
     }
-    const timestamp = new Date().toISOString()
     publishToolConfirmation({
       toolCallId,
       status,
       message: message || undefined,
-      timestamp,
+      timestamp: new Date().toISOString(),
       data,
     })
     return true
@@ -92,7 +114,7 @@ async function updateToolCallStatus(
 
 /**
  * POST /api/copilot/confirm
- * Update tool call status (Accept/Reject)
+ * Accept client tool completion or detach confirmations.
  */
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()

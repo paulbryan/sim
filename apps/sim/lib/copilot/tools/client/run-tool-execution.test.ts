@@ -4,8 +4,20 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { executeWorkflowWithFullLogging } = vi.hoisted(() => ({
+const {
+  clearExecutionPointer,
+  executeWorkflowWithFullLogging,
+  getWorkflowEntries,
+  loadExecutionPointer,
+  saveExecutionPointer,
+  setActiveWorkflow,
+} = vi.hoisted(() => ({
+  clearExecutionPointer: vi.fn(),
   executeWorkflowWithFullLogging: vi.fn(),
+  getWorkflowEntries: vi.fn(() => []),
+  loadExecutionPointer: vi.fn(),
+  saveExecutionPointer: vi.fn(),
+  setActiveWorkflow: vi.fn(),
 }))
 
 const setIsExecuting = vi.fn()
@@ -30,7 +42,7 @@ vi.mock('@/stores/workflows/registry/store', () => ({
   useWorkflowRegistry: {
     getState: () => ({
       activeWorkflowId: 'wf-1',
-      setActiveWorkflow: vi.fn(),
+      setActiveWorkflow,
     }),
   },
 }))
@@ -41,11 +53,18 @@ vi.mock('@/stores/terminal', () => ({
     executionEnded: vi.fn(),
     persist: vi.fn(),
   },
-  saveExecutionPointer: vi.fn(),
-  clearExecutionPointer: vi.fn(),
+  clearExecutionPointer,
+  loadExecutionPointer,
+  saveExecutionPointer,
+  useTerminalConsoleStore: {
+    getState: () => ({
+      getWorkflowEntries,
+    }),
+  },
 }))
 
 import {
+  bindRunToolToExecution,
   cancelRunToolExecution,
   executeRunToolOnClient,
   reportManualRunToolStop,
@@ -54,6 +73,8 @@ import {
 describe('run tool execution cancellation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getWorkflowEntries.mockReturnValue([])
+    loadExecutionPointer.mockResolvedValue(null)
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
   })
 
@@ -121,5 +142,25 @@ describe('run tool execution cancellation', () => {
         useDraftState: false,
       })
     )
+  })
+
+  it('binds a recovered execution without starting a new workflow run', async () => {
+    loadExecutionPointer.mockResolvedValueOnce({
+      workflowId: 'wf-1',
+      executionId: 'exec-existing',
+      lastEventId: 7,
+    })
+
+    await expect(bindRunToolToExecution('tool-3', 'wf-1')).resolves.toBe(true)
+
+    expect(setActiveWorkflow).toHaveBeenCalledWith('wf-1')
+    expect(setIsExecuting).toHaveBeenCalledWith('wf-1', true)
+    expect(setCurrentExecutionId).toHaveBeenCalledWith('wf-1', 'exec-existing')
+    expect(saveExecutionPointer).toHaveBeenCalledWith({
+      workflowId: 'wf-1',
+      executionId: 'exec-existing',
+      lastEventId: 7,
+    })
+    expect(executeWorkflowWithFullLogging).not.toHaveBeenCalled()
   })
 })

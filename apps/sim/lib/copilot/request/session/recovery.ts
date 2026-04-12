@@ -47,8 +47,10 @@ export async function checkForReplayGap(
       payload: {
         message: 'Replay history is no longer available. Some events may have been lost.',
         code: 'replay_gap',
-        oldestAvailableSeq: oldestSeq,
-        requestedAfterSeq,
+        data: {
+          oldestAvailableSeq: oldestSeq,
+          requestedAfterSeq,
+        },
       },
     })
 

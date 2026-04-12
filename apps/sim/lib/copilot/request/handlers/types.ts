@@ -1,13 +1,21 @@
 import { createLogger } from '@sim/logger'
+import type {
+  AsyncCompletionSignal,
+  AsyncTerminalCompletionSnapshot,
+} from '@/lib/copilot/async-runs/lifecycle'
+import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
 import {
   MothershipStreamV1EventType,
   type MothershipStreamV1StreamScope,
+  type MothershipStreamV1ToolCallDescriptor,
   MothershipStreamV1ToolExecutor,
   MothershipStreamV1ToolMode,
   MothershipStreamV1ToolOutcome,
   MothershipStreamV1ToolPhase,
+  type MothershipStreamV1ToolResultPayload,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { asRecord, getEventData, markToolResultSeen } from '@/lib/copilot/request/sse-utils'
+import { asRecord, markToolResultSeen } from '@/lib/copilot/request/sse-utils'
+import { setTerminalToolCallState } from '@/lib/copilot/request/tool-call-state'
 import type {
   ContentBlock,
   ExecutionContext,
@@ -27,6 +35,10 @@ export type StreamHandler = (
 export type ToolScope = 'main' | MothershipStreamV1StreamScope['lane']
 
 const logger = createLogger('CopilotHandlerHelpers')
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
 
 export function addContentBlock(
   context: StreamingContext,
@@ -67,7 +79,7 @@ export function getScopedParentToolCallId(
 export function registerPendingToolPromise(
   context: StreamingContext,
   toolCallId: string,
-  pendingPromise: Promise<{ status: string; message?: string; data?: Record<string, unknown> }>
+  pendingPromise: Promise<AsyncCompletionSignal>
 ): void {
   context.pendingToolPromises.set(toolCallId, pendingPromise)
   pendingPromise.finally(() => {
@@ -108,23 +120,22 @@ export function abortPendingToolIfStreamDead(
 }
 
 /**
- * Extract the `ui` object from a Go SSE event. The Go backend enriches
+ * Extract the `ui` object from a typed tool_call payload. The Go backend enriches
  * tool_call events with `ui: { requiresConfirmation, clientExecutable, ... }`.
  */
-export function getEventUI(event: StreamEvent): {
+export function getToolCallUI(data: MothershipStreamV1ToolCallDescriptor): {
   requiresConfirmation: boolean
   clientExecutable: boolean
   simExecutable: boolean
   internal: boolean
   hidden: boolean
 } {
-  const data = getEventData(event)
-  const raw = asRecord(data?.ui)
+  const raw = asRecord(data.ui)
   return {
-    requiresConfirmation: raw.requiresConfirmation === true || data?.requiresConfirmation === true,
+    requiresConfirmation: raw.requiresConfirmation === true || data.requiresConfirmation === true,
     clientExecutable:
-      raw.clientExecutable === true || data?.executor === MothershipStreamV1ToolExecutor.client,
-    simExecutable: data?.executor === MothershipStreamV1ToolExecutor.sim,
+      raw.clientExecutable === true || data.executor === MothershipStreamV1ToolExecutor.client,
+    simExecutable: data.executor === MothershipStreamV1ToolExecutor.sim,
     internal: raw.internal === true,
     hidden: raw.hidden === true,
   }
@@ -137,47 +148,31 @@ export function getEventUI(event: StreamEvent): {
 export function handleClientCompletion(
   toolCall: ToolCallState,
   toolCallId: string,
-  completion: { status: string; message?: string; data?: Record<string, unknown> } | null
+  completion: AsyncTerminalCompletionSnapshot | null
 ): void {
-  if (completion?.status === 'background') {
-    toolCall.status = MothershipStreamV1ToolOutcome.skipped
-    toolCall.result = completion?.data ? { success: true, output: completion.data } : undefined
-    toolCall.endTime = Date.now()
-    markToolResultSeen(toolCallId)
-    return
-  }
-  if (completion?.status === MothershipStreamV1ToolOutcome.rejected) {
-    toolCall.status = MothershipStreamV1ToolOutcome.rejected
-    toolCall.error = completion?.message || 'Tool rejected'
-    toolCall.result = {
-      success: false,
-      output: completion?.data ?? { error: toolCall.error },
-    }
-    toolCall.endTime = Date.now()
+  if (completion?.status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
+    setTerminalToolCallState(toolCall, {
+      status: MothershipStreamV1ToolOutcome.skipped,
+      ...(completion.data !== undefined ? { output: completion.data } : {}),
+    })
     markToolResultSeen(toolCallId)
     return
   }
   if (completion?.status === MothershipStreamV1ToolOutcome.cancelled) {
-    toolCall.status = MothershipStreamV1ToolOutcome.cancelled
-    toolCall.error = completion?.message || 'Tool cancelled'
-    toolCall.result = {
-      success: false,
-      output: completion?.data ?? { error: toolCall.error },
-    }
-    toolCall.endTime = Date.now()
+    setTerminalToolCallState(toolCall, {
+      status: MothershipStreamV1ToolOutcome.cancelled,
+      ...(completion.data !== undefined ? { output: completion.data } : {}),
+      error: completion.message || 'Tool cancelled',
+    })
     markToolResultSeen(toolCallId)
     return
   }
   const success = completion?.status === MothershipStreamV1ToolOutcome.success
-  toolCall.status = success
-    ? MothershipStreamV1ToolOutcome.success
-    : MothershipStreamV1ToolOutcome.error
-  toolCall.result = {
-    success,
-    output: completion?.data ?? (success ? {} : { error: completion?.message || 'Tool failed' }),
-  }
-  toolCall.error = success ? undefined : completion?.message || 'Tool failed'
-  toolCall.endTime = Date.now()
+  setTerminalToolCallState(toolCall, {
+    status: success ? MothershipStreamV1ToolOutcome.success : MothershipStreamV1ToolOutcome.error,
+    ...(completion?.data !== undefined ? { output: completion.data } : {}),
+    ...(success ? {} : { error: completion?.message || 'Tool failed' }),
+  })
   markToolResultSeen(toolCallId)
 }
 
@@ -189,15 +184,28 @@ export function handleClientCompletion(
 export async function emitSyntheticToolResult(
   toolCallId: string,
   toolName: string,
-  completion: { status: string; message?: string; data?: Record<string, unknown> } | null,
+  completion: AsyncTerminalCompletionSnapshot | null,
   options: OrchestratorOptions
 ): Promise<void> {
-  const success = completion?.status === MothershipStreamV1ToolOutcome.success
+  const isBackground = completion?.status === ASYNC_TOOL_CONFIRMATION_STATUS.background
+  const success = isBackground || completion?.status === MothershipStreamV1ToolOutcome.success
   const isCancelled = completion?.status === MothershipStreamV1ToolOutcome.cancelled
+  const completionData = completion?.data
+  const syntheticStatus = isBackground
+    ? MothershipStreamV1ToolOutcome.skipped
+    : completion?.status === MothershipStreamV1ToolOutcome.success ||
+        completion?.status === MothershipStreamV1ToolOutcome.error ||
+        completion?.status === MothershipStreamV1ToolOutcome.cancelled
+      ? completion.status
+      : undefined
 
   const resultPayload = isCancelled
-    ? { ...completion?.data, reason: 'user_cancelled', cancelledByUser: true }
-    : completion?.data
+    ? isRecord(completionData)
+      ? { ...completionData, reason: 'user_cancelled', cancelledByUser: true }
+      : completionData !== undefined
+        ? { output: completionData, reason: 'user_cancelled', cancelledByUser: true }
+        : { reason: 'user_cancelled', cancelledByUser: true }
+    : completionData
 
   try {
     await options.onEvent?.({
@@ -210,7 +218,7 @@ export async function emitSyntheticToolResult(
         phase: MothershipStreamV1ToolPhase.result,
         success,
         output: resultPayload,
-        ...(completion?.status ? { status: completion.status } : {}),
+        ...(syntheticStatus ? { status: syntheticStatus } : {}),
         ...(!success && completion?.message ? { error: completion.message } : {}),
       },
     })
@@ -223,17 +231,21 @@ export async function emitSyntheticToolResult(
   }
 }
 
-export function inferToolSuccess(data: Record<string, unknown> | undefined): {
+export function getToolResultErrorMessage(
+  data: MothershipStreamV1ToolResultPayload | undefined
+): string | undefined {
+  return data?.error
+}
+
+export function inferToolSuccess(data: MothershipStreamV1ToolResultPayload | undefined): {
   success: boolean
   hasResultData: boolean
   hasError: boolean
 } {
-  const outputObj = asRecord(data?.output)
-  const hasExplicitSuccess = data?.success !== undefined
-  const explicitSuccess = data?.success
+  const errorMessage = getToolResultErrorMessage(data)
   const hasResultData = data?.output !== undefined
-  const hasError = !!data?.error || !!outputObj.error
-  const success = hasExplicitSuccess ? !!explicitSuccess : !hasError
+  const hasError = Boolean(errorMessage)
+  const success = data?.success === true
   return { success, hasResultData, hasError }
 }
 

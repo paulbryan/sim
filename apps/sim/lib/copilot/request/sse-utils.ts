@@ -1,12 +1,12 @@
 import { STREAM_BUFFER_MAX_DEDUP_ENTRIES } from '@/lib/copilot/constants'
 import {
-  MothershipStreamV1EventType,
-  MothershipStreamV1ToolPhase,
-} from '@/lib/copilot/generated/mothership-stream-v1'
+  isToolCallStreamEvent,
+  isToolResultStreamEvent,
+  type ToolCallStreamEvent,
+  type ToolResultStreamEvent,
+} from '@/lib/copilot/request/session'
 import { TOOL_CALL_STATUS } from '@/lib/copilot/request/session/event'
 import type { StreamEvent } from '@/lib/copilot/request/types'
-
-type EventDataObject = Record<string, unknown> | undefined
 
 /** Safely cast event.data to a record for property access. */
 export const asRecord = (data: unknown): Record<string, unknown> =>
@@ -29,16 +29,12 @@ function addToSet(set: Set<string>, id: string): void {
   set.add(id)
 }
 
-export const getEventData = (event: StreamEvent): EventDataObject => {
-  if (!event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) {
-    return undefined
-  }
-  return event.payload
+function getToolCallIdFromCallEvent(event: ToolCallStreamEvent): string {
+  return event.payload.toolCallId
 }
 
-function getToolCallIdFromEvent(event: StreamEvent): string | undefined {
-  const data = getEventData(event)
-  return (data?.toolCallId as string | undefined) || (data?.id as string | undefined)
+function getToolCallIdFromResultEvent(event: ToolResultStreamEvent): string {
+  return event.payload.toolCallId
 }
 
 function markToolCallSeen(toolCallId: string): void {
@@ -58,23 +54,15 @@ export function wasToolResultSeen(toolCallId: string): boolean {
 }
 
 export function shouldSkipToolCallEvent(event: StreamEvent): boolean {
-  if (event.type !== MothershipStreamV1EventType.tool) return false
-  const eventData = getEventData(event)
-  if (eventData?.phase !== MothershipStreamV1ToolPhase.call) return false
-  if (eventData?.status === TOOL_CALL_STATUS.generating) return false
-  const toolCallId = getToolCallIdFromEvent(event)
-  if (!toolCallId) return false
-  if (eventData?.partial === true) return false
+  if (!isToolCallStreamEvent(event)) return false
+  if (event.payload.status === TOOL_CALL_STATUS.generating) return false
+  const toolCallId = getToolCallIdFromCallEvent(event)
+  if (event.payload.partial === true) return false
   if (wasToolResultSeen(toolCallId) || wasToolCallSeen(toolCallId)) return true
   markToolCallSeen(toolCallId)
   return false
 }
 
 export function shouldSkipToolResultEvent(event: StreamEvent): boolean {
-  if (event.type !== MothershipStreamV1EventType.tool) return false
-  const eventData = getEventData(event)
-  if (eventData?.phase !== MothershipStreamV1ToolPhase.result) return false
-  const toolCallId = getToolCallIdFromEvent(event)
-  if (!toolCallId) return false
-  return wasToolResultSeen(toolCallId)
+  return isToolResultStreamEvent(event) && wasToolResultSeen(getToolCallIdFromResultEvent(event))
 }

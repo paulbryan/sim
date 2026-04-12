@@ -1,4 +1,8 @@
 import { createLogger } from '@sim/logger'
+import type {
+  AsyncCompletionEnvelope,
+  AsyncCompletionSignal,
+} from '@/lib/copilot/async-runs/lifecycle'
 import {
   completeAsyncToolCall,
   markAsyncToolRunning,
@@ -14,7 +18,13 @@ import {
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { CreateWorkflow } from '@/lib/copilot/generated/tool-catalog-v1'
 import { publishToolConfirmation } from '@/lib/copilot/persistence/tool-confirm'
-import { asRecord, markToolResultSeen } from '@/lib/copilot/request/sse-utils'
+import { markToolResultSeen } from '@/lib/copilot/request/sse-utils'
+import {
+  getToolCallStateOutput,
+  getToolCallTerminalData,
+  requireToolCallError,
+  setTerminalToolCallState,
+} from '@/lib/copilot/request/tool-call-state'
 import { maybeWriteOutputToFile } from '@/lib/copilot/request/tools/files'
 import { handleResourceSideEffects } from '@/lib/copilot/request/tools/resources'
 import {
@@ -27,6 +37,7 @@ import {
   type OrchestratorOptions,
   type StreamEvent,
   type StreamingContext,
+  type ToolCallState,
 } from '@/lib/copilot/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
 
@@ -34,17 +45,52 @@ export { waitForToolCompletion } from '@/lib/copilot/request/tools/client'
 
 const logger = createLogger('CopilotSseToolExecution')
 
-export interface AsyncToolCompletion {
-  status: string
-  message?: string
-  data?: Record<string, unknown>
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
+
+function hasOutputValue(result: { output?: unknown } | undefined): result is { output: unknown } {
+  return Boolean(result) && Object.hasOwn(result, 'output')
+}
+
+function buildCompletionSignal(input: {
+  status: AsyncCompletionSignal['status']
+  message?: string
+  data?: unknown
+}): AsyncCompletionSignal {
+  return {
+    status: input.status,
+    ...(input.message !== undefined ? { message: input.message } : {}),
+    ...(input.data !== undefined ? { data: input.data } : {}),
+  }
+}
+
+function getCreateWorkflowOutput(
+  output: unknown
+): { workflowId?: string; workspaceId?: string } | undefined {
+  if (!isRecord(output)) {
+    return undefined
+  }
+
+  const workflowId = typeof output.workflowId === 'string' ? output.workflowId : undefined
+  const workspaceId = typeof output.workspaceId === 'string' ? output.workspaceId : undefined
+  if (!workflowId && !workspaceId) {
+    return undefined
+  }
+
+  return {
+    ...(workflowId ? { workflowId } : {}),
+    ...(workspaceId ? { workspaceId } : {}),
+  }
+}
+
+export interface AsyncToolCompletion extends AsyncCompletionSignal {}
 
 function publishTerminalToolConfirmation(input: {
   toolCallId: string
-  status: string
+  status: AsyncCompletionEnvelope['status']
   message?: string
-  data?: Record<string, unknown>
+  data?: unknown
 }): void {
   publishToolConfirmation({
     toolCallId: input.toolCallId,
@@ -66,56 +112,42 @@ function abortRequested(
 }
 
 function cancelledCompletion(message: string): AsyncToolCompletion {
-  return {
+  return buildCompletionSignal({
     status: MothershipStreamV1ToolOutcome.cancelled,
     message,
     data: { cancelled: true },
-  }
+  })
 }
 
-function terminalCompletionFromToolCall(toolCall: {
-  status: string
-  error?: string
-  result?: { output?: unknown; error?: string }
-}): AsyncToolCompletion {
+function terminalCompletionFromToolCall(toolCall: ToolCallState): AsyncToolCompletion {
   if (toolCall.status === MothershipStreamV1ToolOutcome.cancelled) {
-    return cancelledCompletion(toolCall.error || 'Tool execution cancelled')
+    return cancelledCompletion(requireToolCallError(toolCall))
   }
 
   if (toolCall.status === MothershipStreamV1ToolOutcome.success) {
-    return {
+    const data = getToolCallStateOutput(toolCall)
+    return buildCompletionSignal({
       status: MothershipStreamV1ToolOutcome.success,
       message: 'Tool completed',
-      data:
-        toolCall.result?.output &&
-        typeof toolCall.result.output === 'object' &&
-        !Array.isArray(toolCall.result.output)
-          ? (toolCall.result.output as Record<string, unknown>)
-          : undefined,
-    }
+      ...(data !== undefined ? { data } : {}),
+    })
   }
 
   if (toolCall.status === MothershipStreamV1ToolOutcome.skipped) {
-    return {
+    const data = getToolCallStateOutput(toolCall)
+    return buildCompletionSignal({
       status: MothershipStreamV1ToolOutcome.success,
       message: 'Tool skipped',
-      data:
-        toolCall.result?.output &&
-        typeof toolCall.result.output === 'object' &&
-        !Array.isArray(toolCall.result.output)
-          ? (toolCall.result.output as Record<string, unknown>)
-          : undefined,
-    }
+      ...(data !== undefined ? { data } : {}),
+    })
   }
 
-  return {
-    status:
-      toolCall.status === MothershipStreamV1ToolOutcome.rejected
-        ? MothershipStreamV1ToolOutcome.rejected
-        : MothershipStreamV1ToolOutcome.error,
-    message: toolCall.error || toolCall.result?.error || 'Tool failed',
-    data: { error: toolCall.error || toolCall.result?.error || 'Tool failed' },
-  }
+  const terminalErrorMessage = requireToolCallError(toolCall)
+  return buildCompletionSignal({
+    status: MothershipStreamV1ToolOutcome.error,
+    message: terminalErrorMessage,
+    data: getToolCallTerminalData(toolCall),
+  })
 }
 
 export async function executeToolAndReport(
@@ -126,21 +158,30 @@ export async function executeToolAndReport(
 ): Promise<AsyncToolCompletion> {
   const toolCall = context.toolCalls.get(toolCallId)
   if (!toolCall)
-    return { status: MothershipStreamV1ToolOutcome.error, message: 'Tool call not found' }
+    return buildCompletionSignal({
+      status: MothershipStreamV1ToolOutcome.error,
+      message: 'Tool call not found',
+    })
 
   if (toolCall.status === 'executing') {
-    return {
+    return buildCompletionSignal({
       status: MothershipStreamV1AsyncToolRecordStatus.running,
       message: 'Tool already executing',
-    }
+    })
   }
   if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
     return terminalCompletionFromToolCall(toolCall)
   }
 
+  const markToolCallCancelled = (message: string) => {
+    setTerminalToolCallState(toolCall, {
+      status: MothershipStreamV1ToolOutcome.cancelled,
+      error: message,
+    })
+  }
+
   if (abortRequested(context, execContext, options)) {
-    toolCall.status = MothershipStreamV1ToolOutcome.cancelled
-    toolCall.endTime = Date.now()
+    markToolCallCancelled('Request aborted before tool execution')
     markToolResultSeen(toolCall.id)
     await completeAsyncToolCall({
       toolCallId: toolCall.id,
@@ -164,7 +205,7 @@ export async function executeToolAndReport(
 
   toolCall.status = 'executing'
   await upsertAsyncToolCall({
-    runId: context.runId || crypto.randomUUID(),
+    runId: context.runId,
     toolCallId: toolCall.id,
     toolName: toolCall.name,
     args: toolCall.params,
@@ -238,8 +279,7 @@ export async function executeToolAndReport(
       return terminalCompletionFromToolCall(toolCall)
     }
     if (abortRequested(context, execContext, options)) {
-      toolCall.status = MothershipStreamV1ToolOutcome.cancelled
-      toolCall.endTime = Date.now()
+      markToolCallCancelled('Request aborted during tool execution')
       markToolResultSeen(toolCall.id)
       await completeAsyncToolCall({
         toolCallId: toolCall.id,
@@ -266,8 +306,7 @@ export async function executeToolAndReport(
     }
     result = await maybeWriteOutputToFile(toolCall.name, toolCall.params, result, execContext)
     if (abortRequested(context, execContext, options)) {
-      toolCall.status = MothershipStreamV1ToolOutcome.cancelled
-      toolCall.endTime = Date.now()
+      markToolCallCancelled('Request aborted during tool post-processing')
       markToolResultSeen(toolCall.id)
       await completeAsyncToolCall({
         toolCallId: toolCall.id,
@@ -291,8 +330,7 @@ export async function executeToolAndReport(
     }
     result = await maybeWriteOutputToTable(toolCall.name, toolCall.params, result, execContext)
     if (abortRequested(context, execContext, options)) {
-      toolCall.status = MothershipStreamV1ToolOutcome.cancelled
-      toolCall.endTime = Date.now()
+      markToolCallCancelled('Request aborted during tool post-processing')
       markToolResultSeen(toolCall.id)
       await completeAsyncToolCall({
         toolCallId: toolCall.id,
@@ -316,8 +354,7 @@ export async function executeToolAndReport(
     }
     result = await maybeWriteReadCsvToTable(toolCall.name, toolCall.params, result, execContext)
     if (abortRequested(context, execContext, options)) {
-      toolCall.status = MothershipStreamV1ToolOutcome.cancelled
-      toolCall.endTime = Date.now()
+      markToolCallCancelled('Request aborted during tool post-processing')
       markToolResultSeen(toolCall.id)
       await completeAsyncToolCall({
         toolCallId: toolCall.id,
@@ -339,12 +376,13 @@ export async function executeToolAndReport(
       endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_csv' })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
-    toolCall.status = result.success
-      ? MothershipStreamV1ToolOutcome.success
-      : MothershipStreamV1ToolOutcome.error
-    toolCall.result = result
-    toolCall.error = result.error
-    toolCall.endTime = Date.now()
+    setTerminalToolCallState(toolCall, {
+      status: result.success
+        ? MothershipStreamV1ToolOutcome.success
+        : MothershipStreamV1ToolOutcome.error,
+      ...(hasOutputValue(result) ? { output: result.output } : {}),
+      ...(result.success ? {} : { error: result.error || 'Tool failed' }),
+    })
 
     if (result.success) {
       const raw = result.output
@@ -370,18 +408,24 @@ export async function executeToolAndReport(
 
     // If create_workflow was successful, update the execution context with the new workflowId.
     // This ensures subsequent tools in the same stream have access to the workflowId.
-    const output = asRecord(result.output)
+    const createWorkflowOutput = getCreateWorkflowOutput(result.output)
     if (
       toolCall.name === CreateWorkflow.id &&
       result.success &&
-      output.workflowId &&
+      createWorkflowOutput?.workflowId &&
       !execContext.workflowId
     ) {
-      execContext.workflowId = output.workflowId as string
-      if (output.workspaceId) {
-        execContext.workspaceId = output.workspaceId as string
+      execContext.workflowId = createWorkflowOutput.workflowId
+      if (createWorkflowOutput.workspaceId) {
+        execContext.workspaceId = createWorkflowOutput.workspaceId
       }
     }
+
+    const terminalStatus = result.success
+      ? MothershipStreamV1ToolOutcome.success
+      : MothershipStreamV1ToolOutcome.error
+    const terminalMessage = result.success ? 'Tool completed' : requireToolCallError(toolCall)
+    const terminalData = getToolCallTerminalData(toolCall)
 
     markToolResultSeen(toolCall.id)
     await completeAsyncToolCall({
@@ -389,8 +433,8 @@ export async function executeToolAndReport(
       status: result.success
         ? MothershipStreamV1AsyncToolRecordStatus.completed
         : MothershipStreamV1AsyncToolRecordStatus.failed,
-      result: result.success ? asRecord(result.output) : { error: result.error || 'Tool failed' },
-      error: result.success ? null : result.error || 'Tool failed',
+      ...(terminalData !== undefined ? { result: terminalData } : {}),
+      error: result.success ? null : terminalMessage,
     }).catch((err) => {
       logger.warn('Failed to persist async tool completion', {
         toolCallId: toolCall.id,
@@ -399,15 +443,13 @@ export async function executeToolAndReport(
     })
     publishTerminalToolConfirmation({
       toolCallId: toolCall.id,
-      status: result.success
-        ? MothershipStreamV1ToolOutcome.success
-        : MothershipStreamV1ToolOutcome.error,
-      message: result.error || (result.success ? 'Tool completed' : 'Tool failed'),
-      data: asRecord(result.output),
+      status: terminalStatus,
+      message: terminalMessage,
+      ...(terminalData !== undefined ? { data: terminalData } : {}),
     })
 
     if (abortRequested(context, execContext, options)) {
-      toolCall.status = MothershipStreamV1ToolOutcome.cancelled
+      markToolCallCancelled('Request aborted before tool result delivery')
       endToolSpan('cancelled', { cancelReason: 'abort_before_tool_result_delivery' })
       return cancelledCompletion('Request aborted before tool result delivery')
     }
@@ -432,7 +474,7 @@ export async function executeToolAndReport(
     await options?.onEvent?.(resultEvent)
 
     if (abortRequested(context, execContext, options)) {
-      toolCall.status = MothershipStreamV1ToolOutcome.cancelled
+      markToolCallCancelled('Request aborted before resource persistence')
       endToolSpan('cancelled', { cancelReason: 'abort_before_resource_persistence' })
       return cancelledCompletion('Request aborted before resource persistence')
     }
@@ -449,20 +491,17 @@ export async function executeToolAndReport(
     }
     endToolSpan(result.success ? 'ok' : 'error', {
       resultSuccess: result.success,
-      ...(result.success ? {} : { error: result.error || 'Tool failed' }),
+      ...(result.success ? {} : { error: terminalMessage }),
     })
-    return {
-      status: result.success
-        ? MothershipStreamV1ToolOutcome.success
-        : MothershipStreamV1ToolOutcome.error,
-      message: result.error || (result.success ? 'Tool completed' : 'Tool failed'),
-      data: asRecord(result.output),
-    }
+    return buildCompletionSignal({
+      status: terminalStatus,
+      message: terminalMessage,
+      ...(terminalData !== undefined ? { data: terminalData } : {}),
+    })
   } catch (error) {
     const thrownMessage = error instanceof Error ? error.message : String(error)
     if (abortRequested(context, execContext, options)) {
-      toolCall.status = MothershipStreamV1ToolOutcome.cancelled
-      toolCall.endTime = Date.now()
+      markToolCallCancelled('Request aborted during tool execution')
       markToolResultSeen(toolCall.id)
       await completeAsyncToolCall({
         toolCallId: toolCall.id,
@@ -487,9 +526,10 @@ export async function executeToolAndReport(
       })
       return cancelledCompletion('Request aborted during tool execution')
     }
-    toolCall.status = MothershipStreamV1ToolOutcome.error
-    toolCall.error = thrownMessage
-    toolCall.endTime = Date.now()
+    setTerminalToolCallState(toolCall, {
+      status: MothershipStreamV1ToolOutcome.error,
+      error: thrownMessage,
+    })
 
     logger.error('Tool execution threw', {
       toolCallId: toolCall.id,
@@ -526,16 +566,17 @@ export async function executeToolAndReport(
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
         status: MothershipStreamV1ToolOutcome.error,
+        success: false,
         error: toolCall.error,
         output: { error: toolCall.error },
       },
     }
     await options?.onEvent?.(errorEvent)
     endToolSpan('error', { error: thrownMessage })
-    return {
+    return buildCompletionSignal({
       status: MothershipStreamV1ToolOutcome.error,
       message: toolCall.error,
       data: { error: toolCall.error },
-    }
+    })
   }
 }

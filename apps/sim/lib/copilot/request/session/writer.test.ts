@@ -7,6 +7,7 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import type { StreamEvent } from '@/lib/copilot/request/session'
 
 const { appendEvents } = vi.hoisted(() => ({
   appendEvents: vi.fn(),
@@ -145,5 +146,44 @@ describe('StreamWriter', () => {
     })
 
     await expect(writer.flush()).rejects.toThrow('redis down')
+  })
+
+  it('persists synthetic preview events alongside contract events', async () => {
+    appendEvents.mockResolvedValue([])
+
+    const writer = new StreamWriter({
+      streamId: 'stream-1',
+      requestId: 'req-1',
+    })
+
+    const chunks: string[] = []
+    writer.attach({
+      enqueue: vi.fn((value: Uint8Array) => {
+        chunks.push(decodeChunk(value))
+      }),
+      close: vi.fn(),
+    } as unknown as ReadableStreamDefaultController)
+
+    await writer.publish({
+      type: MothershipStreamV1EventType.tool,
+      payload: {
+        toolCallId: 'preview-1',
+        toolName: 'workspace_file',
+        previewPhase: 'file_preview_start',
+      },
+    } satisfies StreamEvent)
+
+    await writer.flush()
+
+    expect(chunks[0]).toContain('"previewPhase":"file_preview_start"')
+    expect(appendEvents).toHaveBeenCalledWith([
+      expect.objectContaining({
+        type: MothershipStreamV1EventType.tool,
+        payload: expect.objectContaining({
+          toolCallId: 'preview-1',
+          previewPhase: 'file_preview_start',
+        }),
+      }),
+    ])
   })
 })

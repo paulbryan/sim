@@ -3,6 +3,7 @@ import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-
 import type { StreamEvent, StreamingContext } from '@/lib/copilot/request/types'
 import { handleCompleteEvent } from './complete'
 import { handleErrorEvent } from './error'
+import { handleResourceEvent } from './resource'
 import { handleRunEvent } from './run'
 import { handleSessionEvent } from './session'
 import { handleSpanEvent } from './span'
@@ -18,6 +19,7 @@ export const sseHandlers: Record<string, StreamHandler> = {
   [MothershipStreamV1EventType.session]: handleSessionEvent,
   [MothershipStreamV1EventType.tool]: (e, c, ec, o) => handleToolEvent(e, c, ec, o, 'main'),
   [MothershipStreamV1EventType.text]: handleTextEvent('main'),
+  [MothershipStreamV1EventType.resource]: handleResourceEvent,
   [MothershipStreamV1EventType.run]: handleRunEvent,
   [MothershipStreamV1EventType.complete]: handleCompleteEvent,
   [MothershipStreamV1EventType.error]: handleErrorEvent,

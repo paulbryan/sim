@@ -8,7 +8,10 @@ import type {
   PersistedMessage,
 } from '@/lib/copilot/chat/persisted-message'
 import { COPILOT_CHAT_API_PATH, MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
-import type { MothershipStreamV1EventEnvelope } from '@/lib/copilot/generated/mothership-stream-v1'
+import type {
+  MothershipStreamV1ErrorPayload,
+  MothershipStreamV1ToolUI,
+} from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
@@ -55,8 +58,12 @@ import {
   WorkspaceFile,
   WorkspaceFileOperation,
 } from '@/lib/copilot/generated/tool-catalog-v1'
-import type { FilePreviewSession } from '@/lib/copilot/request/session'
-import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
+import { parsePersistedStreamEventEnvelopeJson } from '@/lib/copilot/request/session/contract'
+import {
+  type FilePreviewSession,
+  isFilePreviewSession,
+} from '@/lib/copilot/request/session/file-preview-session-contract'
+import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import {
   extractResourcesFromToolResult,
   isResourceToolName,
@@ -64,9 +71,9 @@ import {
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import {
+  bindRunToolToExecution,
   cancelRunToolExecution,
   executeRunToolOnClient,
-  isRunToolActiveForId,
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
@@ -487,6 +494,43 @@ type StreamBatchResponse = {
   status: string
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function parseStreamBatchResponse(value: unknown): StreamBatchResponse {
+  if (!isRecord(value)) {
+    throw new Error('Invalid stream batch response')
+  }
+
+  const rawEvents = Array.isArray(value.events) ? value.events : []
+  const events: StreamBatchEvent[] = []
+  for (const entry of rawEvents) {
+    if (!isStreamBatchEvent(entry)) {
+      throw new Error('Invalid stream batch event')
+    }
+    events.push(entry)
+  }
+
+  const rawPreviewSessions = Array.isArray(value.previewSessions)
+    ? value.previewSessions
+    : undefined
+  const previewSessions =
+    rawPreviewSessions?.map((session) => {
+      if (!isFilePreviewSession(session)) {
+        throw new Error('Invalid stream preview session')
+      }
+      return session
+    }) ?? undefined
+
+  return {
+    success: value.success === true,
+    events,
+    ...(previewSessions ? { previewSessions } : {}),
+    status: typeof value.status === 'string' ? value.status : 'unknown',
+  }
+}
+
 function buildChatHistoryHydrationKey(chatHistory: TaskChatHistory): string {
   const resourceKey = chatHistory.resources
     .map((resource) => `${resource.type}:${resource.id}:${resource.title}`)
@@ -526,12 +570,7 @@ const sseEncoder = new TextEncoder()
 function buildReplayStream(events: StreamBatchEvent[]): ReadableStream<Uint8Array> {
   return new ReadableStream({
     start(controller) {
-      const payload = events
-        .map(
-          (entry) =>
-            `data: ${JSON.stringify({ ...entry.event, eventId: entry.eventId, streamId: entry.streamId })}\n\n`
-        )
-        .join('')
+      const payload = events.map((entry) => `data: ${JSON.stringify(entry.event)}\n\n`).join('')
       controller.enqueue(sseEncoder.encode(payload))
       controller.close()
     },
@@ -539,26 +578,19 @@ function buildReplayStream(events: StreamBatchEvent[]): ReadableStream<Uint8Arra
 }
 
 function asPayloadRecord(value: unknown): StreamPayload | undefined {
-  return value && typeof value === 'object' ? (value as StreamPayload) : undefined
+  return isRecord(value) ? value : undefined
 }
 
-function getPayloadData(event: MothershipStreamV1EventEnvelope): StreamPayload {
-  return asPayloadRecord(event.payload) ?? {}
-}
-
-function getToolUI(payload: StreamPayload): StreamToolUI | undefined {
-  const raw = asPayloadRecord(payload.ui)
-  if (!raw) {
+function getToolUI(ui?: MothershipStreamV1ToolUI): StreamToolUI | undefined {
+  if (!ui) {
     return undefined
   }
 
   return {
-    ...(typeof raw.hidden === 'boolean' ? { hidden: raw.hidden } : {}),
-    ...(typeof raw.title === 'string' ? { title: raw.title } : {}),
-    ...(typeof raw.phaseLabel === 'string' ? { phaseLabel: raw.phaseLabel } : {}),
-    ...(typeof raw.clientExecutable === 'boolean'
-      ? { clientExecutable: raw.clientExecutable }
-      : {}),
+    ...(typeof ui.hidden === 'boolean' ? { hidden: ui.hidden } : {}),
+    ...(typeof ui.title === 'string' ? { title: ui.title } : {}),
+    ...(typeof ui.phaseLabel === 'string' ? { phaseLabel: ui.phaseLabel } : {}),
+    ...(typeof ui.clientExecutable === 'boolean' ? { clientExecutable: ui.clientExecutable } : {}),
   }
 }
 
@@ -901,7 +933,8 @@ export function useChat(
   const streamGenRef = useRef(0)
   const streamingContentRef = useRef('')
   const streamingBlocksRef = useRef<ContentBlock[]>([])
-  const clientExecutionStartedRef = useRef<Set<string>>(new Set())
+  const handledClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
+  const recoveringClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
   const executionStream = useExecutionStream()
   const isHomePage = pathname.endsWith('/home')
 
@@ -944,40 +977,51 @@ export function useChat(
     setResources(newOrder)
   }, [])
 
+  const ensureWorkflowToolResource = useCallback(
+    (toolArgs: Record<string, unknown>): string | undefined => {
+      const targetWorkflowId =
+        typeof toolArgs.workflowId === 'string'
+          ? toolArgs.workflowId
+          : useWorkflowRegistry.getState().activeWorkflowId
+
+      if (!targetWorkflowId) {
+        return undefined
+      }
+
+      const meta = getWorkflowById(workspaceId, targetWorkflowId)
+      const wasAdded = addResource({
+        type: 'workflow',
+        id: targetWorkflowId,
+        title: meta?.name ?? 'Workflow',
+      })
+      if (!wasAdded && activeResourceIdRef.current !== targetWorkflowId) {
+        setActiveResourceId(targetWorkflowId)
+      }
+      onResourceEventRef.current?.()
+
+      return targetWorkflowId
+    },
+    [addResource, workspaceId]
+  )
+
   const startClientWorkflowTool = useCallback(
     (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>) => {
       if (!isWorkflowToolName(toolName)) {
         return
       }
-      if (clientExecutionStartedRef.current.has(toolCallId) && isRunToolActiveForId(toolCallId)) {
+      if (handledClientWorkflowToolIdsRef.current.has(toolCallId)) {
         return
       }
-      clientExecutionStartedRef.current.add(toolCallId)
+      handledClientWorkflowToolIdsRef.current.add(toolCallId)
 
-      const targetWorkflowId =
-        typeof toolArgs.workflowId === 'string'
-          ? toolArgs.workflowId
-          : useWorkflowRegistry.getState().activeWorkflowId
-      if (targetWorkflowId) {
-        const meta = getWorkflowById(workspaceId, targetWorkflowId)
-        const wasAdded = addResource({
-          type: 'workflow',
-          id: targetWorkflowId,
-          title: meta?.name ?? 'Workflow',
-        })
-        if (!wasAdded && activeResourceIdRef.current !== targetWorkflowId) {
-          setActiveResourceId(targetWorkflowId)
-        }
-        onResourceEventRef.current?.()
-      }
-
+      ensureWorkflowToolResource(toolArgs)
       executeRunToolOnClient(toolCallId, toolName, toolArgs)
     },
-    [addResource, workspaceId]
+    [ensureWorkflowToolResource]
   )
 
   const recoverPendingClientWorkflowTools = useCallback(
-    (nextMessages: ChatMessage[]) => {
+    async (nextMessages: ChatMessage[]) => {
       for (const message of nextMessages) {
         for (const block of message.contentBlocks ?? []) {
           const toolCall = block.toolCall
@@ -987,11 +1031,36 @@ export function useChat(
           if (toolCall.status !== 'executing') {
             continue
           }
-          startClientWorkflowTool(toolCall.id, toolCall.name, toolCall.params ?? {})
+
+          if (
+            handledClientWorkflowToolIdsRef.current.has(toolCall.id) ||
+            recoveringClientWorkflowToolIdsRef.current.has(toolCall.id)
+          ) {
+            continue
+          }
+
+          recoveringClientWorkflowToolIdsRef.current.add(toolCall.id)
+
+          try {
+            const toolArgs = toolCall.params ?? {}
+            const targetWorkflowId = ensureWorkflowToolResource(toolArgs)
+
+            if (targetWorkflowId) {
+              const rebound = await bindRunToolToExecution(toolCall.id, targetWorkflowId)
+              if (rebound) {
+                handledClientWorkflowToolIdsRef.current.add(toolCall.id)
+                continue
+              }
+            }
+
+            startClientWorkflowTool(toolCall.id, toolCall.name, toolArgs)
+          } finally {
+            recoveringClientWorkflowToolIdsRef.current.delete(toolCall.id)
+          }
         }
       }
     },
-    [startClientWorkflowTool]
+    [ensureWorkflowToolResource, startClientWorkflowTool]
   )
 
   useEffect(() => {
@@ -1100,7 +1169,7 @@ export function useChat(
       setMessages(mappedMessages)
     }
 
-    recoverPendingClientWorkflowTools(mappedMessages)
+    void recoverPendingClientWorkflowTools(mappedMessages)
 
     if (chatHistory.resources.some((r) => r.id === 'streaming-file')) {
       fetch('/api/copilot/chat/resources', {
@@ -1271,15 +1340,14 @@ export function useChat(
         flush()
       }
 
-      const buildInlineErrorTag = (event: MothershipStreamV1EventEnvelope) => {
-        const data = getPayloadData(event)
+      const buildInlineErrorTag = (payload: MothershipStreamV1ErrorPayload) => {
         const message =
-          (typeof data.displayMessage === 'string' ? data.displayMessage : undefined) ||
-          (typeof data.message === 'string' ? data.message : undefined) ||
-          (typeof data.error === 'string' ? data.error : undefined) ||
+          (typeof payload.displayMessage === 'string' ? payload.displayMessage : undefined) ||
+          (typeof payload.message === 'string' ? payload.message : undefined) ||
+          (typeof payload.error === 'string' ? payload.error : undefined) ||
           'An unexpected error occurred'
-        const provider = typeof data.provider === 'string' ? data.provider : undefined
-        const code = typeof data.code === 'string' ? data.code : undefined
+        const provider = typeof payload.provider === 'string' ? payload.provider : undefined
+        const code = typeof payload.code === 'string' ? payload.code : undefined
         return `<mothership-error>${JSON.stringify({
           message,
           ...(code ? { code } : {}),
@@ -1341,12 +1409,16 @@ export function useChat(
           if (!line.startsWith('data: ')) continue
           const raw = line.slice(6)
 
-          let parsed: MothershipStreamV1EventEnvelope
-          try {
-            parsed = JSON.parse(raw)
-          } catch {
+          const parsedResult = parsePersistedStreamEventEnvelopeJson(raw)
+          if (!parsedResult.ok) {
+            logger.warn('Failed to parse chat SSE event', {
+              reason: parsedResult.reason,
+              message: parsedResult.message,
+              errors: parsedResult.errors,
+            })
             continue
           }
+          const parsed = parsedResult.event
 
           if (parsed.trace?.requestId && parsed.trace.requestId !== streamRequestId) {
             streamRequestId = parsed.trace.requestId
@@ -1364,15 +1436,14 @@ export function useChat(
           logger.debug('SSE event received', parsed)
           switch (parsed.type) {
             case MothershipStreamV1EventType.session: {
-              const payload = getPayloadData(parsed)
-              const kind = typeof payload.kind === 'string' ? payload.kind : ''
+              const payload = parsed.payload
               const payloadChatId =
-                typeof payload.chatId === 'string'
+                payload.kind === MothershipStreamV1SessionKind.chat
                   ? payload.chatId
                   : typeof parsed.stream?.chatId === 'string'
                     ? parsed.stream.chatId
                     : undefined
-              if (kind === MothershipStreamV1SessionKind.chat && payloadChatId) {
+              if (payload.kind === MothershipStreamV1SessionKind.chat && payloadChatId) {
                 const isNewChat = !chatIdRef.current
                 chatIdRef.current = payloadChatId
                 const selected = selectedChatIdRef.current
@@ -1414,7 +1485,7 @@ export function useChat(
                   }
                 }
               }
-              if (kind === MothershipStreamV1SessionKind.title) {
+              if (payload.kind === MothershipStreamV1SessionKind.title) {
                 queryClient.invalidateQueries({
                   queryKey: taskKeys.list(workspaceId),
                 })
@@ -1423,8 +1494,7 @@ export function useChat(
               break
             }
             case MothershipStreamV1EventType.text: {
-              const payload = getPayloadData(parsed)
-              const chunk = typeof payload.text === 'string' ? payload.text : ''
+              const chunk = parsed.payload.text
               if (chunk) {
                 const contentSource: 'main' | 'subagent' = activeSubagent ? 'subagent' : 'main'
                 const needsBoundaryNewline =
@@ -1444,45 +1514,42 @@ export function useChat(
               break
             }
             case MothershipStreamV1EventType.tool: {
-              const payload = getPayloadData(parsed)
-              const previewPhase =
-                typeof payload.previewPhase === 'string' ? payload.previewPhase : undefined
-              const phase =
-                typeof payload.phase === 'string' ? payload.phase : MothershipStreamV1ToolPhase.call
-              const id =
-                typeof payload.toolCallId === 'string'
-                  ? payload.toolCallId
-                  : typeof payload.id === 'string'
-                    ? payload.id
-                    : undefined
-              if (!id) break
+              const payload = parsed.payload
+              const id = payload.toolCallId
 
-              if (previewPhase) {
+              if ('previewPhase' in payload) {
                 const prevSession = previewSessionsRef.current[id]
-                const target = asPayloadRecord(payload.target)
+                const target =
+                  payload.previewPhase === 'file_preview_target' ? payload.target : undefined
                 const targetKind =
-                  payload.targetKind === 'new_file' || payload.targetKind === 'file_id'
-                    ? (payload.targetKind as 'new_file' | 'file_id')
+                  'targetKind' in payload &&
+                  (payload.targetKind === 'new_file' || payload.targetKind === 'file_id')
+                    ? payload.targetKind
                     : target?.kind === 'new_file' || target?.kind === 'file_id'
-                      ? (target.kind as 'new_file' | 'file_id')
+                      ? target.kind
                       : prevSession?.targetKind
                 const fileId =
-                  typeof payload.fileId === 'string'
+                  'fileId' in payload && typeof payload.fileId === 'string'
                     ? payload.fileId
                     : typeof target?.fileId === 'string'
                       ? target.fileId
                       : prevSession?.fileId
                 const fileName =
-                  typeof payload.fileName === 'string'
+                  'fileName' in payload && typeof payload.fileName === 'string'
                     ? payload.fileName
                     : typeof target?.fileName === 'string'
                       ? target.fileName
                       : (prevSession?.fileName ?? '')
                 const operation =
-                  typeof payload.operation === 'string' ? payload.operation : prevSession?.operation
-                const edit = asPayloadRecord(payload.edit) ?? prevSession?.edit
+                  'operation' in payload && typeof payload.operation === 'string'
+                    ? payload.operation
+                    : prevSession?.operation
+                const edit =
+                  ('edit' in payload ? asPayloadRecord(payload.edit) : undefined) ??
+                  prevSession?.edit
                 const streamId = parsed.stream?.streamId ?? prevSession?.streamId ?? ''
                 const nextPreviewVersion =
+                  'previewVersion' in payload &&
                   typeof payload.previewVersion === 'number' &&
                   Number.isFinite(payload.previewVersion)
                     ? payload.previewVersion
@@ -1504,7 +1571,7 @@ export function useChat(
                   ...(prevSession?.completedAt ? { completedAt: prevSession.completedAt } : {}),
                 }
 
-                if (previewPhase === 'file_preview_start') {
+                if (payload.previewPhase === 'file_preview_start') {
                   const nextSession: FilePreviewSession = {
                     ...baseSession,
                     status: 'pending',
@@ -1517,7 +1584,7 @@ export function useChat(
                   break
                 }
 
-                if (previewPhase === 'file_preview_target') {
+                if (payload.previewPhase === 'file_preview_target') {
                   const nextSession: FilePreviewSession = {
                     ...baseSession,
                     updatedAt: new Date().toISOString(),
@@ -1533,7 +1600,7 @@ export function useChat(
                   break
                 }
 
-                if (previewPhase === 'file_preview_edit_meta') {
+                if (payload.previewPhase === 'file_preview_edit_meta') {
                   const nextSession: FilePreviewSession = {
                     ...baseSession,
                     status: prevSession?.status ?? 'pending',
@@ -1543,9 +1610,9 @@ export function useChat(
                   break
                 }
 
-                if (previewPhase === 'file_preview_content') {
-                  const content = typeof payload.content === 'string' ? payload.content : ''
-                  const contentMode = payload.contentMode === 'delta' ? 'delta' : 'snapshot'
+                if (payload.previewPhase === 'file_preview_content') {
+                  const content = payload.content
+                  const contentMode = payload.contentMode
                   const nextPreviewText =
                     contentMode === 'delta' ? (prevSession?.previewText ?? '') + content : content
                   const nextSession: FilePreviewSession = {
@@ -1563,17 +1630,13 @@ export function useChat(
                   break
                 }
 
-                if (previewPhase === 'file_preview_complete') {
+                if (payload.previewPhase === 'file_preview_complete') {
                   const resultData = asPayloadRecord(payload.output)
                   const completedAt = new Date().toISOString()
                   const nextSession: FilePreviewSession = {
                     ...baseSession,
                     status: 'complete',
-                    previewVersion:
-                      typeof payload.previewVersion === 'number' &&
-                      Number.isFinite(payload.previewVersion)
-                        ? payload.previewVersion
-                        : (prevSession?.previewVersion ?? 0),
+                    previewVersion: payload.previewVersion ?? prevSession?.previewVersion ?? 0,
                     updatedAt: completedAt,
                     completedAt,
                   }
@@ -1610,9 +1673,8 @@ export function useChat(
                 }
               }
 
-              if (phase === MothershipStreamV1ToolPhase.args_delta) {
-                const delta =
-                  typeof payload.argumentsDelta === 'string' ? payload.argumentsDelta : ''
+              if (payload.phase === MothershipStreamV1ToolPhase.args_delta) {
+                const delta = payload.argumentsDelta
                 if (!delta) break
 
                 const idx = toolMap.get(id)
@@ -1627,7 +1689,7 @@ export function useChat(
                 break
               }
 
-              if (phase === MothershipStreamV1ToolPhase.result) {
+              if (payload.phase === MothershipStreamV1ToolPhase.result) {
                 const idx = toolMap.get(id)
                 if (idx === undefined || !blocks[idx].toolCall) {
                   break
@@ -1635,14 +1697,10 @@ export function useChat(
                 const tc = blocks[idx].toolCall!
                 const outputObj = asPayloadRecord(payload.output)
                 const success =
-                  typeof payload.success === 'boolean'
-                    ? payload.success
-                    : payload.status === MothershipStreamV1ToolOutcome.success
+                  payload.success ?? payload.status === MothershipStreamV1ToolOutcome.success
                 const isCancelled =
                   outputObj?.reason === 'user_cancelled' ||
                   outputObj?.cancelledByUser === true ||
-                  payload.reason === 'user_cancelled' ||
-                  payload.cancelledByUser === true ||
                   payload.status === MothershipStreamV1ToolOutcome.cancelled
 
                 if (isCancelled) {
@@ -1662,7 +1720,7 @@ export function useChat(
                 if (tc.name === ReadTool.id && tc.status === 'success') {
                   const readArgs = toolArgsMap.get(id)
                   const resource = extractResourceFromReadResult(
-                    readArgs?.path as string | undefined,
+                    typeof readArgs?.path === 'string' ? readArgs.path : undefined,
                     tc.result.output
                   )
                   if (resource && addResource(resource)) {
@@ -1712,10 +1770,6 @@ export function useChat(
 
                 onToolResultRef.current?.(tc.name, tc.status === 'success', tc.result?.output)
 
-                if (isWorkflowToolName(tc.name)) {
-                  clientExecutionStartedRef.current.delete(id)
-                }
-
                 const workspaceFileOperation =
                   tc.name === WorkspaceFile.id && typeof tc.params?.operation === 'string'
                     ? tc.params.operation
@@ -1751,23 +1805,16 @@ export function useChat(
                 break
               }
 
-              const name =
-                typeof payload.toolName === 'string'
-                  ? payload.toolName
-                  : typeof payload.name === 'string'
-                    ? payload.name
-                    : 'unknown'
+              const name = payload.toolName
               const isPartial = payload.partial === true
               if (name === ToolSearchToolRegex.id || isToolHiddenInUi(name)) {
                 break
               }
-              const ui = getToolUI(payload)
+              const ui = getToolUI(payload.ui)
               if (ui?.hidden) break
               let displayTitle = ui?.title || ui?.phaseLabel
               const phaseLabel = ui?.phaseLabel
-              const args = (asPayloadRecord(payload.arguments) ?? asPayloadRecord(payload.input)) as
-                | Record<string, unknown>
-                | undefined
+              const args = payload.arguments as Record<string, unknown> | undefined
 
               displayTitle = resolveToolDisplayTitle(name, args) ?? displayTitle
 
@@ -1823,15 +1870,8 @@ export function useChat(
               break
             }
             case MothershipStreamV1EventType.resource: {
-              const payload = getPayloadData(parsed)
-              const resource = asPayloadRecord(payload.resource)
-              if (
-                !resource ||
-                typeof resource.type !== 'string' ||
-                typeof resource.id !== 'string'
-              ) {
-                break
-              }
+              const payload = parsed.payload
+              const resource = payload.resource
 
               if (payload.op === MothershipStreamV1ResourceOp.remove) {
                 removeResource(resource.type as MothershipResourceType, resource.id)
@@ -1878,9 +1918,8 @@ export function useChat(
               break
             }
             case MothershipStreamV1EventType.run: {
-              const payload = getPayloadData(parsed)
-              const kind = typeof payload.kind === 'string' ? payload.kind : ''
-              if (kind === MothershipStreamV1RunKind.compaction_start) {
+              const payload = parsed.payload
+              if (payload.kind === MothershipStreamV1RunKind.compaction_start) {
                 const compactionId = `compaction_${Date.now()}`
                 activeCompactionId = compactionId
                 toolMap.set(compactionId, blocks.length)
@@ -1894,7 +1933,7 @@ export function useChat(
                   },
                 })
                 flush()
-              } else if (kind === MothershipStreamV1RunKind.compaction_done) {
+              } else if (payload.kind === MothershipStreamV1RunKind.compaction_done) {
                 const compactionId = activeCompactionId || `compaction_${Date.now()}`
                 activeCompactionId = undefined
                 const idx = toolMap.get(compactionId)
@@ -1918,12 +1957,10 @@ export function useChat(
               break
             }
             case MothershipStreamV1EventType.span: {
-              const payload = getPayloadData(parsed)
-              const kind = typeof payload.kind === 'string' ? payload.kind : ''
-              if (kind !== MothershipStreamV1SpanPayloadKind.subagent) {
+              const payload = parsed.payload
+              if (payload.kind !== MothershipStreamV1SpanPayloadKind.subagent) {
                 break
               }
-              const spanEvent = typeof payload.event === 'string' ? payload.event : ''
               const spanData = asPayloadRecord(payload.data)
               const parentToolCallId =
                 typeof parsed.scope?.parentToolCallId === 'string'
@@ -1938,7 +1975,7 @@ export function useChat(
                   : typeof parsed.scope?.agentId === 'string'
                     ? parsed.scope.agentId
                     : undefined
-              if (spanEvent === MothershipStreamV1SpanLifecycleEvent.start && name) {
+              if (payload.event === MothershipStreamV1SpanLifecycleEvent.start && name) {
                 const isSameActiveSubagent =
                   activeSubagent === name &&
                   activeSubagentParentToolCallId &&
@@ -1962,7 +1999,7 @@ export function useChat(
                   })
                 }
                 flush()
-              } else if (spanEvent === MothershipStreamV1SpanLifecycleEvent.end) {
+              } else if (payload.event === MothershipStreamV1SpanLifecycleEvent.end) {
                 if (isPendingPause) {
                   break
                 }
@@ -1983,14 +2020,9 @@ export function useChat(
               break
             }
             case MothershipStreamV1EventType.error: {
-              const payload = getPayloadData(parsed)
               sawStreamError = true
-              setError(
-                (typeof payload.message === 'string' ? payload.message : undefined) ||
-                  (typeof payload.error === 'string' ? payload.error : undefined) ||
-                  'An error occurred'
-              )
-              appendInlineErrorTag(buildInlineErrorTag(parsed))
+              setError(parsed.payload.message || parsed.payload.error || 'An error occurred')
+              appendInlineErrorTag(buildInlineErrorTag(parsed.payload))
               break
             }
             case MothershipStreamV1EventType.complete: {
@@ -2056,7 +2088,7 @@ export function useChat(
       if (!response.ok) {
         throw new Error(`Stream resume batch failed: ${response.status}`)
       }
-      const batch = (await response.json()) as StreamBatchResponse
+      const batch = parseStreamBatchResponse(await response.json())
       if (Array.isArray(batch.previewSessions) && batch.previewSessions.length > 0) {
         seedPreviewSessions(batch.previewSessions)
       }

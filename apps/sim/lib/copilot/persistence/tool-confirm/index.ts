@@ -1,5 +1,10 @@
 import { createLogger } from '@sim/logger'
-import { ASYNC_TOOL_STATUS, type AsyncCompletionEnvelope } from '@/lib/copilot/async-runs/lifecycle'
+import {
+  ASYNC_TOOL_STATUS,
+  type AsyncCompletionEnvelope,
+  type AsyncConfirmationState,
+  isAsyncEphemeralConfirmationStatus,
+} from '@/lib/copilot/async-runs/lifecycle'
 import { getAsyncToolCalls } from '@/lib/copilot/async-runs/repository'
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import { getRedisClient } from '@/lib/core/config/redis'
@@ -15,14 +20,14 @@ const toolConfirmationChannel = createPubSubChannel<AsyncCompletionEnvelope>({
 })
 
 /**
- * Get a tool call confirmation status from the durable async tool row.
+ * Get a tool call confirmation state from the durable async tool row.
+ *
+ * The durable row reconstructs only the live execution lifecycle plus the
+ * `background` detach signal.
  */
-export async function getToolConfirmation(toolCallId: string): Promise<{
-  status: string
-  message?: string
-  timestamp?: string
-  data?: Record<string, unknown>
-} | null> {
+export async function getToolConfirmation(
+  toolCallId: string
+): Promise<AsyncConfirmationState | null> {
   const [row] = await getAsyncToolCalls([toolCallId]).catch((err) => {
     logger.warn('Failed to fetch async tool calls', {
       toolCallId,
@@ -31,6 +36,12 @@ export async function getToolConfirmation(toolCallId: string): Promise<{
     return []
   })
   if (!row) return null
+  if (row.status === ASYNC_TOOL_STATUS.delivered) {
+    logger.warn('Delivered async tool rows are outside request confirmation flow', {
+      toolCallId,
+    })
+    return null
+  }
   return {
     status:
       row.status === ASYNC_TOOL_STATUS.completed
@@ -41,7 +52,7 @@ export async function getToolConfirmation(toolCallId: string): Promise<{
             ? MothershipStreamV1ToolOutcome.cancelled
             : row.status,
     message: row.error || undefined,
-    data: (row.result as Record<string, unknown> | null) || undefined,
+    ...(row.result !== undefined ? { data: row.result } : {}),
     timestamp: row.updatedAt?.toISOString?.(),
   }
 }
@@ -82,29 +93,21 @@ export function publishToolConfirmation(event: AsyncCompletionEnvelope): void {
   toolConfirmationChannel.publish(event)
 }
 
+/**
+ * Wait for an async tool confirmation update.
+ *
+ * `background` still arrives as a request-local detach signal, so it is checked
+ * from pubsub before falling back to the durable async tool row.
+ */
 export async function waitForToolConfirmation(
   toolCallId: string,
   timeoutMs: number,
   abortSignal?: AbortSignal,
   options: {
-    acceptStatus?: (status: string) => boolean
+    acceptStatus?: (status: AsyncConfirmationState['status']) => boolean
   } = {}
-): Promise<{
-  status: string
-  message?: string
-  timestamp?: string
-  data?: Record<string, unknown>
-} | null> {
+): Promise<AsyncConfirmationState | null> {
   const acceptStatus = options.acceptStatus ?? (() => true)
-  const existing = await getToolConfirmation(toolCallId)
-  if (existing && acceptStatus(existing.status)) {
-    logger.info('Resolved tool confirmation immediately', {
-      toolCallId,
-      status: existing.status,
-    })
-    return existing
-  }
-
   return new Promise((resolve) => {
     let settled = false
     let timeoutId: ReturnType<typeof setTimeout> | null = null
@@ -116,14 +119,7 @@ export async function waitForToolConfirmation(
       abortSignal?.removeEventListener('abort', onAbort)
     }
 
-    const settle = (
-      value: {
-        status: string
-        message?: string
-        timestamp?: string
-        data?: Record<string, unknown>
-      } | null
-    ) => {
+    const settle = (value: AsyncConfirmationState | null) => {
       if (settled) return
       settled = true
       cleanup()
@@ -134,6 +130,15 @@ export async function waitForToolConfirmation(
 
     unsubscribe = toolConfirmationChannel.subscribe((event) => {
       if (event.toolCallId !== toolCallId) return
+      if (isAsyncEphemeralConfirmationStatus(event.status) && acceptStatus(event.status)) {
+        settle({
+          status: event.status,
+          ...(event.message !== undefined ? { message: event.message } : {}),
+          ...(event.data !== undefined ? { data: event.data } : {}),
+          ...(event.timestamp !== undefined ? { timestamp: event.timestamp } : {}),
+        })
+        return
+      }
       void getToolConfirmation(toolCallId).then((latest) => {
         if (!latest || !acceptStatus(latest.status)) return
         logger.info('Resolved tool confirmation from pubsub', {

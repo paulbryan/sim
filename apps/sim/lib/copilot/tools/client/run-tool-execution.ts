@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import type { AsyncCompletionData } from '@/lib/copilot/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
@@ -10,13 +11,24 @@ import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-reg
 import { generateId } from '@/lib/core/utils/uuid'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
-import { clearExecutionPointer, consolePersistence, saveExecutionPointer } from '@/stores/terminal'
+import {
+  clearExecutionPointer,
+  consolePersistence,
+  type ExecutionPointer,
+  loadExecutionPointer,
+  saveExecutionPointer,
+  useTerminalConsoleStore,
+} from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CopilotRunToolExecution')
 const activeRunToolByWorkflowId = new Map<string, string>()
 const activeRunAbortByWorkflowId = new Map<string, AbortController>()
 const manuallyStoppedToolCallIds = new Set<string>()
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
 
 function resolveWorkflowInput(params: Record<string, unknown>): unknown {
   if (Object.hasOwn(params, 'workflow_input')) {
@@ -32,6 +44,82 @@ function resolveTriggerBlockId(params: Record<string, unknown>): string | undefi
   return typeof params.triggerBlockId === 'string' && params.triggerBlockId.length > 0
     ? params.triggerBlockId
     : undefined
+}
+
+function getRunningExecutionPointer(workflowId: string): ExecutionPointer | null {
+  const runningEntries = useTerminalConsoleStore
+    .getState()
+    .getWorkflowEntries(workflowId)
+    .filter((entry) => entry.isRunning && entry.executionId)
+
+  if (runningEntries.length === 0) {
+    return null
+  }
+
+  const latestEntry = [...runningEntries].sort((a, b) => {
+    const aStartedAt = a.startedAt ? new Date(a.startedAt).getTime() : 0
+    const bStartedAt = b.startedAt ? new Date(b.startedAt).getTime() : 0
+    return bStartedAt - aStartedAt
+  })[0]
+
+  const executionId = latestEntry?.executionId
+  if (!executionId) {
+    return null
+  }
+
+  return {
+    workflowId,
+    executionId,
+    lastEventId: 0,
+  }
+}
+
+async function findRecoverableExecutionPointer(
+  workflowId: string
+): Promise<ExecutionPointer | null> {
+  const pointer = await loadExecutionPointer(workflowId)
+  if (pointer?.executionId) {
+    return pointer
+  }
+
+  return getRunningExecutionPointer(workflowId)
+}
+
+export async function bindRunToolToExecution(
+  toolCallId: string,
+  workflowId: string
+): Promise<boolean> {
+  const executionPointer = await findRecoverableExecutionPointer(workflowId)
+  if (!executionPointer) {
+    return false
+  }
+
+  const existingToolCallId = activeRunToolByWorkflowId.get(workflowId)
+  if (existingToolCallId && existingToolCallId !== toolCallId) {
+    logger.warn('[RunTool] Recovery skipped: another run tool is already active', {
+      workflowId,
+      toolCallId,
+      existingToolCallId,
+    })
+    return false
+  }
+
+  useWorkflowRegistry.getState().setActiveWorkflow(workflowId)
+  activeRunToolByWorkflowId.set(workflowId, toolCallId)
+
+  const { setCurrentExecutionId, setIsExecuting } = useExecutionStore.getState()
+  setIsExecuting(workflowId, true)
+  setCurrentExecutionId(workflowId, executionPointer.executionId)
+  saveExecutionPointer(executionPointer)
+
+  logger.info('[RunTool] Reattached tool call to existing workflow execution', {
+    workflowId,
+    toolCallId,
+    executionId: executionPointer.executionId,
+    lastEventId: executionPointer.lastEventId,
+  })
+
+  return true
 }
 
 /**
@@ -378,14 +466,14 @@ async function reportCompletion(
   toolCallId: string,
   status: MothershipStreamV1ToolOutcome,
   message?: string,
-  data?: Record<string, unknown>
+  data?: AsyncCompletionData
 ): Promise<void> {
   try {
     const body = JSON.stringify({
       toolCallId,
       status,
       message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
-      ...(data ? { data } : {}),
+      ...(data !== undefined ? { data } : {}),
     })
     const res = await fetch(COPILOT_CONFIRM_API_PATH, {
       method: 'POST',
@@ -394,7 +482,7 @@ async function reportCompletion(
     })
     const LARGE_PAYLOAD_THRESHOLD = 10 * 1024 * 1024
     const bodySize = new Blob([body]).size
-    if (!res.ok && data && bodySize > LARGE_PAYLOAD_THRESHOLD) {
+    if (!res.ok && isRecord(data) && bodySize > LARGE_PAYLOAD_THRESHOLD) {
       const { logs: _logs, ...dataWithoutLogs } = data
       logger.warn('[RunTool] reportCompletion failed with large payload, retrying without logs', {
         toolCallId,

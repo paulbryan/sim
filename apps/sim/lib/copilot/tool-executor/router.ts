@@ -1,7 +1,7 @@
 import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ToolCallDescriptor } from './types'
 
-export type ToolExecutor = ToolCatalogEntry['executor']
+export type ToolRouteTarget = ToolCatalogEntry['route']
 
 export function isToolInCatalog(toolId: string): boolean {
   return toolId in TOOL_CATALOG
@@ -12,7 +12,7 @@ export function getToolEntry(toolId: string): ToolCatalogEntry | undefined {
 }
 
 export type ToolRoute = {
-  executor: ToolExecutor
+  route: ToolRouteTarget
   mode: ToolCatalogEntry['mode']
   subagentId?: string
 }
@@ -20,15 +20,15 @@ export type ToolRoute = {
 export function routeToolCall(toolId: string): ToolRoute | null {
   const entry = getToolEntry(toolId)
   if (!entry) return null
-  return { executor: entry.executor, mode: entry.mode, subagentId: entry.subagentId }
+  return { route: entry.route, mode: entry.mode, subagentId: entry.subagentId }
 }
 
 export function isSimExecuted(toolId: string): boolean {
-  return getToolEntry(toolId)?.executor === 'sim'
+  return getToolEntry(toolId)?.route === 'sim'
 }
 
 export function isGoExecuted(toolId: string): boolean {
-  return getToolEntry(toolId)?.executor === 'go'
+  return getToolEntry(toolId)?.route === 'go'
 }
 
 export function isKnownTool(toolId: string): boolean {
@@ -52,7 +52,7 @@ export function partitionToolBatch(toolCalls: ToolCallDescriptor[]): Partitioned
       result.unknown.push(tc)
       continue
     }
-    result[route.executor].push(tc)
+    result[route.route].push(tc)
   }
 
   return result

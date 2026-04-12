@@ -3,35 +3,28 @@ import {
   MothershipStreamV1RunKind,
   MothershipStreamV1ToolOutcome,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { getEventData } from '@/lib/copilot/request/sse-utils'
 import type { StreamHandler } from './types'
 import { addContentBlock } from './types'
 
 const logger = createLogger('CopilotRunHandler')
 
 export const handleRunEvent: StreamHandler = (event, context) => {
-  const d = getEventData(event)
-  if (!d) return
+  if (event.type !== 'run') {
+    return
+  }
 
-  const kind = d?.kind as string | undefined
-
-  if (kind === MothershipStreamV1RunKind.checkpoint_pause) {
-    const rawFrames = Array.isArray(d?.frames) ? d.frames : []
-    const frames = rawFrames.map((f: Record<string, unknown>) => ({
-      parentToolCallId: String(f.parentToolCallId),
-      parentToolName: String(f.parentToolName ?? ''),
-      pendingToolIds: Array.isArray(f.pendingToolIds)
-        ? f.pendingToolIds.map((id: unknown) => String(id))
-        : [],
+  if (event.payload.kind === MothershipStreamV1RunKind.checkpoint_pause) {
+    const frames = (event.payload.frames ?? []).map((frame) => ({
+      parentToolCallId: frame.parentToolCallId,
+      parentToolName: frame.parentToolName,
+      pendingToolIds: frame.pendingToolIds,
     }))
 
     context.awaitingAsyncContinuation = {
-      checkpointId: String(d?.checkpointId),
-      executionId: typeof d?.executionId === 'string' ? d.executionId : context.executionId,
-      runId: typeof d?.runId === 'string' && d.runId ? d.runId : context.runId,
-      pendingToolCallIds: Array.isArray(d?.pendingToolCallIds)
-        ? d.pendingToolCallIds.map((id) => String(id))
-        : [],
+      checkpointId: event.payload.checkpointId,
+      executionId: event.payload.executionId || context.executionId,
+      runId: event.payload.runId || context.runId,
+      pendingToolCallIds: event.payload.pendingToolCallIds,
       frames: frames.length > 0 ? frames : undefined,
     }
     logger.info('Received checkpoint pause', {
@@ -45,7 +38,7 @@ export const handleRunEvent: StreamHandler = (event, context) => {
     return
   }
 
-  if (kind === MothershipStreamV1RunKind.compaction_start) {
+  if (event.payload.kind === MothershipStreamV1RunKind.compaction_start) {
     addContentBlock(context, {
       type: 'tool_call',
       toolCall: {
@@ -57,7 +50,14 @@ export const handleRunEvent: StreamHandler = (event, context) => {
     return
   }
 
-  if (kind === MothershipStreamV1RunKind.compaction_done) {
+  if (event.payload.kind === MothershipStreamV1RunKind.resumed) {
+    context.awaitingAsyncContinuation = undefined
+    context.streamComplete = false
+    logger.info('Received run resumed event')
+    return
+  }
+
+  if (event.payload.kind === MothershipStreamV1RunKind.compaction_done) {
     addContentBlock(context, {
       type: 'tool_call',
       toolCall: {

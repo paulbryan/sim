@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { updateRunStatus } from '@/lib/copilot/async-runs/repository'
+import { createRunSegment, updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
 import {
   MothershipStreamV1EventType,
@@ -13,6 +13,11 @@ import {
   CopilotBackendError,
   runStreamLoop,
 } from '@/lib/copilot/request/go/stream'
+import {
+  getToolCallTerminalData,
+  requireToolCallStateResult,
+  setTerminalToolCallState,
+} from '@/lib/copilot/request/tool-call-state'
 import { handleBillingLimitResponse } from '@/lib/copilot/request/tools/billing'
 import { executeToolAndReport } from '@/lib/copilot/request/tools/executor'
 import type { TraceCollector } from '@/lib/copilot/request/trace'
@@ -26,6 +31,7 @@ import type {
 } from '@/lib/copilot/request/types'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 
 const logger = createLogger('CopilotLifecycle')
@@ -59,28 +65,44 @@ export async function runCopilotLifecycle(
     runId,
     goRoute = '/api/copilot',
   } = options
-
-  const execContext = await buildExecutionContext(requestPayload, {
+  const payloadMsgId =
+    typeof requestPayload?.messageId === 'string' ? requestPayload.messageId : generateId()
+  const runIdentity = await ensureHeadlessRunIdentity({
+    requestPayload,
     userId,
     workflowId,
     workspaceId,
     chatId,
     executionId,
     runId,
-    abortSignal: options.abortSignal,
+    messageId: payloadMsgId,
+  })
+  const lifecycleOptions: CopilotLifecycleOptions = {
+    ...options,
+    executionId: runIdentity.executionId,
+    runId: runIdentity.runId,
+  }
+
+  const execContext = await buildExecutionContext(requestPayload, {
+    userId,
+    workflowId,
+    workspaceId,
+    chatId,
+    executionId: runIdentity.executionId,
+    runId: runIdentity.runId,
+    abortSignal: lifecycleOptions.abortSignal,
   })
 
-  const payloadMsgId = requestPayload?.messageId
   const context = createStreamingContext({
     chatId,
-    executionId,
-    runId,
-    messageId: typeof payloadMsgId === 'string' ? payloadMsgId : crypto.randomUUID(),
-    ...(options.trace ? { trace: options.trace } : {}),
+    executionId: runIdentity.executionId,
+    runId: runIdentity.runId,
+    messageId: payloadMsgId,
+    ...(lifecycleOptions.trace ? { trace: lifecycleOptions.trace } : {}),
   })
 
   try {
-    await runCheckpointLoop(requestPayload, context, execContext, options, goRoute)
+    await runCheckpointLoop(requestPayload, context, execContext, lifecycleOptions, goRoute)
 
     const result: OrchestratorResult = {
       success: context.errors.length === 0 && !context.wasAborted,
@@ -93,12 +115,12 @@ export async function runCopilotLifecycle(
       usage: context.usage,
       cost: context.cost,
     }
-    await options.onComplete?.(result)
+    await lifecycleOptions.onComplete?.(result)
     return result
   } catch (error) {
     const err = error instanceof Error ? error : new Error('Copilot orchestration failed')
     logger.error('Copilot orchestration failed', { error: err.message })
-    await options.onError?.(err)
+    await lifecycleOptions.onError?.(err)
     return {
       success: false,
       content: '',
@@ -309,7 +331,7 @@ async function runCheckpointLoop(
         break
       }
       const tool = context.toolCalls.get(toolCallId)
-      if (!tool || (!tool.result && !tool.error)) {
+      if (!tool || !tool.result) {
         logger.error('Missing tool result for pending tool call', {
           toolCallId,
           checkpointId: continuation.checkpointId,
@@ -323,8 +345,8 @@ async function runCheckpointLoop(
       results.push({
         callId: toolCallId,
         name: tool.name || '',
-        data: tool.result?.output ?? (tool.error ? { error: tool.error } : { error: 'unknown' }),
-        success: tool.result?.success ?? false,
+        data: getToolCallTerminalData(tool),
+        success: requireToolCallStateResult(tool).success,
       })
     }
 
@@ -411,6 +433,53 @@ async function buildExecutionContext(
   return execContext
 }
 
+async function ensureHeadlessRunIdentity(input: {
+  requestPayload: Record<string, unknown>
+  userId: string
+  workflowId?: string
+  workspaceId?: string
+  chatId?: string
+  executionId?: string
+  runId?: string
+  messageId: string
+}): Promise<{ executionId?: string; runId?: string }> {
+  if (!input.chatId || input.executionId || input.runId) {
+    return {
+      executionId: input.executionId,
+      runId: input.runId,
+    }
+  }
+
+  const executionId = generateId()
+  const runId = generateId()
+
+  try {
+    await createRunSegment({
+      id: runId,
+      executionId,
+      chatId: input.chatId,
+      userId: input.userId,
+      workflowId: input.workflowId,
+      workspaceId: input.workspaceId,
+      streamId: input.messageId,
+      model: typeof input.requestPayload?.model === 'string' ? input.requestPayload.model : null,
+      provider:
+        typeof input.requestPayload?.provider === 'string' ? input.requestPayload.provider : null,
+      requestContext: {
+        source: 'headless_lifecycle',
+      },
+    })
+    return { executionId, runId }
+  } catch (error) {
+    logger.warn('Failed to create headless run identity', {
+      chatId: input.chatId,
+      messageId: input.messageId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return {}
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -422,9 +491,10 @@ function isAborted(options: CopilotLifecycleOptions, context: StreamingContext):
 function cancelPendingTools(context: StreamingContext): void {
   for (const [, toolCall] of context.toolCalls) {
     if (toolCall.status === 'pending' || toolCall.status === 'executing') {
-      toolCall.status = MothershipStreamV1ToolOutcome.cancelled
-      toolCall.endTime = Date.now()
-      toolCall.error = 'Stopped by user'
+      setTerminalToolCallState(toolCall, {
+        status: MothershipStreamV1ToolOutcome.cancelled,
+        error: 'Stopped by user',
+      })
     }
   }
 }

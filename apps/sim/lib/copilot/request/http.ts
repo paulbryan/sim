@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/copilot/async-runs/lifecycle'
 import { env } from '@/lib/core/config/env'
 import { safeCompare } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -8,12 +9,7 @@ import { generateId } from '@/lib/core/utils/uuid'
 
 export const NotificationStatus = {
   pending: 'pending',
-  success: 'success',
-  error: 'error',
-  accepted: 'accepted',
-  rejected: 'rejected',
-  background: 'background',
-  cancelled: 'cancelled',
+  ...ASYNC_TOOL_CONFIRMATION_STATUS,
 } as const
 export type NotificationStatus = (typeof NotificationStatus)[keyof typeof NotificationStatus]
 

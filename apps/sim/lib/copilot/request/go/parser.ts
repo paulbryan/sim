@@ -2,6 +2,13 @@ import { createLogger } from '@sim/logger'
 
 const logger = createLogger('CopilotSseParser')
 
+export class FatalSseEventError extends Error {}
+
+function createParseFailure(message: string, preview: string): FatalSseEventError {
+  logger.error(message, { preview })
+  return new FatalSseEventError(message)
+}
+
 function normalizeSseLine(line: string): string {
   return line.endsWith('\r') ? line.slice(0, -1) : line
 }
@@ -51,11 +58,9 @@ export async function processSSEStream(
           try {
             parsed = JSON.parse(jsonStr)
           } catch (error) {
-            logger.warn('Failed to parse SSE event', {
-              preview: jsonStr.slice(0, 200),
-              error: error instanceof Error ? error.message : String(error),
-            })
-            continue
+            const preview = jsonStr.slice(0, 200)
+            const detail = error instanceof Error ? error.message : String(error)
+            throw createParseFailure(`Failed to parse SSE event JSON: ${detail}`, preview)
           }
 
           try {
@@ -64,6 +69,9 @@ export async function processSSEStream(
               break
             }
           } catch (error) {
+            if (error instanceof FatalSseEventError) {
+              throw error
+            }
             logger.warn('Failed to handle SSE event', {
               preview: jsonStr.slice(0, 200),
               error: error instanceof Error ? error.message : String(error),
@@ -93,16 +101,17 @@ export async function processSSEStream(
       try {
         parsed = JSON.parse(jsonStr)
       } catch (error) {
-        logger.warn('Failed to parse final SSE buffer', {
-          preview: normalizedBuffer.slice(0, 200),
-          error: error instanceof Error ? error.message : String(error),
-        })
-        return
+        const preview = normalizedBuffer.slice(0, 200)
+        const detail = error instanceof Error ? error.message : String(error)
+        throw createParseFailure(`Failed to parse final SSE buffer JSON: ${detail}`, preview)
       }
 
       try {
         await onEvent(parsed)
       } catch (error) {
+        if (error instanceof FatalSseEventError) {
+          throw error
+        }
         logger.warn('Failed to handle final SSE event', {
           preview: normalizedBuffer.slice(0, 200),
           error: error instanceof Error ? error.message : String(error),

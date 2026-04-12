@@ -213,4 +213,37 @@ describe('mothership-stream-outbox', () => {
       'hello',
     ])
   })
+
+  it('skips corrupt replay entries that fail stream validation', async () => {
+    const cursor = await allocateCursor('stream-1')
+
+    await appendEvent(
+      createEvent({
+        streamId: 'stream-1',
+        cursor: cursor.cursor,
+        seq: cursor.seq,
+        requestId: 'req-1',
+        type: MothershipStreamV1EventType.text,
+        payload: { channel: MothershipStreamV1TextChannel.assistant, text: 'hello' },
+      })
+    )
+
+    await mockRedis.zadd(
+      'mothership_stream:stream-1:events',
+      cursor.seq + 1,
+      JSON.stringify({
+        v: 1,
+        type: 'tool',
+        seq: cursor.seq + 1,
+        ts: '2026-04-11T00:00:00.000Z',
+        stream: { streamId: 'stream-1' },
+        payload: { toolCallId: 'broken-tool' },
+      })
+    )
+
+    const replayed = await readEvents('stream-1', '0')
+
+    expect(replayed).toHaveLength(1)
+    expect(replayed[0]?.payload.text).toBe('hello')
+  })
 })

@@ -3,16 +3,18 @@ import { upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
 import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
   MothershipStreamV1AsyncToolRecordStatus,
+  type MothershipStreamV1ToolCallDescriptor,
   MothershipStreamV1ToolOutcome,
-  MothershipStreamV1ToolPhase,
+  type MothershipStreamV1ToolResultPayload,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { TOOL_CALL_STATUS } from '@/lib/copilot/request/session'
 import {
-  asRecord,
-  getEventData,
-  markToolResultSeen,
-  wasToolResultSeen,
-} from '@/lib/copilot/request/sse-utils'
+  isToolArgsDeltaStreamEvent,
+  isToolCallStreamEvent,
+  isToolResultStreamEvent,
+  TOOL_CALL_STATUS,
+} from '@/lib/copilot/request/session'
+import { markToolResultSeen, wasToolResultSeen } from '@/lib/copilot/request/sse-utils'
+import { setTerminalToolCallState } from '@/lib/copilot/request/tool-call-state'
 import { executeToolAndReport, waitForToolCompletion } from '@/lib/copilot/request/tools/executor'
 import type {
   ExecutionContext,
@@ -30,8 +32,9 @@ import {
   addContentBlock,
   emitSyntheticToolResult,
   ensureTerminalToolCallState,
-  getEventUI,
   getScopedParentToolCallId,
+  getToolCallUI,
+  getToolResultErrorMessage,
   handleClientCompletion,
   inferToolSuccess,
   registerPendingToolPromise,
@@ -60,97 +63,91 @@ export async function handleToolEvent(
 
   if (isSubagent && !parentToolCallId) return
 
-  const data = getEventData(event)
-  const phase = data?.phase as string | undefined
-  const toolCallId = (data?.toolCallId as string | undefined) || (data?.id as string | undefined)
-  if (!toolCallId) return
-  const toolName =
-    (data?.toolName as string | undefined) ||
-    (data?.name as string | undefined) ||
-    context.toolCalls.get(toolCallId)?.name ||
-    ''
-
-  if (phase === MothershipStreamV1ToolPhase.args_delta) {
+  if (event.type !== 'tool') {
     return
   }
 
-  if (phase === MothershipStreamV1ToolPhase.result) {
-    handleResultPhase(context, data, toolCallId, toolName, isSubagent, parentToolCallId)
+  if (isToolArgsDeltaStreamEvent(event)) {
     return
   }
 
-  handleCallPhase(
-    event,
-    context,
-    execContext,
-    options,
-    data,
-    toolCallId,
-    toolName,
-    isSubagent,
-    parentToolCallId,
-    scope
-  )
+  if (isToolResultStreamEvent(event)) {
+    handleResultPhase(event.payload, context, parentToolCallId)
+    return
+  }
+
+  if (!isToolCallStreamEvent(event)) {
+    return
+  }
+
+  await handleCallPhase(event.payload, context, execContext, options, parentToolCallId, scope)
 }
 
 function handleResultPhase(
+  data: MothershipStreamV1ToolResultPayload,
   context: StreamingContext,
-  data: Record<string, unknown> | undefined,
-  toolCallId: string,
-  toolName: string,
-  isSubagent: boolean,
   parentToolCallId: string | undefined
 ): void {
+  const { toolCallId, toolName } = data
   const mainToolCall = ensureTerminalToolCallState(context, toolCallId, toolName)
-  const { success, hasResultData, hasError } = inferToolSuccess(data)
-  const outputObj = asRecord(data?.output)
-  const status =
-    data?.status === MothershipStreamV1ToolOutcome.cancelled
-      ? MothershipStreamV1ToolOutcome.cancelled
-      : success
-        ? MothershipStreamV1ToolOutcome.success
-        : MothershipStreamV1ToolOutcome.error
+  const { success, hasResultData } = inferToolSuccess(data)
+  let status: MothershipStreamV1ToolOutcome
+  if (data.status === MothershipStreamV1ToolOutcome.cancelled) {
+    status = MothershipStreamV1ToolOutcome.cancelled
+  } else if (data.status === MothershipStreamV1ToolOutcome.skipped) {
+    status = MothershipStreamV1ToolOutcome.skipped
+  } else if (data.status === MothershipStreamV1ToolOutcome.rejected) {
+    status = MothershipStreamV1ToolOutcome.rejected
+  } else {
+    status = success ? MothershipStreamV1ToolOutcome.success : MothershipStreamV1ToolOutcome.error
+  }
   const endTime = Date.now()
-  const result = hasResultData ? { success, output: data?.output } : undefined
+  const errorMessage =
+    !success && status !== MothershipStreamV1ToolOutcome.skipped
+      ? getToolResultErrorMessage(data) ||
+        (status === MothershipStreamV1ToolOutcome.cancelled
+          ? 'Tool cancelled'
+          : status === MothershipStreamV1ToolOutcome.rejected
+            ? 'Tool rejected'
+            : 'Tool failed')
+      : undefined
 
-  if (isSubagent && parentToolCallId) {
+  if (parentToolCallId) {
     const toolCalls = context.subAgentToolCalls[parentToolCallId] || []
     const subAgentToolCall = toolCalls.find((tc) => tc.id === toolCallId)
     if (subAgentToolCall) {
-      subAgentToolCall.status = status
-      subAgentToolCall.endTime = endTime
-      if (result) subAgentToolCall.result = result
-      if (hasError) {
-        subAgentToolCall.error = (data?.error || outputObj.error) as string | undefined
-      }
+      setTerminalToolCallState(subAgentToolCall, {
+        status,
+        ...(hasResultData ? { output: data.output } : {}),
+        ...(errorMessage ? { error: errorMessage } : {}),
+        endTime,
+      })
     }
   }
 
-  mainToolCall.status = status
-  mainToolCall.endTime = endTime
-  if (result) mainToolCall.result = result
-  if (hasError) {
-    mainToolCall.error = (data?.error || outputObj.error) as string | undefined
-  }
+  setTerminalToolCallState(mainToolCall, {
+    status,
+    ...(hasResultData ? { output: data.output } : {}),
+    ...(errorMessage ? { error: errorMessage } : {}),
+    endTime,
+  })
   markToolResultSeen(toolCallId)
 }
 
 async function handleCallPhase(
-  event: StreamEvent,
+  data: MothershipStreamV1ToolCallDescriptor,
   context: StreamingContext,
   execContext: ExecutionContext,
   options: OrchestratorOptions,
-  data: Record<string, unknown> | undefined,
-  toolCallId: string,
-  toolName: string,
-  isSubagent: boolean,
   parentToolCallId: string | undefined,
   scope: ToolScope
 ): Promise<void> {
-  const args = (data?.arguments || data?.input) as Record<string, unknown> | undefined
-  const isGenerating = data?.status === TOOL_CALL_STATUS.generating
-  const isPartial = data?.partial === true || isGenerating
+  const { toolCallId, toolName } = data
+  const args = data.arguments
+  const isGenerating = data.status === TOOL_CALL_STATUS.generating
+  const isPartial = data.partial === true || isGenerating
   const existing = context.toolCalls.get(toolCallId)
+  const isSubagent = scope === 'subagent'
 
   if (isSubagent) {
     if (wasToolResultSeen(toolCallId) || existing?.endTime) {
@@ -184,13 +181,10 @@ async function handleCallPhase(
   const toolCall = context.toolCalls.get(toolCallId)
   if (!toolCall) return
 
-  const isGoHandledInternalRead =
-    toolName === 'read' &&
-    typeof args?.path === 'string' &&
-    (args.path as string).startsWith('internal/')
-  if (isGoHandledInternalRead) return
+  const readPath = typeof args?.path === 'string' ? args.path : undefined
+  if (toolName === 'read' && readPath?.startsWith('internal/')) return
 
-  const { clientExecutable, simExecutable, internal } = getEventUI(event)
+  const { clientExecutable, simExecutable, internal } = getToolCallUI(data)
   const catalogEntry = getToolEntry(toolName)
   const isInternal = internal || catalogEntry?.internal === true
   const staticSimExecuted = isSimExecuted(toolName)
@@ -201,7 +195,7 @@ async function handleCallPhase(
     scope,
     isSubagent,
     parentToolCallId,
-    executor: data?.executor,
+    executor: data.executor,
     clientExecutable,
     simExecutable,
     staticSimExecuted,
@@ -351,7 +345,7 @@ async function dispatchToolExecution(
       toolCall.status = 'executing'
       const pendingPromise = (async () => {
         await upsertAsyncToolCall({
-          runId: context.runId || crypto.randomUUID(),
+          runId: context.runId,
           toolCallId,
           toolName,
           args,

@@ -1,8 +1,4 @@
-import {
-  MothershipStreamV1SpanLifecycleEvent,
-  MothershipStreamV1TextChannel,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import { getEventData } from '@/lib/copilot/request/sse-utils'
+import { MothershipStreamV1TextChannel } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { StreamHandler, ToolScope } from './types'
 import {
   addContentBlock,
@@ -13,14 +9,19 @@ import {
 
 export function handleTextEvent(scope: ToolScope): StreamHandler {
   return (event, context) => {
-    const d = getEventData(event)
+    if (event.type !== 'text') {
+      return
+    }
+
+    const chunk = event.payload.text
+    if (!chunk) {
+      return
+    }
 
     if (scope === 'subagent') {
       const parentToolCallId = getScopedParentToolCallId(event, context)
       if (!parentToolCallId) return
-      const chunk = d?.text as string | undefined
-      if (!chunk) return
-      if (d?.channel === MothershipStreamV1TextChannel.thinking) {
+      if (event.payload.channel === MothershipStreamV1TextChannel.thinking) {
         if (!context.currentSubagentThinkingBlock) {
           context.currentSubagentThinkingBlock = {
             type: 'subagent_thinking',
@@ -43,26 +44,7 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
       return
     }
 
-    if (d?.channel === MothershipStreamV1TextChannel.thinking) {
-      const phase = d.phase as string | undefined
-      if (phase === MothershipStreamV1SpanLifecycleEvent.start) {
-        if (context.isInThinkingBlock) {
-          flushThinkingBlock(context)
-        }
-        context.isInThinkingBlock = true
-        context.currentThinkingBlock = {
-          type: 'thinking',
-          content: '',
-          timestamp: Date.now(),
-        }
-        return
-      }
-      if (phase === MothershipStreamV1SpanLifecycleEvent.end) {
-        flushThinkingBlock(context)
-        return
-      }
-      const chunk = d?.text as string | undefined
-      if (!chunk) return
+    if (event.payload.channel === MothershipStreamV1TextChannel.thinking) {
       if (!context.currentThinkingBlock) {
         context.currentThinkingBlock = {
           type: 'thinking',
@@ -75,8 +57,6 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
       return
     }
 
-    const chunk = d?.text as string | undefined
-    if (!chunk) return
     if (context.isInThinkingBlock) {
       flushThinkingBlock(context)
     }
