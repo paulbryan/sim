@@ -93,8 +93,14 @@ export async function POST(req: NextRequest) {
     const canAppendAssistant =
       userIdx >= 0 && userIdx === messages.length - 1 && !alreadyHasResponse
 
+    const updateWhere = and(
+      eq(copilotChats.id, chatId),
+      eq(copilotChats.userId, session.user.id),
+      eq(copilotChats.conversationId, streamId)
+    )
+
     const setClause: Record<string, unknown> = {
-      conversationId: sql`CASE WHEN ${copilotChats.conversationId} = ${streamId} THEN NULL ELSE ${copilotChats.conversationId} END`,
+      conversationId: null,
       updatedAt: new Date(),
     }
 
@@ -116,7 +122,7 @@ export async function POST(req: NextRequest) {
     const [updated] = await db
       .update(copilotChats)
       .set(setClause)
-      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
+      .where(updateWhere)
       .returning({ workspaceId: copilotChats.workspaceId })
 
     if (updated?.workspaceId) {

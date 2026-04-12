@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 
 interface FinalizeAssistantTurnParams {
@@ -32,9 +32,13 @@ export async function finalizeAssistantTurn({
     userIdx + 1 < messages.length &&
     (messages[userIdx + 1] as Record<string, unknown>)?.role === 'assistant'
   const canAppendAssistant = userIdx >= 0 && userIdx === messages.length - 1 && !alreadyHasResponse
+  const updateWhere = and(
+    eq(copilotChats.id, chatId),
+    eq(copilotChats.conversationId, userMessageId)
+  )
 
   const baseUpdate = {
-    conversationId: sql`CASE WHEN ${copilotChats.conversationId} = ${userMessageId} THEN NULL ELSE ${copilotChats.conversationId} END`,
+    conversationId: null,
     updatedAt: new Date(),
   }
 
@@ -45,9 +49,9 @@ export async function finalizeAssistantTurn({
         ...baseUpdate,
         messages: sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`,
       })
-      .where(eq(copilotChats.id, chatId))
+      .where(updateWhere)
     return
   }
 
-  await db.update(copilotChats).set(baseUpdate).where(eq(copilotChats.id, chatId))
+  await db.update(copilotChats).set(baseUpdate).where(updateWhere)
 }

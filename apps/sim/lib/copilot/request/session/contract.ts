@@ -1,4 +1,5 @@
-import Ajv2020, { type ErrorObject, type ValidateFunction } from 'ajv/dist/2020'
+import type { ErrorObject, ValidateFunction } from 'ajv'
+import Ajv2020 from 'ajv/dist/2020.js'
 import type {
   MothershipStreamV1EventEnvelope,
   MothershipStreamV1StreamRef,

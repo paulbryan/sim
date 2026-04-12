@@ -2,6 +2,8 @@
  * @vitest-environment node
  */
 
+import { copilotChats } from '@sim/db/schema'
+import { and, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { selectLimit, selectWhere, selectFrom, select, updateWhere, updateSet, update } = vi.hoisted(
@@ -63,9 +65,12 @@ describe('finalizeAssistantTurn', () => {
     expect(updateSet).toHaveBeenCalledWith(
       expect.objectContaining({
         updatedAt: expect.any(Date),
-        conversationId: expect.anything(),
+        conversationId: null,
         messages: expect.anything(),
       })
+    )
+    expect(updateWhere).toHaveBeenCalledWith(
+      and(eq(copilotChats.id, 'chat-1'), eq(copilotChats.conversationId, 'user-1'))
     )
   })
 
@@ -90,13 +95,21 @@ describe('finalizeAssistantTurn', () => {
       },
     })
 
-    const updateArg = updateSet.mock.calls[0]?.[0] as Record<string, unknown>
+    const updateCalls = updateSet.mock.calls as unknown as Array<[Record<string, unknown>]>
+    const updateArg = updateCalls[0]?.[0]
+    expect(updateArg).toBeDefined()
+    if (!updateArg) {
+      throw new Error('Expected updateSet to be called')
+    }
     expect(updateArg).toEqual(
       expect.objectContaining({
         updatedAt: expect.any(Date),
-        conversationId: expect.anything(),
+        conversationId: null,
       })
     )
     expect(Object.hasOwn(updateArg, 'messages')).toBe(false)
+    expect(updateWhere).toHaveBeenCalledWith(
+      and(eq(copilotChats.id, 'chat-1'), eq(copilotChats.conversationId, 'user-1'))
+    )
   })
 })
