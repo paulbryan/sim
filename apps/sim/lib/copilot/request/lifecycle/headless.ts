@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import type { RequestTraceV1Outcome as RequestTraceOutcome } from '@/lib/copilot/generated/request-trace-v1'
 import {
   RequestTraceV1Outcome,
   RequestTraceV1SpanStatus,
@@ -28,7 +29,7 @@ export async function runHeadlessCopilotLifecycle(
   })
 
   let result: OrchestratorResult | undefined
-  let outcome = RequestTraceV1Outcome.error
+  let outcome: RequestTraceOutcome = RequestTraceV1Outcome.error
 
   try {
     result = await runCopilotLifecycle(requestPayload, {
