@@ -5,6 +5,32 @@ import { describe, expect, it } from 'vitest'
 import { extractResourcesFromToolResult } from './extraction'
 
 describe('extractResourcesFromToolResult', () => {
+  it('extracts file resources from create_file results', () => {
+    const resources = extractResourcesFromToolResult(
+      'create_file',
+      {
+        fileName: 'notes.md',
+      },
+      {
+        success: true,
+        message: 'File "notes.md" created successfully',
+        data: {
+          id: 'file_123',
+          name: 'notes.md',
+          contentType: 'text/markdown',
+        },
+      }
+    )
+
+    expect(resources).toEqual([
+      {
+        type: 'file',
+        id: 'file_123',
+        title: 'notes.md',
+      },
+    ])
+  })
+
   it('uses the knowledge base id for knowledge_base tag mutations', () => {
     const resources = extractResourcesFromToolResult(
       'knowledge_base',

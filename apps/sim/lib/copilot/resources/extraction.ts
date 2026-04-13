@@ -1,4 +1,5 @@
 import {
+  CreateFile,
   CreateWorkflow,
   DeleteWorkflow,
   DownloadToWorkspaceFile,
@@ -19,6 +20,7 @@ type ResourceType = MothershipResourceType
 
 const RESOURCE_TOOL_NAMES: Set<string> = new Set([
   UserTable.id,
+  CreateFile.id,
   WorkspaceFile.id,
   DownloadToWorkspaceFile.id,
   CreateWorkflow.id,
@@ -106,6 +108,7 @@ export function extractResourcesFromToolResult(
       return []
     }
 
+    case CreateFile.id:
     case WorkspaceFile.id: {
       const file = asRecord(data.file)
       if (file.id) {
