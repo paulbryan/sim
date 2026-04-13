@@ -277,6 +277,18 @@ export async function runStreamLoop(
       }
       return context.streamComplete || undefined
     })
+
+    if (!context.streamComplete && !abortSignal?.aborted && !context.wasAborted) {
+      const streamPath = new URL(fetchUrl).pathname
+      const message = `Copilot backend stream ended before a terminal event on ${streamPath}`
+      context.errors.push(message)
+      logger.error('Copilot backend stream ended before a terminal event', {
+        path: streamPath,
+        requestId: context.requestId,
+        messageId: context.messageId,
+      })
+      throw new CopilotBackendError(message, { status: 503 })
+    }
   } catch (error) {
     if (error instanceof FatalSseEventError && !context.errors.includes(error.message)) {
       context.errors.push(error.message)

@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
-import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
+import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { generateId } from '@/lib/core/utils/uuid'
 import {
   assertActiveWorkspaceAccess,
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       ...(userPermission ? { userPermission } : {}),
     }
 
-    const result = await runCopilotLifecycle(requestPayload, {
+    const result = await runHeadlessCopilotLifecycle(requestPayload, {
       userId,
       workspaceId,
       chatId: effectiveChatId,

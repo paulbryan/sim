@@ -18,7 +18,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { ORCHESTRATION_TIMEOUT_MS, SIM_AGENT_API_URL } from '@/lib/copilot/constants'
-import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
+import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { orchestrateSubagentStream } from '@/lib/copilot/request/subagent'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
@@ -724,7 +724,7 @@ async function handleBuildToolCall(
       chatId,
     }
 
-    const result = await runCopilotLifecycle(requestPayload, {
+    const result = await runHeadlessCopilotLifecycle(requestPayload, {
       userId,
       workflowId: resolved.workflowId,
       chatId,

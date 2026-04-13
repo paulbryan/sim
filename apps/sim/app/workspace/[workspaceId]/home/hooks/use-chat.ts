@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import type {
   PersistedFileAttachment,
@@ -709,6 +709,7 @@ export function useChat(
   options?: UseChatOptions
 ): UseChatReturn {
   const pathname = usePathname()
+  const router = useRouter()
   const queryClient = useQueryClient()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
@@ -962,6 +963,8 @@ export function useChat(
   const recoveringClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
   const executionStream = useExecutionStream()
   const isHomePage = pathname.endsWith('/home')
+  const wasHomePageRef = useRef(isHomePage)
+  const pendingHomeResetRef = useRef(false)
 
   const setTransportIdle = useCallback(() => {
     sendingRef.current = false
@@ -993,6 +996,25 @@ export function useChat(
     lastCursorRef.current = '0'
     resetStreamingBuffers()
   }, [resetStreamingBuffers])
+
+  const resetHomeChatState = useCallback(() => {
+    streamGenRef.current++
+    chatIdRef.current = undefined
+    lastCursorRef.current = '0'
+    locallyTerminalStreamIdRef.current = undefined
+    clearActiveTurn()
+    setResolvedChatId(undefined)
+    appliedChatHistoryKeyRef.current = undefined
+    abortControllerRef.current = null
+    setMessages([])
+    setError(null)
+    setTransportIdle()
+    setResources([])
+    setActiveResourceId(null)
+    resetEphemeralPreviewState()
+    setMessageQueue([])
+    clearQueueDispatchState()
+  }, [clearActiveTurn, clearQueueDispatchState, resetEphemeralPreviewState, setTransportIdle])
 
   const mergeServerMessagesWithActiveTurn = useCallback(
     (serverMessages: ChatMessage[], previousMessages: ChatMessage[]) => {
@@ -1196,31 +1218,33 @@ export function useChat(
   ])
 
   useEffect(() => {
-    if (workflowIdRef.current) return
-    if (!isHomePage || !chatIdRef.current) return
-    streamGenRef.current++
-    chatIdRef.current = undefined
-    lastCursorRef.current = '0'
-    locallyTerminalStreamIdRef.current = undefined
-    clearActiveTurn()
-    setResolvedChatId(undefined)
-    appliedChatHistoryKeyRef.current = undefined
-    abortControllerRef.current = null
-    setMessages([])
-    setError(null)
-    setTransportIdle()
-    setResources([])
-    setActiveResourceId(null)
-    resetEphemeralPreviewState()
-    setMessageQueue([])
-    clearQueueDispatchState()
-  }, [
-    isHomePage,
-    resetEphemeralPreviewState,
-    clearQueueDispatchState,
-    clearActiveTurn,
-    setTransportIdle,
-  ])
+    const wasHomePage = wasHomePageRef.current
+    wasHomePageRef.current = isHomePage
+
+    if (!isHomePage) {
+      pendingHomeResetRef.current = false
+      return
+    }
+    if (workflowIdRef.current || !chatIdRef.current) return
+
+    const shouldHandleHomeReset = pendingHomeResetRef.current || !wasHomePage
+    if (!shouldHandleHomeReset) return
+
+    const hasActiveTransport =
+      isSending ||
+      sendingRef.current ||
+      isReconnecting ||
+      abortControllerRef.current !== null ||
+      streamReaderRef.current !== null
+
+    if (hasActiveTransport) {
+      pendingHomeResetRef.current = true
+      return
+    }
+
+    pendingHomeResetRef.current = false
+    resetHomeChatState()
+  }, [isHomePage, isReconnecting, isSending, resetHomeChatState])
 
   useEffect(() => {
     if (!chatHistory) return
@@ -1583,11 +1607,9 @@ export function useChat(
                     })
                   }
                   if (!workflowIdRef.current) {
-                    window.history.replaceState(
-                      null,
-                      '',
-                      `/workspace/${workspaceId}/task/${payloadChatId}`
-                    )
+                    router.replace(`/workspace/${workspaceId}/task/${payloadChatId}`, {
+                      scroll: false,
+                    })
                   }
                 }
               }
@@ -2153,6 +2175,7 @@ export function useChat(
     },
     [
       workspaceId,
+      router,
       queryClient,
       addResource,
       removeResource,

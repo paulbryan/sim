@@ -3,6 +3,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
   MothershipStreamV1ToolExecutor,
   MothershipStreamV1ToolMode,
@@ -145,8 +146,18 @@ describe('copilot go stream helpers', () => {
         output: { value: 'ok' },
       },
     })
+    const complete = createEvent({
+      streamId: 'stream-1',
+      cursor: '2',
+      seq: 2,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.complete,
+      payload: {
+        status: MothershipStreamV1CompletionStatus.complete,
+      },
+    })
 
-    vi.mocked(fetch).mockResolvedValueOnce(createSseResponse([toolResult, toolResult]))
+    vi.mocked(fetch).mockResolvedValueOnce(createSseResponse([toolResult, toolResult, complete]))
 
     const onEvent = vi.fn()
     const context = createStreamingContext()
@@ -160,7 +171,10 @@ describe('copilot go stream helpers', () => {
       timeout: 1000,
     })
 
-    expect(onEvent).toHaveBeenCalledTimes(1)
+    expect(onEvent.mock.calls.map(([event]) => event.type)).toEqual([
+      MothershipStreamV1EventType.tool,
+      MothershipStreamV1EventType.complete,
+    ])
     expect(onEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         type: MothershipStreamV1EventType.tool,
@@ -178,6 +192,39 @@ describe('copilot go stream helpers', () => {
         result: { success: true, output: { value: 'ok' } },
       })
     )
+  })
+
+  it('fails closed when the shared stream ends before a terminal event', async () => {
+    const textEvent = createEvent({
+      streamId: 'stream-1',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.text,
+      payload: {
+        channel: 'assistant',
+        text: 'partial response',
+      },
+    })
+
+    vi.mocked(fetch).mockResolvedValueOnce(createSseResponse([textEvent]))
+
+    const context = createStreamingContext()
+    const execContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+    }
+
+    await expect(
+      runStreamLoop('https://example.com/mothership/stream', {}, context, execContext, {
+        timeout: 1000,
+      })
+    ).rejects.toThrow('Copilot backend stream ended before a terminal event')
+    expect(
+      context.errors.some((message) =>
+        message.includes('Copilot backend stream ended before a terminal event')
+      )
+    ).toBe(true)
   })
 
   it('fails closed when the shared stream receives an invalid event', async () => {

@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
-import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
+import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     // Always generate a chatId - required for artifacts system to work with subagents
     const chatId = parsed.chatId || generateId()
 
-    messageId = crypto.randomUUID()
+    messageId = generateId()
     logger.info(
       messageId
         ? `Received headless copilot chat start request [messageId:${messageId}]`
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
       chatId,
     }
 
-    const result = await runCopilotLifecycle(requestPayload, {
+    const result = await runHeadlessCopilotLifecycle(requestPayload, {
       userId: auth.userId,
       workflowId: resolved.workflowId,
       chatId,

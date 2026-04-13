@@ -8,7 +8,7 @@ import {
   buildPersistedUserMessage,
 } from '@/lib/copilot/chat/persisted-message'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
-import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
+import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
 import { taskPubSub } from '@/lib/copilot/tasks'
@@ -192,7 +192,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       ...(fileAttachments.length > 0 ? { fileAttachments } : {}),
     }
 
-    const result = await runCopilotLifecycle(requestPayload, {
+    const result = await runHeadlessCopilotLifecycle(requestPayload, {
       userId,
       workspaceId: ws.id,
       chatId: chatId ?? undefined,
