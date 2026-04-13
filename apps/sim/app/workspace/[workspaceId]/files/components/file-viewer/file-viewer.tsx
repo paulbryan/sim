@@ -971,7 +971,11 @@ function TextEditor({
                     highlight={highlightCode}
                     padding={sharedCodeEditorProps.padding}
                     readOnly={isEditorReadOnly}
-                    className={cn(sharedCodeEditorProps.className, 'min-h-full')}
+                    className={cn(
+                      sharedCodeEditorProps.className,
+                      'min-h-full',
+                      isEditorReadOnly && 'opacity-100'
+                    )}
                     textareaClassName={cn(sharedCodeEditorProps.textareaClassName, 'min-h-full')}
                   />
                 </CodeEditor.Content>
