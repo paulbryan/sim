@@ -71,16 +71,17 @@ export class MothershipBlockHandler implements BlockHandler {
       ctx.abortSignal?.addEventListener('abort', onAbort, { once: true })
     }
 
-    const useRedisCancellation = isRedisCancellationEnabled() && !!ctx.executionId
+    const executionId = ctx.executionId
+    const useRedisCancellation = isRedisCancellationEnabled() && !!executionId
     let pollInFlight = false
     const cancellationPoller =
-      useRedisCancellation && ctx.executionId
+      useRedisCancellation && executionId
         ? setInterval(() => {
             if (pollInFlight || abortController.signal.aborted) {
               return
             }
             pollInFlight = true
-            void isExecutionCancelled(ctx.executionId)
+            void isExecutionCancelled(executionId)
               .then((cancelled) => {
                 if (cancelled && !abortController.signal.aborted) {
                   abortController.abort('workflow_execution_cancelled')
@@ -89,7 +90,7 @@ export class MothershipBlockHandler implements BlockHandler {
               .catch((error) => {
                 logger.warn('Failed to poll workflow cancellation for Mothership block', {
                   blockId: block.id,
-                  executionId: ctx.executionId,
+                  executionId,
                   error: error instanceof Error ? error.message : String(error),
                 })
               })
