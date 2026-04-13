@@ -10,10 +10,10 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  TagIcon,
   Textarea,
   ThumbsDown,
   ThumbsUp,
+  Tooltip,
 } from '@/components/emcn'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 
@@ -105,6 +105,7 @@ export function MessageActions({ content, chatId, userQuery, requestId }: Messag
       if (chatId && userQuery) {
         setPendingFeedback(type)
         setFeedbackText('')
+        setCopiedRequestId(false)
       }
     },
     [chatId, userQuery]
@@ -133,6 +134,7 @@ export function MessageActions({ content, chatId, userQuery, requestId }: Messag
     if (!open) {
       setPendingFeedback(null)
       setFeedbackText('')
+      setCopiedRequestId(false)
     }
   }, [])
 
@@ -165,21 +167,6 @@ export function MessageActions({ content, chatId, userQuery, requestId }: Messag
         >
           <ThumbsDown className={ICON_CLASS} />
         </button>
-        {requestId && (
-          <button
-            type='button'
-            aria-label='Copy request ID'
-            onClick={copyRequestId}
-            className={BUTTON_CLASS}
-            title={copiedRequestId ? 'Copied!' : 'Copy request ID'}
-          >
-            {copiedRequestId ? (
-              <Check className={ICON_CLASS} />
-            ) : (
-              <TagIcon className={ICON_CLASS} />
-            )}
-          </button>
-        )}
       </div>
 
       <Modal open={pendingFeedback !== null} onOpenChange={handleModalClose}>
@@ -187,9 +174,32 @@ export function MessageActions({ content, chatId, userQuery, requestId }: Messag
           <ModalHeader>Give feedback</ModalHeader>
           <ModalBody>
             <div className='flex flex-col gap-2'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                {pendingFeedback === 'up' ? 'What did you like?' : 'What could be improved?'}
-              </p>
+              <div className='flex items-start justify-between gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>
+                  {pendingFeedback === 'up' ? 'What did you like?' : 'What could be improved?'}
+                </p>
+                {pendingFeedback === 'down' && requestId && (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        type='button'
+                        aria-label='Copy request ID'
+                        onClick={copyRequestId}
+                        className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
+                      >
+                        {copiedRequestId ? (
+                          <Check className='h-[14px] w-[14px]' />
+                        ) : (
+                          <Copy className='h-[14px] w-[14px]' />
+                        )}
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>
+                      {copiedRequestId ? 'Copied request ID' : 'Copy request ID'}
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                )}
+              </div>
               <Textarea
                 placeholder={
                   pendingFeedback === 'up'

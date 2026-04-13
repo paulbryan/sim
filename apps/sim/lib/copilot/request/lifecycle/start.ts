@@ -150,9 +150,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           trace: collector,
           simRequestId: requestId,
           abortSignal: abortController.signal,
-          onGoTraceId: (goTraceId) => {
-            publisher.updateRequestId(goTraceId)
-          },
           onEvent: async (event) => {
             await publisher.publish(event)
           },

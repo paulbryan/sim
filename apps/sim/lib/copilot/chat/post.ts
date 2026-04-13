@@ -334,7 +334,7 @@ function buildOnComplete(params: {
         chatId,
         userMessageId,
         ...(result.success
-          ? { assistantMessage: buildPersistedAssistantMessage(result, result.requestId) }
+          ? { assistantMessage: buildPersistedAssistantMessage(result, requestId) }
           : {}),
       })
 
@@ -518,7 +518,7 @@ async function resolveBranch(params: {
 }
 
 export async function handleUnifiedChatPost(req: NextRequest) {
-  const tracker = createRequestTracker()
+  const tracker = createRequestTracker(false)
   let actualChatId: string | undefined
   let userMessageId = ''
   let chatStreamLockAcquired = false

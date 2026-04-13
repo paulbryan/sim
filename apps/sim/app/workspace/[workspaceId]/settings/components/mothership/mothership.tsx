@@ -605,7 +605,7 @@ function TracesTab({ environment }: { environment: MothershipEnv }) {
           value={requestIdInput}
           onChange={(e) => setRequestIdInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
-          placeholder='Paste a request ID (go_trace_id)...'
+          placeholder='Paste a request ID (sim_request_id)...'
           className='font-mono text-[13px]'
         />
         <Button variant='primary' onClick={handleLookup} disabled={!requestIdInput.trim()}>

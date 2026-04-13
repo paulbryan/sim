@@ -60,6 +60,20 @@ describe('persisted-message', () => {
     ])
   })
 
+  it('prefers an explicit persisted request ID override', () => {
+    const result: OrchestratorResult = {
+      success: true,
+      content: 'done',
+      requestId: 'go-trace-1',
+      contentBlocks: [],
+      toolCalls: [],
+    }
+
+    const persisted = buildPersistedAssistantMessage(result, 'sim-request-1')
+
+    expect(persisted.requestId).toBe('sim-request-1')
+  })
+
   it('normalizes legacy tool_call and top-level toolCalls shapes', () => {
     const normalized = normalizeMessage({
       id: 'msg-1',
