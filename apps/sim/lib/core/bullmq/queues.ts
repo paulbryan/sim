@@ -21,6 +21,10 @@ let knowledgeConnectorSyncQueueInstance: Queue | null = null
 let knowledgeDocumentProcessingQueueInstance: Queue | null = null
 let mothershipJobExecutionQueueInstance: Queue | null = null
 let workspaceNotificationDeliveryQueueInstance: Queue | null = null
+let cleanupLogsQueueInstance: Queue | null = null
+let cleanupSoftDeletesQueueInstance: Queue | null = null
+let cleanupTasksQueueInstance: Queue | null = null
+let redactTaskContextQueueInstance: Queue | null = null
 let workflowQueueEventsInstance: QueueEvents | null = null
 
 function getQueueDefaultOptions(type: JobType) {
@@ -51,6 +55,15 @@ function getQueueDefaultOptions(type: JobType) {
         attempts: 1,
         removeOnComplete: { age: 24 * 60 * 60 },
         removeOnFail: { age: 3 * 24 * 60 * 60 },
+      }
+    case 'cleanup-logs':
+    case 'cleanup-soft-deletes':
+    case 'cleanup-tasks':
+    case 'redact-task-context':
+      return {
+        attempts: 1,
+        removeOnComplete: { age: 24 * 60 * 60 },
+        removeOnFail: { age: 7 * 24 * 60 * 60 },
       }
   }
 }
@@ -133,6 +146,26 @@ export function getBullMQQueue(type: JobType): Queue {
         resumeQueueInstance = createQueue(type)
       }
       return resumeQueueInstance
+    case 'cleanup-logs':
+      if (!cleanupLogsQueueInstance) {
+        cleanupLogsQueueInstance = createQueue(type)
+      }
+      return cleanupLogsQueueInstance
+    case 'cleanup-soft-deletes':
+      if (!cleanupSoftDeletesQueueInstance) {
+        cleanupSoftDeletesQueueInstance = createQueue(type)
+      }
+      return cleanupSoftDeletesQueueInstance
+    case 'cleanup-tasks':
+      if (!cleanupTasksQueueInstance) {
+        cleanupTasksQueueInstance = createQueue(type)
+      }
+      return cleanupTasksQueueInstance
+    case 'redact-task-context':
+      if (!redactTaskContextQueueInstance) {
+        redactTaskContextQueueInstance = createQueue(type)
+      }
+      return redactTaskContextQueueInstance
   }
 }
 
@@ -142,6 +175,10 @@ export function getBullMQQueueByName(queueName: WorkspaceDispatchQueueName): Que
     case 'webhook-execution':
     case 'schedule-execution':
     case 'resume-execution':
+    case 'cleanup-logs':
+    case 'cleanup-soft-deletes':
+    case 'cleanup-tasks':
+    case 'redact-task-context':
       return getBullMQQueue(queueName)
     case KNOWLEDGE_CONNECTOR_SYNC_QUEUE:
       return getKnowledgeConnectorSyncQueue()

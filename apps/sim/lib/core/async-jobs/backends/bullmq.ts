@@ -100,6 +100,26 @@ export class BullMQJobQueue implements JobQueueBackend {
       return toJob('resume-execution', resumeJob)
     }
 
+    const cleanupLogsJob = await getBullMQQueue('cleanup-logs').getJob(jobId)
+    if (cleanupLogsJob) {
+      return toJob('cleanup-logs', cleanupLogsJob)
+    }
+
+    const cleanupSoftDeletesJob = await getBullMQQueue('cleanup-soft-deletes').getJob(jobId)
+    if (cleanupSoftDeletesJob) {
+      return toJob('cleanup-soft-deletes', cleanupSoftDeletesJob)
+    }
+
+    const cleanupTasksJob = await getBullMQQueue('cleanup-tasks').getJob(jobId)
+    if (cleanupTasksJob) {
+      return toJob('cleanup-tasks', cleanupTasksJob)
+    }
+
+    const redactTaskContextJob = await getBullMQQueue('redact-task-context').getJob(jobId)
+    if (redactTaskContextJob) {
+      return toJob('redact-task-context', redactTaskContextJob)
+    }
+
     return null
   }
 

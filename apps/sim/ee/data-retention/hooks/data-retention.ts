@@ -6,6 +6,7 @@ export interface RetentionValues {
   logRetentionHours: number | null
   softDeleteRetentionHours: number | null
   taskRedactionHours: number | null
+  taskCleanupHours: number | null
 }
 
 export interface DataRetentionResponse {

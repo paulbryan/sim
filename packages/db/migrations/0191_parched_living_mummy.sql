@@ -1,0 +1,1 @@
+ALTER TABLE "workspace" ADD COLUMN "task_cleanup_hours" integer;

@@ -122,6 +122,13 @@ function LockedView({ data }: { data: DataRetentionResponse }) {
           onChange={() => {}}
           disabled
         />
+        <RetentionField
+          label='Task Cleanup'
+          description='How long before old tasks are permanently deleted.'
+          value={hoursToDisplayDays(data.effective.taskCleanupHours)}
+          onChange={() => {}}
+          disabled
+        />
       </div>
       <p className='text-[12px] text-[var(--text-muted)]'>
         {planLabel(data.plan)} plan defaults. Upgrade to Enterprise to customize retention periods.
@@ -140,6 +147,9 @@ function EditableView({ data, workspaceId }: { data: DataRetentionResponse; work
   const [taskRedactionDays, setTaskRedactionDays] = useState(
     hoursToDisplayDays(data.effective.taskRedactionHours)
   )
+  const [taskCleanupDays, setTaskCleanupDays] = useState(
+    hoursToDisplayDays(data.effective.taskCleanupHours)
+  )
 
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
@@ -155,6 +165,7 @@ function EditableView({ data, workspaceId }: { data: DataRetentionResponse; work
           logRetentionHours: daysToHours(logDays),
           softDeleteRetentionHours: daysToHours(softDeleteDays),
           taskRedactionHours: daysToHours(taskRedactionDays),
+          taskCleanupHours: daysToHours(taskCleanupDays),
         },
       })
       setSaveSuccess(true)
@@ -163,7 +174,7 @@ function EditableView({ data, workspaceId }: { data: DataRetentionResponse; work
       logger.error('Failed to save data retention settings', { error })
       setSaveError(error instanceof Error ? error.message : 'Failed to save settings')
     }
-  }, [workspaceId, logDays, softDeleteDays, taskRedactionDays])
+  }, [workspaceId, logDays, softDeleteDays, taskRedactionDays, taskCleanupDays])
 
   return (
     <div className='flex flex-col gap-5'>
@@ -191,6 +202,13 @@ function EditableView({ data, workspaceId }: { data: DataRetentionResponse; work
           description='How long before sensitive data in task contexts is redacted.'
           value={taskRedactionDays}
           onChange={setTaskRedactionDays}
+          disabled={false}
+        />
+        <RetentionField
+          label='Task Cleanup'
+          description='How long before old tasks are permanently deleted.'
+          value={taskCleanupDays}
+          onChange={setTaskCleanupDays}
           disabled={false}
         />
       </div>

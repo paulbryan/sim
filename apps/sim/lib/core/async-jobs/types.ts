@@ -25,6 +25,10 @@ export type JobType =
   | 'schedule-execution'
   | 'webhook-execution'
   | 'resume-execution'
+  | 'cleanup-logs'
+  | 'cleanup-soft-deletes'
+  | 'cleanup-tasks'
+  | 'redact-task-context'
 
 export type AsyncExecutionCorrelationSource = 'workflow' | 'schedule' | 'webhook'
 

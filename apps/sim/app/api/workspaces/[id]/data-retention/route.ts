@@ -24,15 +24,18 @@ const MAX_HOURS = 43800 // 5 years
 const FREE_LOG_RETENTION_HOURS = 7 * 24
 const FREE_SOFT_DELETE_RETENTION_HOURS = 7 * 24
 const FREE_TASK_REDACTION_HOURS = null // never
+const FREE_TASK_CLEANUP_HOURS = null // never
 
 const PRO_LOG_RETENTION_HOURS = 30 * 24
 const PRO_SOFT_DELETE_RETENTION_HOURS = 30 * 24
 const PRO_TASK_REDACTION_HOURS = 30 * 24
+const PRO_TASK_CLEANUP_HOURS = null // never
 
 interface PlanDefaults {
   logRetentionHours: number
   softDeleteRetentionHours: number
   taskRedactionHours: number | null
+  taskCleanupHours: number | null
 }
 
 function getPlanDefaults(plan: 'free' | 'pro' | 'enterprise'): PlanDefaults {
@@ -43,12 +46,14 @@ function getPlanDefaults(plan: 'free' | 'pro' | 'enterprise'): PlanDefaults {
         logRetentionHours: PRO_LOG_RETENTION_HOURS,
         softDeleteRetentionHours: PRO_SOFT_DELETE_RETENTION_HOURS,
         taskRedactionHours: PRO_TASK_REDACTION_HOURS,
+        taskCleanupHours: PRO_TASK_CLEANUP_HOURS,
       }
     default:
       return {
         logRetentionHours: FREE_LOG_RETENTION_HOURS,
         softDeleteRetentionHours: FREE_SOFT_DELETE_RETENTION_HOURS,
         taskRedactionHours: FREE_TASK_REDACTION_HOURS,
+        taskCleanupHours: FREE_TASK_CLEANUP_HOURS,
       }
   }
 }
@@ -67,6 +72,7 @@ const updateRetentionSchema = z.object({
   logRetentionHours: z.number().int().min(MIN_HOURS).max(MAX_HOURS).nullable().optional(),
   softDeleteRetentionHours: z.number().int().min(MIN_HOURS).max(MAX_HOURS).nullable().optional(),
   taskRedactionHours: z.number().int().min(MIN_HOURS).max(MAX_HOURS).nullable().optional(),
+  taskCleanupHours: z.number().int().min(MIN_HOURS).max(MAX_HOURS).nullable().optional(),
 })
 
 /**
@@ -93,6 +99,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         logRetentionHours: workspace.logRetentionHours,
         softDeleteRetentionHours: workspace.softDeleteRetentionHours,
         taskRedactionHours: workspace.taskRedactionHours,
+        taskCleanupHours: workspace.taskCleanupHours,
         billedAccountUserId: workspace.billedAccountUserId,
       })
       .from(workspace)
@@ -117,17 +124,20 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
           logRetentionHours: ws.logRetentionHours,
           softDeleteRetentionHours: ws.softDeleteRetentionHours,
           taskRedactionHours: ws.taskRedactionHours,
+          taskCleanupHours: ws.taskCleanupHours,
         },
         effective: isEnterpriseWorkspace
           ? {
               logRetentionHours: ws.logRetentionHours,
               softDeleteRetentionHours: ws.softDeleteRetentionHours,
               taskRedactionHours: ws.taskRedactionHours,
+              taskCleanupHours: ws.taskCleanupHours,
             }
           : {
               logRetentionHours: defaults.logRetentionHours,
               softDeleteRetentionHours: defaults.softDeleteRetentionHours,
               taskRedactionHours: defaults.taskRedactionHours,
+              taskCleanupHours: defaults.taskCleanupHours,
             },
       },
     })
@@ -189,6 +199,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (parsed.data.taskRedactionHours !== undefined) {
       updateData.taskRedactionHours = parsed.data.taskRedactionHours
     }
+    if (parsed.data.taskCleanupHours !== undefined) {
+      updateData.taskCleanupHours = parsed.data.taskCleanupHours
+    }
 
     const [updated] = await db
       .update(workspace)
@@ -198,6 +211,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         logRetentionHours: workspace.logRetentionHours,
         softDeleteRetentionHours: workspace.softDeleteRetentionHours,
         taskRedactionHours: workspace.taskRedactionHours,
+        taskCleanupHours: workspace.taskCleanupHours,
       })
 
     if (!updated) {
@@ -229,12 +243,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           logRetentionHours: updated.logRetentionHours,
           softDeleteRetentionHours: updated.softDeleteRetentionHours,
           taskRedactionHours: updated.taskRedactionHours,
+          taskCleanupHours: updated.taskCleanupHours,
         },
         effective: {
-          logRetentionHours: updated.logRetentionHours ?? defaults.logRetentionHours,
-          softDeleteRetentionHours:
-            updated.softDeleteRetentionHours ?? defaults.softDeleteRetentionHours,
-          taskRedactionHours: updated.taskRedactionHours ?? defaults.taskRedactionHours,
+          logRetentionHours: updated.logRetentionHours,
+          softDeleteRetentionHours: updated.softDeleteRetentionHours,
+          taskRedactionHours: updated.taskRedactionHours,
+          taskCleanupHours: updated.taskCleanupHours,
         },
       },
     })

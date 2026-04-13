@@ -5,21 +5,21 @@ import { getJobQueue } from '@/lib/core/async-jobs'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('LogsCleanupAPI')
+const logger = createLogger('TaskCleanupAPI')
 
 export async function GET(request: NextRequest) {
   try {
-    const authError = verifyCronAuth(request, 'logs cleanup')
+    const authError = verifyCronAuth(request, 'task cleanup')
     if (authError) return authError
 
     const jobQueue = await getJobQueue()
-    const jobId = await jobQueue.enqueue('cleanup-logs', {})
+    const jobId = await jobQueue.enqueue('cleanup-tasks', {})
 
-    logger.info('Log cleanup job dispatched', { jobId })
+    logger.info('Task cleanup job dispatched', { jobId })
 
     return NextResponse.json({ triggered: true, jobId })
   } catch (error) {
-    logger.error('Failed to dispatch log cleanup job:', { error })
-    return NextResponse.json({ error: 'Failed to dispatch log cleanup' }, { status: 500 })
+    logger.error('Failed to dispatch task cleanup job:', { error })
+    return NextResponse.json({ error: 'Failed to dispatch task cleanup' }, { status: 500 })
   }
 }
