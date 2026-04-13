@@ -146,6 +146,14 @@ function mapContentBlock(block: ContentBlock): PersistedContentBlock {
             ? { params: block.toolCall.params }
             : {}),
         ...(block.calledBy ? { calledBy: block.calledBy } : {}),
+        ...(block.toolCall.displayTitle || block.toolCall.phaseLabel
+          ? {
+              display: {
+                ...(block.toolCall.displayTitle ? { title: block.toolCall.displayTitle } : {}),
+                ...(block.toolCall.phaseLabel ? { phaseLabel: block.toolCall.phaseLabel } : {}),
+              },
+            }
+          : {}),
       }
 
       return {
@@ -326,7 +334,14 @@ function normalizeLegacyBlock(block: RawBlock): PersistedContentBlock {
         ...(block.toolCall.params ? { params: block.toolCall.params } : {}),
         ...(block.toolCall.result ? { result: block.toolCall.result } : {}),
         ...(block.toolCall.calledBy ? { calledBy: block.toolCall.calledBy } : {}),
-        ...(block.toolCall.display ? { display: { title: block.toolCall.display.text } } : {}),
+        ...(block.toolCall.display
+          ? {
+              display: {
+                title: block.toolCall.display.title ?? block.toolCall.display.text,
+                phaseLabel: block.toolCall.display.phaseLabel,
+              },
+            }
+          : {}),
       },
     }
   }

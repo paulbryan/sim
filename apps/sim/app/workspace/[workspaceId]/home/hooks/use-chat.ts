@@ -2507,6 +2507,14 @@ export function useChat(
         if (block.type === 'tool_call' && block.toolCall) {
           const isCancelled =
             block.toolCall.status === 'executing' || block.toolCall.status === 'cancelled'
+          const displayTitle = isCancelled ? 'Stopped by user' : block.toolCall.displayTitle
+          const display =
+            displayTitle || block.toolCall.phaseLabel
+              ? {
+                  ...(displayTitle ? { title: displayTitle } : {}),
+                  ...(block.toolCall.phaseLabel ? { phaseLabel: block.toolCall.phaseLabel } : {}),
+                }
+              : undefined
           return {
             type: block.type,
             content: block.content,
@@ -2516,9 +2524,7 @@ export function useChat(
               state: isCancelled ? MothershipStreamV1ToolOutcome.cancelled : block.toolCall.status,
               params: block.toolCall.params,
               result: block.toolCall.result,
-              display: {
-                text: isCancelled ? 'Stopped by user' : block.toolCall.displayTitle,
-              },
+              ...(display ? { display } : {}),
               calledBy: block.toolCall.calledBy,
             },
           }

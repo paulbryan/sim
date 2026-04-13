@@ -129,6 +129,8 @@ export function getToolCallUI(data: MothershipStreamV1ToolCallDescriptor): {
   simExecutable: boolean
   internal: boolean
   hidden: boolean
+  title?: string
+  phaseLabel?: string
 } {
   const raw = asRecord(data.ui)
   return {
@@ -138,6 +140,8 @@ export function getToolCallUI(data: MothershipStreamV1ToolCallDescriptor): {
     simExecutable: data.executor === MothershipStreamV1ToolExecutor.sim,
     internal: raw.internal === true,
     hidden: raw.hidden === true,
+    title: typeof raw.title === 'string' ? raw.title : undefined,
+    phaseLabel: typeof raw.phaseLabel === 'string' ? raw.phaseLabel : undefined,
   }
 }
 

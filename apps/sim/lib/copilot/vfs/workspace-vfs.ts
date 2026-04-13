@@ -454,15 +454,18 @@ export class WorkspaceVFS {
     const activeMatch = path.match(/^files\/(.+?)(?:\/content)?$/)
     const match = deletedMatch || activeMatch
     if (!match) return null
-    const fileName = match[1]
+    const fileReference = path
+      .replace(/^recently-deleted\//, '')
+      .replace(/\/content$/, '')
+      .replace(/^\/+/, '')
 
-    if (fileName.endsWith('/meta.json') || path.endsWith('/meta.json')) return null
+    if (fileReference.endsWith('/meta.json') || path.endsWith('/meta.json')) return null
 
     const scope = deletedMatch ? 'archived' : 'active'
 
     try {
       const files = await listWorkspaceFiles(this._workspaceId, { scope })
-      const record = findWorkspaceFileRecord(files, fileName)
+      const record = findWorkspaceFileRecord(files, fileReference)
       if (!record) return null
       return readFileRecord(record)
     } catch (err) {

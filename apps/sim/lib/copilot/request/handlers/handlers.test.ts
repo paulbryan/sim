@@ -102,6 +102,10 @@ describe('sse-handlers tool lifecycle', () => {
           executor: MothershipStreamV1ToolExecutor.sim,
           mode: MothershipStreamV1ToolMode.async,
           phase: MothershipStreamV1ToolPhase.call,
+          ui: {
+            title: 'Reading foo.txt',
+            phaseLabel: 'Workspace',
+          },
         },
       } satisfies StreamEvent,
       context,
@@ -127,7 +131,19 @@ describe('sse-handlers tool lifecycle', () => {
 
     const updated = context.toolCalls.get('tool-1')
     expect(updated?.status).toBe(MothershipStreamV1ToolOutcome.success)
+    expect(updated?.displayTitle).toBe('Reading foo.txt')
+    expect(updated?.phaseLabel).toBe('Workspace')
     expect(updated?.result?.output).toEqual({ ok: true })
+    expect(context.contentBlocks.at(0)).toEqual(
+      expect.objectContaining({
+        type: 'tool_call',
+        toolCall: expect.objectContaining({
+          id: 'tool-1',
+          displayTitle: 'Reading foo.txt',
+          phaseLabel: 'Workspace',
+        }),
+      })
+    )
   })
 
   it('preserves primitive tool outputs through async completion persistence', async () => {

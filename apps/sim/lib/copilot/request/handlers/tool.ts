@@ -42,6 +42,15 @@ import {
 
 const logger = createLogger('CopilotToolHandler')
 
+function applyToolDisplay(
+  toolCall: ToolCallState | undefined,
+  ui: { title?: string; phaseLabel?: string }
+): void {
+  if (!toolCall) return
+  if (ui.title) toolCall.displayTitle = ui.title
+  if (ui.phaseLabel) toolCall.phaseLabel = ui.phaseLabel
+}
+
 /**
  * Unified tool event handler for both main and subagent scopes.
  *
@@ -148,11 +157,13 @@ async function handleCallPhase(
   const isPartial = data.partial === true || isGenerating
   const existing = context.toolCalls.get(toolCallId)
   const isSubagent = scope === 'subagent'
+  const ui = getToolCallUI(data)
 
   if (isSubagent) {
     if (wasToolResultSeen(toolCallId) || existing?.endTime) {
       if (existing && !existing.name && toolName) existing.name = toolName
       if (existing && !existing.params && args) existing.params = args
+      applyToolDisplay(existing, ui)
       return
     }
   } else {
@@ -162,14 +173,15 @@ async function handleCallPhase(
     ) {
       if (!existing.name && toolName) existing.name = toolName
       if (!existing.params && args) existing.params = args
+      applyToolDisplay(existing, ui)
       return
     }
   }
 
   if (isSubagent) {
-    registerSubagentToolCall(context, toolCallId, toolName, args, parentToolCallId!)
+    registerSubagentToolCall(context, toolCallId, toolName, args, parentToolCallId!, ui)
   } else {
-    registerMainToolCall(context, toolCallId, toolName, args, existing)
+    registerMainToolCall(context, toolCallId, toolName, args, existing, ui)
   }
 
   if (isPartial) return
@@ -184,7 +196,7 @@ async function handleCallPhase(
   const readPath = typeof args?.path === 'string' ? args.path : undefined
   if (toolName === 'read' && readPath?.startsWith('internal/')) return
 
-  const { clientExecutable, simExecutable, internal } = getToolCallUI(data)
+  const { clientExecutable, simExecutable, internal } = ui
   const catalogEntry = getToolEntry(toolName)
   const isInternal = internal || catalogEntry?.internal === true
   const staticSimExecuted = isSimExecuted(toolName)
@@ -225,7 +237,8 @@ function registerSubagentToolCall(
   toolCallId: string,
   toolName: string,
   args: Record<string, unknown> | undefined,
-  parentToolCallId: string
+  parentToolCallId: string,
+  ui: { title?: string; phaseLabel?: string }
 ): void {
   if (!context.subAgentToolCalls[parentToolCallId]) {
     context.subAgentToolCalls[parentToolCallId] = []
@@ -235,6 +248,7 @@ function registerSubagentToolCall(
   if (toolCall) {
     if (!toolCall.name && toolName) toolCall.name = toolName
     if (args && !toolCall.params) toolCall.params = args
+    applyToolDisplay(toolCall, ui)
   } else {
     toolCall = {
       id: toolCallId,
@@ -243,6 +257,7 @@ function registerSubagentToolCall(
       params: args,
       startTime: Date.now(),
     }
+    applyToolDisplay(toolCall, ui)
     context.toolCalls.set(toolCallId, toolCall)
     const parentToolCall = context.toolCalls.get(parentToolCallId)
     if (!hideFromUi) {
@@ -259,6 +274,7 @@ function registerSubagentToolCall(
   if (existingSubagentToolCall) {
     if (!existingSubagentToolCall.name && toolName) existingSubagentToolCall.name = toolName
     if (args && !existingSubagentToolCall.params) existingSubagentToolCall.params = args
+    applyToolDisplay(existingSubagentToolCall, ui)
   } else {
     subagentToolCalls.push(toolCall)
   }
@@ -269,11 +285,13 @@ function registerMainToolCall(
   toolCallId: string,
   toolName: string,
   args: Record<string, unknown> | undefined,
-  existing: ToolCallState | undefined
+  existing: ToolCallState | undefined,
+  ui: { title?: string; phaseLabel?: string }
 ): void {
   const hideFromUi = isToolHiddenInUi(toolName)
   if (existing) {
     if (args && !existing.params) existing.params = args
+    applyToolDisplay(existing, ui)
     if (
       !hideFromUi &&
       !context.contentBlocks.some((b) => b.type === 'tool_call' && b.toolCall?.id === toolCallId)
@@ -288,6 +306,7 @@ function registerMainToolCall(
       params: args,
       startTime: Date.now(),
     }
+    applyToolDisplay(created, ui)
     context.toolCalls.set(toolCallId, created)
     if (!hideFromUi) {
       addContentBlock(context, { type: 'tool_call', toolCall: created })
