@@ -125,6 +125,36 @@ describe('runHeadlessCopilotLifecycle', () => {
     expect(body.outcome).toBe(RequestTraceV1Outcome.error)
   })
 
+  it('prefers an explicit simRequestId over the payload messageId', async () => {
+    runCopilotLifecycle.mockResolvedValueOnce(createLifecycleResult())
+
+    await runHeadlessCopilotLifecycle(
+      {
+        message: 'hello',
+        messageId: 'message-req-id',
+      },
+      {
+        userId: 'user-1',
+        chatId: 'chat-1',
+        workflowId: 'workflow-1',
+        simRequestId: 'workflow-request-id',
+        goRoute: '/api/mothership/execute',
+        interactive: false,
+      }
+    )
+
+    expect(runCopilotLifecycle).toHaveBeenCalledWith(
+      expect.objectContaining({ messageId: 'message-req-id' }),
+      expect.objectContaining({
+        simRequestId: 'workflow-request-id',
+      })
+    )
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(init.body))
+    expect(body.simRequestId).toBe('workflow-request-id')
+  })
+
   it('reports an error trace when the lifecycle throws', async () => {
     runCopilotLifecycle.mockRejectedValueOnce(new Error('kaboom'))
 

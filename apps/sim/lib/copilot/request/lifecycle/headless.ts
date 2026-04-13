@@ -17,9 +17,11 @@ export async function runHeadlessCopilotLifecycle(
   options: CopilotLifecycleOptions
 ): Promise<OrchestratorResult> {
   const simRequestId =
-    typeof requestPayload.messageId === 'string' && requestPayload.messageId.length > 0
-      ? requestPayload.messageId
-      : generateId()
+    typeof options.simRequestId === 'string' && options.simRequestId.length > 0
+      ? options.simRequestId
+      : typeof requestPayload.messageId === 'string' && requestPayload.messageId.length > 0
+        ? requestPayload.messageId
+        : generateId()
   const trace = new TraceCollector()
   const requestSpan = trace.startSpan('Headless Mothership Request', 'request', {
     route: options.goRoute,
