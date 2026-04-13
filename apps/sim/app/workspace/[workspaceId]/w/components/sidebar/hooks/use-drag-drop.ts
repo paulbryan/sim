@@ -616,6 +616,18 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     siblingsCacheRef.current.clear()
   }, [])
 
+  useEffect(() => {
+    if (!isDragging) return
+    const container = scrollContainerRef.current
+    if (!container) return
+    const onLeave = (e: DragEvent) => {
+      const related = e.relatedTarget as Node | null
+      if (!related || !container.contains(related)) handleDragEnd()
+    }
+    container.addEventListener('dragleave', onLeave)
+    return () => container.removeEventListener('dragleave', onLeave)
+  }, [isDragging, handleDragEnd])
+
   const setScrollContainer = useCallback((element: HTMLDivElement | null) => {
     scrollContainerRef.current = element
   }, [])
