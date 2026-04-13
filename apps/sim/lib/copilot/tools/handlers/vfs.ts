@@ -37,6 +37,7 @@ export async function executeVfsGrep(
   if (!pattern) {
     return { success: false, error: "Missing required parameter 'pattern'" }
   }
+  const outputMode = (params.output_mode as string) ?? 'content'
 
   const workspaceId = context.workspaceId
   if (!workspaceId) {
@@ -47,12 +48,11 @@ export async function executeVfsGrep(
     const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
     const result = vfs.grep(pattern, params.path as string | undefined, {
       maxResults: (params.maxResults as number) ?? 50,
-      outputMode: (params.output_mode as 'content' | 'files_with_matches' | 'count') ?? 'content',
+      outputMode: outputMode as 'content' | 'files_with_matches' | 'count',
       ignoreCase: (params.ignoreCase as boolean) ?? false,
       lineNumbers: (params.lineNumbers as boolean) ?? true,
       context: (params.context as number) ?? 0,
     })
-    const outputMode = (params.output_mode as string) ?? 'content'
     const key =
       outputMode === 'files_with_matches' ? 'files' : outputMode === 'count' ? 'counts' : 'matches'
     const matchCount = Array.isArray(result)
@@ -65,7 +65,7 @@ export async function executeVfsGrep(
       return {
         success: false,
         error:
-          'Grep result too large to return inline. Use a smaller grep by narrowing the pattern/path, reducing context, or lowering maxResults.',
+          'Grep result too large to return inline. Retry grep with a more specific pattern or narrower path, and reduce context or maxResults. Avoid catch-all greps because smaller searches save context window and make follow-up reads cheaper.',
       }
     }
     logger.debug('vfs_grep result', { pattern, path: params.path, outputMode, matchCount })
@@ -168,7 +168,7 @@ export async function executeVfsRead(
           return {
             success: false,
             error:
-              'Read result too large to return inline. Use grep on this path instead of reading it directly.',
+              'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit. Avoid catch-all greps or full-file reads because they waste context window.',
           }
         }
         const windowedUpload = applyWindow(uploadResult)
@@ -199,7 +199,7 @@ export async function executeVfsRead(
           return {
             success: false,
             error:
-              'Read result too large to return inline. Use grep on this path instead of reading it directly.',
+              'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit. Avoid catch-all greps or full-file reads because they waste context window.',
           }
         }
         const windowedFileContent = applyWindow(fileContent)
@@ -231,7 +231,7 @@ export async function executeVfsRead(
       return {
         success: false,
         error:
-          'Read result too large to return inline. Use grep on this path instead of reading it directly.',
+          'Read result too large to return inline. Use grep with a more specific pattern or narrower path to locate the relevant section, then retry read with offset/limit. Avoid catch-all greps or full-file reads because they waste context window.',
       }
     }
     logger.debug('vfs_read result', { path, totalLines: result.totalLines, offset, limit })

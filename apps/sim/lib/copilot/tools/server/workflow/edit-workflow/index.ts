@@ -92,6 +92,9 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       throw new Error(authorization.message || 'Unauthorized workflow access')
     }
 
+    const workspaceId = authorization.workflow?.workspaceId ?? undefined
+    const workflowName = authorization.workflow?.name ?? undefined
+
     logger.info('Executing edit_workflow', {
       operationCount: operations.length,
       workflowId,
@@ -124,7 +127,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     if (context?.userId) {
       const { filteredOperations, errors: credErrors } = await preValidateCredentialInputs(
         operations,
-        { userId: context.userId },
+        { userId: context.userId, workspaceId },
         workflowState
       )
       operationsToApply = filteredOperations
@@ -140,20 +143,6 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
 
     // Add credential validation errors
     validationErrors.push(...credentialErrors)
-
-    let workspaceId: string | undefined
-    let workflowName: string | undefined
-    try {
-      const [workflowRecord] = await db
-        .select({ workspaceId: workflowTable.workspaceId, name: workflowTable.name })
-        .from(workflowTable)
-        .where(eq(workflowTable.id, workflowId))
-        .limit(1)
-      workspaceId = workflowRecord?.workspaceId ?? undefined
-      workflowName = workflowRecord?.name ?? undefined
-    } catch (error) {
-      logger.warn('Failed to get workflow metadata for validation', { error, workflowId })
-    }
 
     // Validate selector IDs exist in the database
     if (context?.userId) {

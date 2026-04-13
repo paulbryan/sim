@@ -52,7 +52,8 @@ describe('vfs handlers oversize policy', () => {
     )
 
     expect(result.success).toBe(false)
-    expect(result.error).toContain('smaller grep')
+    expect(result.error).toContain('more specific pattern')
+    expect(result.error).toContain('context window')
   })
 
   it('fails oversized read results with grep guidance', async () => {
@@ -67,6 +68,8 @@ describe('vfs handlers oversize policy', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('Use grep')
+    expect(result.error).toContain('offset/limit')
+    expect(result.error).toContain('context window')
   })
 
   it('fails file-backed oversized read placeholders with grep guidance', async () => {
@@ -85,5 +88,7 @@ describe('vfs handlers oversize policy', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('Use grep')
+    expect(result.error).toContain('offset/limit')
+    expect(result.error).toContain('context window')
   })
 })
